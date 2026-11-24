@@ -1,0 +1,657 @@
+{
+  "about": "Shared by the iOS tests (SharedExpectationsTests.swift) and the Android engine's tests (SharedExpectationsTest.kt). Each source fixture is parsed for the query below; their journeys, in this order, are merged and then ranked under every sort, and once with the filter given. Generated from the Swift implementation and checked by hand against the raw fixtures. Times are UTC to the second; providers and sources are listed in the order the code keeps them.",
+  "query": {
+    "arriveBy": false,
+    "departAt": "2026-10-28T11:55:00Z",
+    "destination": {
+      "latitude": 51.5054,
+      "longitude": -0.0235,
+      "name": "Canary Wharf"
+    },
+    "origin": {
+      "latitude": 51.5308,
+      "longitude": -0.1238,
+      "name": "King's Cross"
+    }
+  },
+  "sources": [
+    {
+      "fixture": "tfl-journeys.json",
+      "journeys": [
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T11:58:00Z",
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:46:00Z",
+          "departure": "2026-10-28T12:10:00Z",
+          "signature": "rail:thameslink>rail:elizabeth"
+        }
+      ],
+      "provider": "tfl",
+      "variant": "Fastest"
+    },
+    {
+      "fixture": "transitous-plan.json",
+      "journeys": [
+        {
+          "arrival": "2026-10-28T12:30:00Z",
+          "departure": "2026-10-28T12:00:00Z",
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:36:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "signature": "rail:northern>rail:jubilee>road:d7"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:41:00Z",
+          "departure": "2026-10-28T12:09:00Z",
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "signature": "rail:circle>rail:elizabeth"
+        }
+      ],
+      "provider": "transitous",
+      "variant": "Fastest"
+    },
+    {
+      "fixture": "google-routes.json",
+      "journeys": [
+        {
+          "arrival": "2026-10-28T12:33:30Z",
+          "departure": "2026-10-28T12:00:00Z",
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:38:30Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:34:40Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ],
+      "provider": "google",
+      "variant": "Fastest"
+    }
+  ],
+  "merged": [
+    {
+      "arrival": "2026-10-28T12:37:00Z",
+      "departure": "2026-10-28T11:58:00Z",
+      "firstBoarding": "2026-10-28T12:07:00Z",
+      "signature": "rail:northern>rail:dlr",
+      "sources": [
+        "tfl:Fastest",
+        "google:Fastest",
+        "transitous:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:38:00Z",
+      "departure": "2026-10-28T12:02:00Z",
+      "firstBoarding": "2026-10-28T12:10:00Z",
+      "signature": "rail:thameslink>rail:elizabeth",
+      "sources": [
+        "tfl:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:46:00Z",
+      "departure": "2026-10-28T12:10:00Z",
+      "firstBoarding": "2026-10-28T12:18:00Z",
+      "signature": "rail:thameslink>rail:elizabeth",
+      "sources": [
+        "tfl:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:28:40Z",
+      "departure": "2026-10-28T12:02:00Z",
+      "firstBoarding": "2026-10-28T12:05:00Z",
+      "signature": "rail:hammersmithandcity>rail:elizabeth",
+      "sources": [
+        "google:Fastest",
+        "transitous:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:39:00Z",
+      "departure": "2026-10-28T12:02:00Z",
+      "firstBoarding": "2026-10-28T12:06:00Z",
+      "signature": "rail:victoria>rail:jubilee",
+      "sources": [
+        "google:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:35:00Z",
+      "departure": "2026-10-28T12:05:00Z",
+      "firstBoarding": "2026-10-28T12:09:00Z",
+      "signature": "rail:northern>rail:jubilee",
+      "sources": [
+        "google:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:34:40Z",
+      "departure": "2026-10-28T12:08:00Z",
+      "firstBoarding": "2026-10-28T12:11:00Z",
+      "signature": "rail:hammersmithandcity>rail:elizabeth",
+      "sources": [
+        "google:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:33:00Z",
+      "departure": "2026-10-28T12:03:00Z",
+      "firstBoarding": "2026-10-28T12:08:00Z",
+      "signature": "rail:northern>rail:jubilee>road:d7",
+      "sources": [
+        "transitous:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:37:00Z",
+      "departure": "2026-10-28T12:08:00Z",
+      "firstBoarding": "2026-10-28T12:12:00Z",
+      "signature": "rail:metropolitan>rail:elizabeth",
+      "sources": [
+        "transitous:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:41:00Z",
+      "departure": "2026-10-28T12:09:00Z",
+      "firstBoarding": "2026-10-28T12:14:00Z",
+      "signature": "rail:northern>rail:dlr",
+      "sources": [
+        "transitous:Fastest"
+      ]
+    },
+    {
+      "arrival": "2026-10-28T12:45:00Z",
+      "departure": "2026-10-28T12:15:00Z",
+      "firstBoarding": "2026-10-28T12:19:00Z",
+      "signature": "rail:circle>rail:elizabeth",
+      "sources": [
+        "transitous:Fastest"
+      ]
+    }
+  ],
+  "ranking": {
+    "best": {
+      "hidden": 0,
+      "more": [
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:jubilee>road:d7"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:41:00Z",
+          "departure": "2026-10-28T12:09:00Z",
+          "otherDepartures": [
+            "2026-10-28T11:58:00Z"
+          ],
+          "providers": [
+            "google",
+            "tfl",
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:10:00Z"
+          ],
+          "providers": [
+            "tfl"
+          ],
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:circle>rail:elizabeth"
+        }
+      ],
+      "top": [
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:08:00Z"
+          ],
+          "providers": [
+            "google",
+            "transitous"
+          ],
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ]
+    },
+    "fastest": {
+      "hidden": 0,
+      "more": [
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:jubilee>road:d7"
+        },
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T11:58:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:09:00Z"
+          ],
+          "providers": [
+            "google",
+            "tfl",
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:10:00Z"
+          ],
+          "providers": [
+            "tfl"
+          ],
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:circle>rail:elizabeth"
+        }
+      ],
+      "top": [
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:08:00Z"
+          ],
+          "providers": [
+            "google",
+            "transitous"
+          ],
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ]
+    },
+    "fewestChanges": {
+      "hidden": 0,
+      "more": [
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T11:58:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:09:00Z"
+          ],
+          "providers": [
+            "google",
+            "tfl",
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:10:00Z"
+          ],
+          "providers": [
+            "tfl"
+          ],
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:circle>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:jubilee>road:d7"
+        }
+      ],
+      "top": [
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:08:00Z"
+          ],
+          "providers": [
+            "google",
+            "transitous"
+          ],
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ]
+    },
+    "leastWalking": {
+      "hidden": 0,
+      "more": [
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:jubilee>road:d7"
+        },
+        {
+          "arrival": "2026-10-28T12:41:00Z",
+          "departure": "2026-10-28T12:09:00Z",
+          "otherDepartures": [
+            "2026-10-28T11:58:00Z"
+          ],
+          "providers": [
+            "google",
+            "tfl",
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:10:00Z"
+          ],
+          "providers": [
+            "tfl"
+          ],
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:circle>rail:elizabeth"
+        }
+      ],
+      "top": [
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:08:00Z"
+          ],
+          "providers": [
+            "google",
+            "transitous"
+          ],
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ]
+    }
+  },
+  "filtered": {
+    "avoided": [],
+    "maxChanges": 1,
+    "ranked": {
+      "hidden": 1,
+      "more": [
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:northern>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "google"
+          ],
+          "signature": "rail:victoria>rail:jubilee"
+        },
+        {
+          "arrival": "2026-10-28T12:41:00Z",
+          "departure": "2026-10-28T12:09:00Z",
+          "otherDepartures": [
+            "2026-10-28T11:58:00Z"
+          ],
+          "providers": [
+            "google",
+            "tfl",
+            "transitous"
+          ],
+          "signature": "rail:northern>rail:dlr"
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:metropolitan>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:10:00Z"
+          ],
+          "providers": [
+            "tfl"
+          ],
+          "signature": "rail:thameslink>rail:elizabeth"
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "otherDepartures": [],
+          "providers": [
+            "transitous"
+          ],
+          "signature": "rail:circle>rail:elizabeth"
+        }
+      ],
+      "top": [
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "otherDepartures": [
+            "2026-10-28T12:08:00Z"
+          ],
+          "providers": [
+            "google",
+            "transitous"
+          ],
+          "signature": "rail:hammersmithandcity>rail:elizabeth"
+        }
+      ]
+    },
+    "sort": "best"
+  }
+}
