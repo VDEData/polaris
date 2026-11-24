@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+.apns.env
+# Your own deployment (scripts/wrangler.mjs)
+wrangler.local.jsonc
+wrangler.resolved.jsonc

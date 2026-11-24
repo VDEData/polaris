@@ -1,0 +1,23 @@
+{
+  "name": "polaris-alerts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/wrangler.mjs dev",
+    "deploy": "node scripts/wrangler.mjs deploy",
+    "config": "node scripts/wrangler.mjs --print",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test 'test/**/*.test.ts'",
+    "migrate": "node scripts/wrangler.mjs d1 migrations apply polaris-alerts --remote",
+    "migrate:local": "node scripts/wrangler.mjs d1 migrations apply polaris-alerts --local"
+  },
+  "dependencies": {
+    "hono": "4.12.30"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260702.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.145.0"
+  }
+}

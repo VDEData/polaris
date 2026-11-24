@@ -1,0 +1,37 @@
+{
+  "environment": "sandbox",
+  "timeZone": "Europe/London",
+  "alerts": [
+    {
+      "id": "6F1C2E1A-0B8E-4D59-9C3A-2E7A5D9B1C11",
+      "name": "Liverpool Street → Canary Wharf",
+      "days": [1, 2, 3, 4, 5],
+      "windows": [{ "start": 420, "end": 600 }, { "start": 990, "end": 1170, "direction": "back" }],
+      "minorDelays": true,
+      "direction": "out",
+      "segments": [
+        {
+          "line": { "id": "elizabeth", "name": "Elizabeth line" },
+          "mode": "elizabeth-line",
+          "from": { "id": "910GLIVSTLL|910GLIVST", "name": "Liverpool Street" },
+          "to": { "id": "910GCANWHRF", "name": "Canary Wharf" },
+          "stations": ["910GLIVSTLL|910GLIVST", "910GWCHAPXR", "910GCANWHRF"]
+        }
+      ]
+    },
+    {
+      "id": "0D7A6C55-41C2-4E0B-8B3F-5A1E2C9D4F22",
+      "name": "District line",
+      "days": [6, 7],
+      "windows": [{ "start": 600, "end": 840 }],
+      "minorDelays": false,
+      "segments": [
+        {
+          "line": { "id": "district", "name": "District line" },
+          "mode": "tube",
+          "stations": []
+        }
+      ]
+    }
+  ]
+}

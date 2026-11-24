@@ -1,0 +1,24 @@
+// Settings every build shares, with neutral defaults. Yours go in Config/Secrets.xcconfig
+// (git-ignored; scripts/generate.sh copies it from Secrets.example.xcconfig), read last so
+// it wins. In an xcconfig "//" starts a comment, so write URLs as https:/$()/host.
+
+// The app's bundle ID; the widget and tests add ".widgets" and ".tests". The Keychain items,
+// the log subsystem and the Google key's iOS restriction all follow it, and an alerts server's
+// APNS_TOPIC must equal it.
+POLARIS_BUNDLE_ID = com.example.polaris
+// Your Apple team ID (developer.apple.com, Membership). Empty is fine for the simulator.
+DEVELOPMENT_TEAM =
+
+// How Polaris identifies itself to the open-data services (User-Agent): a URL or address
+// where whoever runs them can reach the person running this build. Empty sends none.
+POLARIS_CONTACT =
+
+// The alerts server (worker/) and its APP_TOKEN. Both empty: alerts are off until an
+// address and token are entered in Settings.
+POLARIS_ALERTS_URL =
+POLARIS_ALERTS_TOKEN =
+
+GOOGLE_ROUTES_API_KEY =
+TFL_APP_KEY =
+
+#include? "Secrets.xcconfig"

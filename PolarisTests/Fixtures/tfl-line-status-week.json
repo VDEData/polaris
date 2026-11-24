@@ -1,0 +1,561 @@
+[
+ {
+  "id": "central",
+  "name": "Central",
+  "modeName": "tube",
+  "lineStatuses": [
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Central Line: Minor delays between North Acton and Ealing Broadway / West Ruislip and between, Leytonstone and Epping / Hainault via Newbury Park due to train cancellations. GOOD SERVICE on the rest of the line. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T10:26:40Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUNAN",
+       "commonName": "North Acton Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUEBY",
+       "commonName": "Ealing Broadway Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWTA",
+       "commonName": "West Acton Underground Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Central Line: Minor delays between North Acton and Ealing Broadway / West Ruislip and between, Leytonstone and Epping / Hainault via Newbury Park due to train cancellations. GOOD SERVICE on the rest of the line. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T10:26:40Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUGFD",
+       "commonName": "Greenford Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUHGR",
+       "commonName": "Hanger Lane Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUNAN",
+       "commonName": "North Acton Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUNHT",
+       "commonName": "Northolt Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUPVL",
+       "commonName": "Perivale Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLURSG",
+       "commonName": "Ruislip Gardens Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUSRP",
+       "commonName": "South Ruislip Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWRP",
+       "commonName": "West Ruislip Underground Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Central Line: Minor delays between North Acton and Ealing Broadway / West Ruislip and between, Leytonstone and Epping / Hainault via Newbury Park due to train cancellations. GOOD SERVICE on the rest of the line. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T10:26:40Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUBKH",
+       "commonName": "Buckhurst Hill Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUDBN",
+       "commonName": "Debden Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUEPG",
+       "commonName": "Epping Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLULGN",
+       "commonName": "Loughton Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLULYS",
+       "commonName": "Leytonstone Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUSNB",
+       "commonName": "Snaresbrook Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUSWF",
+       "commonName": "South Woodford Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUTHB",
+       "commonName": "Theydon Bois Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWOF",
+       "commonName": "Woodford Underground Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Central Line: Minor delays between North Acton and Ealing Broadway / West Ruislip and between, Leytonstone and Epping / Hainault via Newbury Park due to train cancellations. GOOD SERVICE on the rest of the line. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T10:26:40Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLULYS",
+       "commonName": "Leytonstone Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUBKE",
+       "commonName": "Barkingside Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUFLP",
+       "commonName": "Fairlop Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUGTH",
+       "commonName": "Gants Hill Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUHLT",
+       "commonName": "Hainault Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUNBP",
+       "commonName": "Newbury Park Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLURBG",
+       "commonName": "Redbridge Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWSD",
+       "commonName": "Wanstead Underground Station"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "district",
+  "name": "District",
+  "modeName": "tube",
+  "lineStatuses": [
+   {
+    "statusSeverity": 6,
+    "statusSeverityDescription": "Severe Delays",
+    "reason": "District Line: Severe delays\u00a0between Earl's Court and Edgware Road due to an earlier points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line\u00a0 due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T11:18:19Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUECT",
+       "commonName": "Earl's Court Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUBWT",
+       "commonName": "Bayswater Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUERC",
+       "commonName": "Edgware Road (Circle Line) Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUHSK",
+       "commonName": "High Street Kensington Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUNHG",
+       "commonName": "Notting Hill Gate Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUPAC",
+       "commonName": "Paddington Underground Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "District Line: Severe delays\u00a0between Earl's Court and Edgware Road due to an earlier points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line\u00a0 due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T11:18:19Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": []
+    }
+   }
+  ]
+ },
+ {
+  "id": "dlr",
+  "name": "DLR",
+  "modeName": "dlr",
+  "lineStatuses": [
+   {
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "DOCKLANDS LIGHT RAILWAY: Sunday 15 November, no service between Shadwell and Tower Gateway.",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-15T04:30:00Z",
+      "toDate": "2026-11-16T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZDLSHA",
+       "commonName": "Shadwell DLR Station"
+      },
+      {
+       "stationNaptan": "940GZZDLTWG",
+       "commonName": "Tower Gateway DLR Station"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "elizabeth",
+  "name": "Elizabeth line",
+  "modeName": "elizabeth-line",
+  "lineStatuses": [
+   {
+    "statusSeverity": 7,
+    "statusSeverityDescription": "Reduced Service",
+    "reason": "ELIZABETH LINE: Monday 16, Tuesday 17, Wednesday 18 and Thursday 19 November, the 2217 Abbey Wood to Reading train will terminate at Maidenhead. Customers travelling to Twyford and Reading should change at Maidenhead to the 2338 GWR service to Twyford and Reading. At Maidenhead, connecting westbound GWR trains to Twyford and Reading use Platform 1. For step-free interchange from platform 3 to platform 1, please use the lift to the main entrance, and then continue at street level under the railway bridge and up Shoppenhangers Road to the car park. Please ask staff to open the gate to platform 1, and allow extra time for your journey. The 2317 Reading to Paddington train is revised to start at Maidenhead at 2333, a later GWR service operates at 2350 from Reading to Paddington calling at Twyford, Reading and Slough",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-16T23:00:00Z",
+      "toDate": "2026-11-16T23:59:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GMDNHEAD",
+       "commonName": "Maidenhead Rail Station"
+      },
+      {
+       "stationNaptan": "910GRDNGSTN",
+       "commonName": "Reading Rail Station"
+      },
+      {
+       "stationNaptan": "910GTWYFORD",
+       "commonName": "Twyford Rail Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "ELIZABETH LINE: Sunday 15 November, until 0800, no service between West Drayton and Slough. Replacement bus service W1 operates between Hayes & Harlington and Slough via West Drayton and Langley (not serving Iver).",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-15T04:30:00Z",
+      "toDate": "2026-11-15T08:00:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GIVER",
+       "commonName": "Iver Rail Station"
+      },
+      {
+       "stationNaptan": "910GLANGLEY",
+       "commonName": "Langley (Berks) Rail Station"
+      },
+      {
+       "stationNaptan": "910GSLOUGH",
+       "commonName": "Slough Rail Station"
+      },
+      {
+       "stationNaptan": "910GWDRYTON",
+       "commonName": "West Drayton Rail Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "ELIZABETH LINE: Sunday 15 November, until 1015, no service between Paddington and Abbey Wood / Stratford. Trains operate between Paddington National Rail station and Heathrow Terminal 4, Heathrow Terminal 5, West Drayton (until 0800) and Reading (after 0800), and between Liverpool Street National Rail station and Shenfield, not serving Whitechapel.",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-15T04:30:00Z",
+      "toDate": "2026-11-15T10:15:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GBONDST",
+       "commonName": "Bond Street"
+      },
+      {
+       "stationNaptan": "910GFRNDXR",
+       "commonName": "Farringdon"
+      },
+      {
+       "stationNaptan": "910GLIVSTLL",
+       "commonName": "Liverpool Street"
+      },
+      {
+       "stationNaptan": "910GPADTLL",
+       "commonName": "Paddington"
+      },
+      {
+       "stationNaptan": "910GSTFD",
+       "commonName": "Stratford (London) Rail Station"
+      },
+      {
+       "stationNaptan": "910GTOTCTRD",
+       "commonName": "Tottenham Court Road"
+      },
+      {
+       "stationNaptan": "910GWCHAPXR",
+       "commonName": "Whitechapel"
+      },
+      {
+       "stationNaptan": "910GABWDXR",
+       "commonName": "Abbey Wood"
+      },
+      {
+       "stationNaptan": "910GCANWHRF",
+       "commonName": "Canary Wharf"
+      },
+      {
+       "stationNaptan": "910GCUSTMHS",
+       "commonName": "Custom House Rail Station"
+      },
+      {
+       "stationNaptan": "910GWOLWXR",
+       "commonName": "Woolwich"
+      },
+      {
+       "stationNaptan": "910GPADTON",
+       "commonName": "London Paddington Rail Station"
+      },
+      {
+       "stationNaptan": "910GLIVST",
+       "commonName": "London Liverpool Street Rail Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 7,
+    "statusSeverityDescription": "Reduced Service",
+    "reason": "ELIZABETH LINE: Sunday 15 November, from 1015, a reduced service operates between Paddington and Heathrow Terminal 4 / Maidenhead. Two trains an hour serve West Drayton, Langley, Slough, Burnham and Maidenhead. Four trains an hour serve Heathrow Terminals 2 and 3. Eight trains an hour serve Ealing Broadway, Southall and Hayes & Harlington.",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-15T10:15:00Z",
+      "toDate": "2026-11-16T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GACTONML",
+       "commonName": "Acton Main Line Rail Station"
+      },
+      {
+       "stationNaptan": "910GEALINGB",
+       "commonName": "Ealing Broadway Rail Station"
+      },
+      {
+       "stationNaptan": "910GHANWELL",
+       "commonName": "Hanwell Rail Station"
+      },
+      {
+       "stationNaptan": "910GHAYESAH",
+       "commonName": "Hayes & Harlington Rail Station"
+      },
+      {
+       "stationNaptan": "910GHTRWAPT",
+       "commonName": "Heathrow Terminals 2 & 3 Rail Station"
+      },
+      {
+       "stationNaptan": "910GHTRWTM4",
+       "commonName": "Heathrow Terminal 4 Rail Station"
+      },
+      {
+       "stationNaptan": "910GPADTLL",
+       "commonName": "Paddington"
+      },
+      {
+       "stationNaptan": "910GSTHALL",
+       "commonName": "Southall Rail Station"
+      },
+      {
+       "stationNaptan": "910GWEALING",
+       "commonName": "West Ealing Rail Station"
+      },
+      {
+       "stationNaptan": "910GBNHAM",
+       "commonName": "Burnham (Berks) Rail Station"
+      },
+      {
+       "stationNaptan": "910GIVER",
+       "commonName": "Iver Rail Station"
+      },
+      {
+       "stationNaptan": "910GLANGLEY",
+       "commonName": "Langley (Berks) Rail Station"
+      },
+      {
+       "stationNaptan": "910GMDNHEAD",
+       "commonName": "Maidenhead Rail Station"
+      },
+      {
+       "stationNaptan": "910GSLOUGH",
+       "commonName": "Slough Rail Station"
+      },
+      {
+       "stationNaptan": "910GTAPLOW",
+       "commonName": "Taplow Rail Station"
+      },
+      {
+       "stationNaptan": "910GWDRYTON",
+       "commonName": "West Drayton Rail Station"
+      },
+      {
+       "stationNaptan": "910GPADTON",
+       "commonName": "London Paddington Rail Station"
+      }
+     ]
+    }
+   },
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Minor delays between Ilford and Shenfield while we fix a signal system failure in the Gidea Park area. GOOD SERVICE on the rest of line.  ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-09T09:34:52Z",
+      "toDate": "2026-11-10T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GBRTWOOD",
+       "commonName": "Brentwood Rail Station"
+      },
+      {
+       "stationNaptan": "910GCHDWLHT",
+       "commonName": "Chadwell Heath Rail Station"
+      },
+      {
+       "stationNaptan": "910GGIDEAPK",
+       "commonName": "Gidea Park Rail Station"
+      },
+      {
+       "stationNaptan": "910GGODMAYS",
+       "commonName": "Goodmayes Rail Station"
+      },
+      {
+       "stationNaptan": "910GHRLDWOD",
+       "commonName": "Harold Wood Rail Station"
+      },
+      {
+       "stationNaptan": "910GILFORD",
+       "commonName": "Ilford Rail Station"
+      },
+      {
+       "stationNaptan": "910GROMFORD",
+       "commonName": "Romford Rail Station"
+      },
+      {
+       "stationNaptan": "910GSHENFLD",
+       "commonName": "Shenfield Rail Station"
+      },
+      {
+       "stationNaptan": "910GSVNKNGS",
+       "commonName": "Seven Kings Rail Station"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "jubilee",
+  "name": "Jubilee",
+  "modeName": "tube",
+  "lineStatuses": [
+   {
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "validityPeriods": []
+   }
+  ]
+ }
+]

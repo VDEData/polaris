@@ -1,0 +1,267 @@
+[
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "bakerloo",
+  "name": "Bakerloo",
+  "modeName": "tube",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "bakerloo",
+    "statusSeverity": 6,
+    "statusSeverityDescription": "Severe Delays",
+    "reason": "Bakerloo Line: Severe delays due to earlier infrastructure damage at Harlesden and while we fix a points failure at Elephant and Castle. Tickets are being accepted on London Buses and London Northwestern Railway. \r\n ",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-08T13:33:32Z",
+      "toDate": "2026-11-09T01:29:00Z",
+      "isNow": true
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "RealTime",
+     "categoryDescription": "RealTime",
+     "description": "Bakerloo Line: Severe delays due to earlier infrastructure damage at Harlesden and while we fix a points failure at Elephant and Castle. Tickets are being accepted on London Buses and London Northwestern Railway. \r\n "
+    }
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "dlr",
+  "name": "DLR",
+  "modeName": "dlr",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": []
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "elizabeth",
+  "name": "Elizabeth line",
+  "modeName": "elizabeth-line",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.05Z",
+  "modified": "2026-09-22T09:53:41.05Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": []
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "jubilee",
+  "name": "Jubilee",
+  "modeName": "tube",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "jubilee",
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Jubilee Line: Minor delays between Wembley Park and Stanmore due to an earlier faulty train at Swiss Cottage. GOOD SERVICE on the rest of the line. ",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-08T15:50:22Z",
+      "toDate": "2026-11-09T01:29:00Z",
+      "isNow": true
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "RealTime",
+     "categoryDescription": "RealTime",
+     "description": "Jubilee Line: Minor delays between Wembley Park and Stanmore due to an earlier faulty train at Swiss Cottage. GOOD SERVICE on the rest of the line. "
+    }
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "mildmay",
+  "name": "Mildmay",
+  "modeName": "overground",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "mildmay",
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-07T04:30:00Z",
+      "toDate": "2026-11-09T01:29:00Z",
+      "isNow": false
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "PlannedWork",
+     "categoryDescription": "PlannedWork",
+     "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+     "created": "2026-10-01T14:52:00Z"
+    }
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "northern",
+  "name": "Northern",
+  "modeName": "tube",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": []
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "southern",
+  "name": "Southern",
+  "modeName": "national-rail",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "southern",
+    "statusSeverity": 0,
+    "statusSeverityDescription": "Special Service",
+    "reason": "https://www.nationalrail.co.uk/service-disruptions/eastbourne-20261108/",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-08T07:57:32Z",
+      "toDate": "2026-11-08T23:59:59Z",
+      "isNow": false
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "Information",
+     "categoryDescription": "Information",
+     "description": "https://www.nationalrail.co.uk/service-disruptions/eastbourne-20261108/",
+     "additionalInfo": "Custom"
+    }
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "waterloo-city",
+  "name": "Waterloo & City",
+  "modeName": "tube",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "waterloo-city",
+    "statusSeverity": 4,
+    "statusSeverityDescription": "Planned Closure",
+    "reason": "Waterloo & City line: service operates 06:00 until 00:30, Monday to Friday only. There is no service on Saturdays, Sundays and on bank/public holidays.",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-08T04:15:00Z",
+      "toDate": "2026-11-08T23:59:00Z",
+      "isNow": false
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "Information",
+     "categoryDescription": "Information",
+     "description": "Waterloo & City line: service operates 06:00 until 00:30, Monday to Friday only. There is no service on Saturdays, Sundays and on bank/public holidays.",
+     "created": "2026-01-04T01:21:00Z"
+    }
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+  "id": "windrush",
+  "name": "Windrush",
+  "modeName": "overground",
+  "disruptions": [],
+  "created": "2026-09-22T09:53:41.037Z",
+  "modified": "2026-09-22T09:53:41.037Z",
+  "lineStatuses": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+    "id": 0,
+    "lineId": "windrush",
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+    "created": "0001-01-01T00:00:00",
+    "validityPeriods": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+      "fromDate": "2026-11-08T00:01:00Z",
+      "toDate": "2026-11-09T01:29:00Z",
+      "isNow": false
+     }
+    ],
+    "disruption": {
+     "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+     "category": "PlannedWork",
+     "categoryDescription": "PlannedWork",
+     "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+     "created": "2026-10-01T14:54:00Z"
+    }
+   }
+  ]
+ }
+]

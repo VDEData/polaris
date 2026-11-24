@@ -1,0 +1,121 @@
+[
+ {
+  "id": "central",
+  "name": "Central",
+  "lineStatuses": [
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Central Line: Minor delays due to train cancellations. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-23T16:55:39Z",
+      "toDate": "2026-11-24T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": []
+    }
+   }
+  ]
+ },
+ {
+  "id": "district",
+  "name": "District",
+  "lineStatuses": [
+   {
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "validityPeriods": []
+   }
+  ]
+ },
+ {
+  "id": "elizabeth",
+  "name": "Elizabeth line",
+  "lineStatuses": [
+   {
+    "statusSeverity": 6,
+    "statusSeverityDescription": "Severe Delays",
+    "reason": "Severe delays while we conduct a safety inspection of the track at Ealing Broadway and due to an earlier customer incident. Tickets are being accepted on London Underground. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-23T18:18:42Z",
+      "toDate": "2026-11-24T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": []
+    }
+   }
+  ]
+ },
+ {
+  "id": "northern",
+  "name": "Northern",
+  "lineStatuses": [
+   {
+    "statusSeverity": 9,
+    "statusSeverityDescription": "Minor Delays",
+    "reason": "Northern Line: Minor delays between Camden Town and Kennington via Charing Cross due to a points failure at Kennington. GOOD SERVICE on the rest of the line. ",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-23T18:14:09Z",
+      "toDate": "2026-11-24T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "RealTime",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUCHX",
+       "commonName": "Charing Cross Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUCTN",
+       "commonName": "Camden Town Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUEMB",
+       "commonName": "Embankment Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUEUS",
+       "commonName": "Euston Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUGDG",
+       "commonName": "Goodge Street Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUKNG",
+       "commonName": "Kennington Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLULSQ",
+       "commonName": "Leicester Square Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUMTC",
+       "commonName": "Mornington Crescent Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUTCR",
+       "commonName": "Tottenham Court Road Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWLO",
+       "commonName": "Waterloo Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUWRR",
+       "commonName": "Warren Street Underground Station"
+      }
+     ]
+    }
+   }
+  ]
+ }
+]

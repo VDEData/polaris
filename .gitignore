@@ -1,0 +1,23 @@
+# --- secrets: never commit ---
+Config/Secrets.xcconfig
+*.p8
+.env
+.env.*
+
+# --- generated / build ---
+*.xcodeproj
+build/
+DerivedData/
+.build/
+xcuserdata/
+*.xcuserstate
+
+.DS_Store
+
+# --- local review material ---
+screenshots/
+
+# --- maintainer notes and design history: kept locally, not in the repo ---
+/AGENTS.md
+/design/
+/docs/
