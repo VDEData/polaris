@@ -1,6 +1,15 @@
 package polaris.engine
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -12,7 +21,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /** Answers every request from the recorded fixtures and remembers what was sent. */
-class RecordingTransport : HttpTransport {
+open class RecordingTransport : HttpTransport {
     val sent = mutableListOf<HttpRequest>()
 
     fun to(host: String) = sent.filter { it.host == host }
@@ -52,20 +61,26 @@ class BudgetTest {
         TimeMode.DepartAt(iso("2026-10-28T11:55:00Z")),
     )
 
-    private class Rig(clockAt: Instant, used: Int = 0, val contact: String? = "https://example.org/polaris") {
-        val transport = RecordingTransport()
+    private class Rig(
+        clockAt: Instant,
+        used: Int = 0,
+        googleKey: String? = "test-key",
+        deep: Boolean = true,
+        contact: String? = "https://example.org/polaris",
+        val transport: RecordingTransport = RecordingTransport(),
+        val app: AppIdentity = AppIdentity("com.example.polaris", "00112233445566778899AABBCCDDEEFF00112233"),
+    ) {
         val clock = MutableClock(clockAt)
-        val store = InMemoryKeyValueStore()
-        val usage = GoogleUsage(store).also { it.spend(used, clockAt) }
-        val http = HTTP(transport, "0.1.0") { contact }
-        val model = SearchModel(http, usage, NetworkStatusCache(clock), clock, packageName = "com.example.polaris")
-        fun settings(googleKey: String? = "test-key", deep: Boolean = true) =
-            AppSettings(build = BuildDefaults(googleKey = googleKey)).also { it.deepSearch = deep }
+        val usage = GoogleUsage(InMemoryKeyValueStore()).also { it.spend(used, clockAt) }
+        val settings = AppSettings(build = BuildDefaults(googleKey = googleKey, contact = contact)).also { it.deepSearch = deep }
+        // The same factory the app uses, with a recording transport in place of the network.
+        val model = SearchModel.create(settings, usage, "0.1.0", app, transport, NetworkStatusCache(clock), clock)
+        suspend fun search(query: JourneyQuery) = model.search(query, settings)
     }
 
     @Test fun aDeepSearchSendsTransitousOneRequestWithItsUserAgent() = runTest {
         val rig = Rig(now)
-        rig.model.search(query, rig.settings())
+        rig.search(query)
         val transitous = rig.transport.to("api.transitous.org")
         assertEquals(1, transitous.size, "one Transitous request per search, even deep")
         assertEquals("Polaris/0.1.0 (Android transit app; https://example.org/polaris)", transitous[0].headers["User-Agent"])
@@ -76,7 +91,7 @@ class BudgetTest {
 
     @Test fun aDeepSearchsWholeBudget() = runTest {
         val rig = Rig(now)
-        rig.model.search(query, rig.settings())
+        rig.search(query)
         val tfl = rig.transport.to("api.tfl.gov.uk")
         assertEquals(3, tfl.count { "/Journey/JourneyResults/" in it.url }, "TfL's three ways")
         assertEquals(2, tfl.count { "/Line/Mode/" in it.url || "/StopPoint/Mode/" in it.url }, "TfL status, two requests")
@@ -93,56 +108,150 @@ class BudgetTest {
     @Test fun googleStepsDownAsTheMonthFillsUp() = runTest {
         for ((used, expected) in listOf(0 to 5, 699 to 5, 700 to 1, 899 to 1, 900 to 0)) {
             val rig = Rig(now, used)
-            rig.model.search(query, rig.settings())
+            rig.search(query)
             assertEquals(expected, rig.transport.to("routes.googleapis.com").size, "with $used used")
             assertEquals(used + expected, rig.usage.allowance.usedThisMonth(now), "spent with $used used")
             if (expected == 0) assertEquals(ProviderStatus.Off("Free allowance used this month"), rig.model.state.value.statuses[ProviderID.google])
         }
         // A quick search asks one way only.
-        val rig = Rig(now)
-        rig.model.search(query, rig.settings(deep = false))
+        val rig = Rig(now, deep = false)
+        rig.search(query)
         assertEquals(1, rig.transport.to("routes.googleapis.com").size)
         assertEquals(1, rig.transport.count("/Journey/JourneyResults/"))
     }
 
     @Test fun googleIsSpentBeforeItIsSent() = runTest {
-        val rig = Rig(now)
-        val failing = HTTP({ request -> rig.transport.send(request); HttpResponse(500, ByteArray(0)) }, "0.1.0")
-        SearchModel(failing, rig.usage, NetworkStatusCache(rig.clock), rig.clock).search(query, rig.settings())
-        // Every request sent counts against the allowance, answered or not.
-        assertEquals(5, rig.transport.to("routes.googleapis.com").size)
+        // What the month's count says at the moment each Google request goes out.
+        val countWhenSent = mutableListOf<Int>()
+        lateinit var rig: Rig
+        val transport = object : RecordingTransport() {
+            override suspend fun send(request: HttpRequest): HttpResponse {
+                if (request.host != "routes.googleapis.com") return super.send(request)
+                countWhenSent += rig.usage.allowance.usedThisMonth(now)
+                super.send(request)
+                // Google refuses the key: as on iOS, the requests were still sent, so they still count.
+                return HttpResponse(403, ByteArray(0))
+            }
+        }
+        rig = Rig(now, transport = transport)
+        rig.search(query)
+        assertEquals(listOf(5, 5, 5, 5, 5), countWhenSent, "all five counted before the first was sent")
         assertEquals(5, rig.usage.allowance.usedThisMonth(now))
+        assertEquals(ProviderStatus.Failed("Key rejected"), rig.model.state.value.statuses[ProviderID.google])
     }
 
     @Test fun noKeyNoGoogleAndNothingSpent() = runTest {
-        val rig = Rig(now)
-        rig.model.search(query, rig.settings(googleKey = null))
+        val rig = Rig(now, googleKey = null)
+        rig.search(query)
         assertEquals(0, rig.transport.to("routes.googleapis.com").size)
         assertEquals(0, rig.usage.allowance.usedThisMonth(now))
         assertEquals(ProviderStatus.Off("Add a key in Settings"), rig.model.state.value.statuses[ProviderID.google])
     }
 
     @Test fun tflStatusIsKeptThreeMinutes() = runTest {
-        val rig = Rig(now)
-        val settings = rig.settings(googleKey = null)
-        rig.model.search(query, settings)
+        val rig = Rig(now, googleKey = null)
+        rig.search(query)
         assertEquals(2, rig.transport.statusRequests())
         rig.clock.now = now.plusSeconds(179)
-        rig.model.search(query, settings)
+        rig.search(query)
         assertEquals(2, rig.transport.statusRequests(), "fresh for 3 minutes")
         assertTrue(rig.model.state.value.network != null, "the kept status still flags routes")
         rig.clock.now = now.plusSeconds(181)
-        rig.model.search(query, settings)
+        rig.search(query)
         assertEquals(4, rig.transport.statusRequests())
     }
 
+    @Test fun theStatusIsSharedByEverySearchInTheApp() = runTest {
+        // Two separate searches made the app's way share the one cache, as Swift's static does.
+        val transport = RecordingTransport()
+        val settings = AppSettings().also { it.deepSearch = false }
+        val first = SearchModel.create(settings, GoogleUsage(InMemoryKeyValueStore()), "0.1.0", AppIdentity(), transport)
+        val second = SearchModel.create(settings, GoogleUsage(InMemoryKeyValueStore()), "0.1.0", AppIdentity(), transport)
+        first.search(query, settings)
+        val afterFirst = transport.statusRequests()
+        second.search(query, settings)
+        assertTrue(afterFirst <= 2)
+        assertEquals(afterFirst, transport.statusRequests(), "the second search reused the first one's status")
+        assertTrue(second.state.value.network != null)
+    }
+
     @Test fun tflOffMeansNoStatusEither() = runTest {
-        val rig = Rig(now)
-        val settings = rig.settings(googleKey = null).also { it.setEnabled(ProviderID.tfl, false) }
-        rig.model.search(query, settings)
+        val rig = Rig(now, googleKey = null)
+        rig.settings.setEnabled(ProviderID.tfl, false)
+        rig.search(query)
         assertEquals(0, rig.transport.to("api.tfl.gov.uk").size)
         assertEquals(1, rig.transport.to("api.transitous.org").size)
         assertEquals(ProviderStatus.Off("Turned off"), rig.model.state.value.statuses[ProviderID.tfl])
+    }
+
+    @Test fun aNewSearchCancelsTheOneStillRunning() = runTest {
+        // The first search's answers are held back until after the second has finished.
+        val release = CompletableDeferred<Unit>()
+        val transport = object : RecordingTransport() {
+            override suspend fun send(request: HttpRequest): HttpResponse {
+                // The first search's answers come late, and as failures, so any that leak show.
+                if ("51.5308" in request.url) {
+                    release.await()
+                    return HttpResponse(500, ByteArray(0))
+                }
+                return super.send(request)
+            }
+        }
+        val rig = Rig(now, googleKey = null, transport = transport)
+        val elsewhere = query.copy(origin = Place(name = "Paddington", coordinate = Coordinate(51.5154, -0.1755)))
+        val first = launch { rig.search(query) }
+        runCurrent()
+        assertTrue(rig.model.state.value.isSearching)
+        val second = launch { rig.search(elsewhere) }
+        advanceUntilIdle()
+        assertTrue(first.isCancelled, "the first search was cancelled")
+        assertTrue(second.isCompleted)
+        val settled = rig.model.state.value
+        assertEquals(elsewhere, settled.query)
+        release.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(settled, rig.model.state.value, "nothing from the first search arrived afterwards")
+    }
+
+    @Test fun aReplacedSearchsLateAnswersAreDropped() = runTest {
+        // A transport that won't be interrupted: the first search's Transitous answer still comes
+        // back after the search was cancelled, and nothing between it and the state can stop it.
+        // It must not reach the state.
+        val release = CompletableDeferred<Unit>()
+        val transport = object : RecordingTransport() {
+            override suspend fun send(request: HttpRequest): HttpResponse {
+                if ("51.5308" in request.url && request.host == "api.transitous.org") {
+                    withContext(NonCancellable) { release.await() }
+                    return HttpResponse(500, ByteArray(0))
+                }
+                return super.send(request)
+            }
+        }
+        val rig = Rig(now, googleKey = null, transport = transport)
+        rig.settings.setEnabled(ProviderID.tfl, false)
+        val elsewhere = query.copy(origin = Place(name = "Paddington", coordinate = Coordinate(51.5154, -0.1755)))
+        launch { rig.search(query) }
+        runCurrent()
+        launch { rig.search(elsewhere) }
+        advanceUntilIdle()
+        val settled = rig.model.state.value
+        assertEquals(ProviderStatus.Done(6), settled.statuses[ProviderID.transitous])
+        release.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(settled, rig.model.state.value, "the first search's late failure didn't overwrite the second's answer")
+    }
+
+    @Test fun searchesStartedTogetherDontSpendPastTheThreshold() = runTest {
+        // 698 used: one deep search may ask all five ways, which takes the month past 700,
+        // so the other, started at the same moment, may ask only one.
+        val usage = GoogleUsage(InMemoryKeyValueStore()).also { it.spend(698, now) }
+        val transport = RecordingTransport()
+        val clock = MutableClock(now)
+        val settings = AppSettings(build = BuildDefaults(googleKey = "test-key"))
+        val models = List(2) { SearchModel.create(settings, usage, "0.1.0", AppIdentity(), transport, NetworkStatusCache(clock), clock) }
+        withContext(Dispatchers.Default) { models.map { async { it.search(query, settings) } }.awaitAll() }
+        assertEquals(6, transport.to("routes.googleapis.com").size)
+        assertEquals(704, usage.allowance.usedThisMonth(now))
     }
 
     @Test fun theUserAgentNamesAContactOnlyWhenThereIsAValidOne() {
@@ -175,15 +284,23 @@ class BudgetTest {
         assertEquals("build@example.org", settings.contact)
     }
 
-    @Test fun googleRequestsSayWhichAndroidAppTheyComeFrom() {
-        val provider = GoogleRoutesProvider(HTTP({ HttpResponse(200, ByteArray(0)) }, "0"), "k", "com.example.polaris", "AB:CD")
-        val request = provider.request(query, GoogleRoutesProvider.variants[3], "k")
-        assertEquals("com.example.polaris", request.headers["X-Android-Package"])
-        assertEquals("AB:CD", request.headers["X-Android-Cert"])
-        val body = request.body!!.decodeToString()
-        assertTrue("\"departureTime\":\"2026-10-28T11:55:00Z\"" in body, body)
-        assertTrue("\"allowedTravelModes\":[\"TRAIN\",\"SUBWAY\",\"LIGHT_RAIL\",\"RAIL\"]" in body, body)
-        assertFalse("arrivalTime" in body, "unset values are left out, as Swift's encoder does")
+    @Test fun googleRequestsSayWhichAndroidAppTheyComeFrom() = runTest {
+        // Through the factory the app uses, with the identity the app reads from its own signature.
+        val identity = AppIdentity("com.example.polaris", AppIdentity.fingerprint("abc".encodeToByteArray()))
+        val rig = Rig(now, app = identity)
+        rig.search(query)
+        val google = rig.transport.to("routes.googleapis.com")
+        assertEquals(5, google.size)
+        assertTrue(google.all { it.headers["X-Android-Package"] == "com.example.polaris" })
+        // SHA-1 of "abc", as Google wants it: upper-case hex, no colons.
+        assertTrue(google.all { it.headers["X-Android-Cert"] == "A9993E364706816ABA3E25717850C26C9CD0D89D" })
+        val bodies = google.map { it.body!!.decodeToString() }
+        assertTrue(bodies.all { "\"departureTime\":\"2026-10-28T11:55:00Z\"" in it && "arrivalTime" !in it }, "unset values are left out, as Swift's encoder does")
+        assertTrue(bodies.any { "\"allowedTravelModes\":[\"TRAIN\",\"SUBWAY\",\"LIGHT_RAIL\",\"RAIL\"]" in it })
+        // A build that can't read its signature sends the package alone.
+        val bare = Rig(now, app = AppIdentity("com.example.polaris"))
+        bare.search(query)
+        assertTrue(bare.transport.to("routes.googleapis.com").none { "X-Android-Cert" in it.headers })
     }
 
     private fun RecordingTransport.statusRequests() = sent.count { "/Line/Mode/" in it.url || "/StopPoint/Mode/" in it.url }
@@ -214,6 +331,15 @@ class GoogleAllowanceTest {
         assertEquals(0, allowance.usedThisMonth(iso("2026-12-01T09:00:00Z")))
         assertEquals("2026-11", GoogleAllowance.month(iso("2026-12-01T07:59:59Z")))
         assertEquals("2026-12", GoogleAllowance.month(iso("2026-12-01T08:00:00Z")))
+        // In summer California is seven hours behind UTC, not eight.
+        assertEquals("2026-07", GoogleAllowance.month(iso("2026-08-01T06:59:59Z")))
+        assertEquals("2026-08", GoogleAllowance.month(iso("2026-08-01T07:00:00Z")))
+        val july = GoogleAllowance().spending(900, iso("2026-08-01T06:00:00Z"))
+        assertEquals("2026-07", july.month)
+        assertEquals(900, july.usedThisMonth(iso("2026-08-01T06:59:59Z")))
+        assertEquals(0, july.usedThisMonth(iso("2026-08-01T07:00:00Z")))
+        // Spending in the new month starts the count again.
+        assertEquals(GoogleAllowance("2026-08", 1), july.spending(1, iso("2026-08-01T07:00:00Z")))
     }
 
     @Test fun theCountIsKeptOnThePhone() {

@@ -177,15 +177,36 @@ data class ServiceNotice(
 }
 
 data class Coordinate(val latitude: Double, val longitude: Double) {
-    /**
-     * "lat,lon", the form every provider takes. Written out in full: Kotlin would print a
-     * longitude just off the Greenwich meridian as "5.0E-4".
-     */
+    /** "lat,lon", the form every provider takes, always as plain decimals. */
     val pair: String get() = "${plain(latitude)},${plain(longitude)}"
 
-    private fun plain(value: Double): String {
-        val text = java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
-        return if ('.' in text) text else "$text.0"
+    companion object {
+        /**
+         * Kotlin writes a longitude just off the Greenwich meridian as "-2.0E-5"; providers want
+         * "-0.00002". Same digits, decimal point moved: the same steps as Swift's `Coordinate.plain`.
+         */
+        fun plain(value: Double): String {
+            val text = value.toString()
+            val e = text.indexOfFirst { it == 'e' || it == 'E' }
+            if (e < 0) return text
+            val exponent = text.substring(e + 1).toInt()
+            var mantissa = text.substring(0, e)
+            val negative = mantissa.startsWith("-")
+            if (negative) mantissa = mantissa.drop(1)
+            val parts = mantissa.split(".")
+            val whole = parts[0]
+            val fraction = if (parts.size > 1) parts[1] else ""
+            var digits = whole + fraction
+            var point = whole.length + exponent
+            if (point <= 0) {
+                digits = "0".repeat(1 - point) + digits
+                point = 1
+            } else if (point > digits.length) {
+                digits += "0".repeat(point - digits.length)
+            }
+            val after = digits.drop(point).trimEnd('0')
+            return (if (negative) "-" else "") + digits.take(point) + "." + after.ifEmpty { "0" }
+        }
     }
 }
 

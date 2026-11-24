@@ -8,6 +8,11 @@
 # A URL or address where you can be reached: TfL and Transitous ask clients to identify themselves.
 # polaris.contact=https://github.com/yourname
 
-# Optional keys. Keys entered in the app's settings (a later phase) win over these.
+# Optional keys. Anything here is compiled into the app, where anyone with the .apk can read it.
+# Restrict a Google key to the Routes API and to this app (application ID plus the SHA-1 of your
+# signing certificate, which the app sends with each request; neither is secret), and set a daily
+# quota cap. Keys entered in the app's settings (a later phase) will win over these.
+# With a Google key set, the test screen also asks Google: up to 5 requests a search, inside the
+# free monthly allowance the app counts.
 # polaris.googleKey=
 # polaris.tflKey=

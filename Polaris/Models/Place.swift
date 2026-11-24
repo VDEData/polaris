@@ -6,8 +6,32 @@ struct Coordinate: Codable, Hashable, Sendable {
     var longitude: Double
 
     var clLocation: CLLocationCoordinate2D { .init(latitude: latitude, longitude: longitude) }
-    /// "lat,lon", the form every provider and deep link takes.
-    var pair: String { "\(latitude),\(longitude)" }
+    /// "lat,lon", the form every provider and deep link takes, always as plain decimals.
+    var pair: String { "\(Self.plain(latitude)),\(Self.plain(longitude))" }
+
+    /// Swift writes a longitude just off the Greenwich meridian as "-2e-05"; providers want
+    /// "-0.00002". Same digits, decimal point moved. The Android engine does the same.
+    static func plain(_ value: Double) -> String {
+        let text = "\(value)"
+        guard let e = text.firstIndex(where: { $0 == "e" || $0 == "E" }) else { return text }
+        let exponent = Int(text[text.index(after: e)...]) ?? 0
+        var mantissa = String(text[..<e])
+        let negative = mantissa.hasPrefix("-")
+        if negative { mantissa.removeFirst() }
+        let parts = mantissa.split(separator: ".", omittingEmptySubsequences: false)
+        let whole = String(parts[0]), fraction = parts.count > 1 ? String(parts[1]) : ""
+        var digits = whole + fraction
+        var point = whole.count + exponent
+        if point <= 0 {
+            digits = String(repeating: "0", count: 1 - point) + digits
+            point = 1
+        } else if point > digits.count {
+            digits += String(repeating: "0", count: point - digits.count)
+        }
+        var after = String(digits.dropFirst(point))
+        while after.hasSuffix("0") { after.removeLast() }
+        return (negative ? "-" : "") + digits.prefix(point) + "." + (after.isEmpty ? "0" : after)
+    }
 
     /// Metres to another point, along the ground.
     func distance(to other: Coordinate) -> Double {

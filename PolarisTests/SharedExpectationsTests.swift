@@ -2,26 +2,39 @@ import Foundation
 import Testing
 @testable import Polaris
 
-/// The recorded journeys run through parsing, merging and ranking, checked against
-/// `Fixtures/journey-expectations.json`. The Android engine's tests assert against the same file,
-/// so the two platforms find, merge and order the same routes from the same answers.
+/// Recorded and hand-written journeys run through parsing, TfL's notices, merging and ranking,
+/// checked against `Fixtures/journey-expectations.json`. The Android engine's tests assert against
+/// the same file, so the two platforms parse each leg, merge and order routes the same way.
 ///
 /// On a mismatch the test prints what this implementation produces, between the markers
 /// below, so a deliberate change can be written back to the file (and checked by hand).
 struct SharedExpectationsTests {
     struct Expectations: Codable, Equatable {
         var about: String
+        var coordinatePairs: [Pair]
+        var cases: [Case]
+    }
+
+    struct Pair: Codable, Equatable {
+        var latitude: Double
+        var longitude: Double
+        var pair: String
+    }
+
+    struct Case: Codable, Equatable {
+        var name: String
         var query: Query
+        var network: Network?
         var sources: [Source]
         var merged: [Merged]
         var ranking: [String: Ranked]
-        var filtered: Filtered
+        var filters: [Filtered]
     }
 
     struct Query: Codable, Equatable {
         var origin: Point
         var destination: Point
-        var departAt: String
+        var time: String
         var arriveBy: Bool
     }
 
@@ -29,6 +42,11 @@ struct SharedExpectationsTests {
         var name: String
         var latitude: Double
         var longitude: Double
+    }
+
+    struct Network: Codable, Equatable {
+        var lines: String
+        var stops: String
     }
 
     struct Source: Codable, Equatable {
@@ -42,6 +60,19 @@ struct SharedExpectationsTests {
         var signature: String
         var departure: String
         var arrival: String
+        var fare: String?
+        var legs: [FoundLeg]
+    }
+
+    struct FoundLeg: Codable, Equatable {
+        var mode: String
+        var line: String?
+        var from: String
+        var to: String
+        var departure: String
+        var arrival: String
+        var platform: String?
+        var stopCount: Int?
     }
 
     struct Merged: Codable, Equatable {
@@ -49,7 +80,15 @@ struct SharedExpectationsTests {
         var firstBoarding: String
         var departure: String
         var arrival: String
+        var fare: String?
         var sources: [String]
+        var notices: [Notice]
+    }
+
+    struct Notice: Codable, Equatable {
+        var leg: Int
+        var severity: String
+        var title: String
     }
 
     struct Ranked: Codable, Equatable {
@@ -74,9 +113,17 @@ struct SharedExpectationsTests {
         var ranked: Ranked
     }
 
+    static func expectations() throws -> Expectations {
+        try JSONDecoder().decode(Expectations.self, from: ProviderParsingTests.fixture("journey-expectations"))
+    }
+
     @Test func matchesTheSharedExpectations() throws {
-        let expected = try JSONDecoder().decode(Expectations.self, from: ProviderParsingTests.fixture("journey-expectations"))
-        let actual = try Self.actual(for: expected)
+        let expected = try Self.expectations()
+        var actual = expected
+        actual.coordinatePairs = expected.coordinatePairs.map {
+            Pair(latitude: $0.latitude, longitude: $0.longitude, pair: Coordinate(latitude: $0.latitude, longitude: $0.longitude).pair)
+        }
+        actual.cases = try expected.cases.map(Self.actual)
         if actual != expected {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -84,55 +131,100 @@ struct SharedExpectationsTests {
             print(String(decoding: try encoder.encode(actual), as: UTF8.self))
             print("---- end journey-expectations actual ----")
         }
-        #expect(actual.sources == expected.sources)
-        #expect(actual.merged == expected.merged)
-        #expect(actual.ranking == expected.ranking)
-        #expect(actual.filtered == expected.filtered)
+        #expect(actual.coordinatePairs == expected.coordinatePairs)
+        for (a, e) in zip(actual.cases, expected.cases) {
+            #expect(a.sources == e.sources, "\(e.name): sources")
+            #expect(a.merged == e.merged, "\(e.name): merged")
+            #expect(a.ranking == e.ranking, "\(e.name): ranking")
+            #expect(a.filters == e.filters, "\(e.name): filters")
+        }
+    }
+
+    /// Whichever order the sources' answers arrive in, the merge comes out the same.
+    @Test func mergingDoesNotDependOnArrivalOrder() throws {
+        for c in try Self.expectations().cases {
+            let (query, _) = try Self.query(c)
+            let journeys = try c.sources.flatMap { try Self.parse($0, query: query) }
+            let forward = JourneyMerger.merge(journeys).map(Self.summary)
+            #expect(JourneyMerger.merge(journeys.reversed()).map(Self.summary) == forward, "\(c.name): reversed")
+            var rng = SeededGenerator(seed: 7)
+            for _ in 0..<5 {
+                #expect(JourneyMerger.merge(journeys.shuffled(using: &rng)).map(Self.summary) == forward, "\(c.name): shuffled")
+            }
+        }
+    }
+
+    static func query(_ c: Case) throws -> (JourneyQuery, Date) {
+        let q = c.query
+        let at = try #require(Time.iso(q.time))
+        return (JourneyQuery(
+            origin: Place(name: q.origin.name, coordinate: .init(latitude: q.origin.latitude, longitude: q.origin.longitude)),
+            destination: Place(name: q.destination.name, coordinate: .init(latitude: q.destination.latitude, longitude: q.destination.longitude)),
+            time: q.arriveBy ? .arriveBy(at) : .departAt(at)), at)
+    }
+
+    static func parse(_ source: Source, query: JourneyQuery) throws -> [Journey] {
+        let data = try ProviderParsingTests.fixture(String(source.fixture.dropLast(".json".count)))
+        switch source.provider {
+        case "tfl": return try TfLProvider.parse(data, variant: source.variant)
+        case "transitous": return try TransitousProvider.parse(data, origin: query.origin.name, destination: query.destination.name)
+        case "google": return try GoogleRoutesProvider.parse(data, query: query, variant: source.variant)
+        default: throw ProviderError.badResponse
+        }
     }
 
     /// Everything but the inputs is worked out here from the fixtures.
-    static func actual(for expected: Expectations) throws -> Expectations {
-        let q = expected.query
-        let departAt = try #require(Time.iso(q.departAt))
-        let query = JourneyQuery(
-            origin: Place(name: q.origin.name, coordinate: .init(latitude: q.origin.latitude, longitude: q.origin.longitude)),
-            destination: Place(name: q.destination.name, coordinate: .init(latitude: q.destination.latitude, longitude: q.destination.longitude)),
-            time: q.arriveBy ? .arriveBy(departAt) : .departAt(departAt))
-
+    static func actual(_ expected: Case) throws -> Case {
+        let (query, _) = try query(expected)
         var all: [Journey] = []
-        var sources: [Source] = []
-        for source in expected.sources {
-            let data = try ProviderParsingTests.fixture(String(source.fixture.dropLast(".json".count)))
-            let journeys: [Journey] = switch source.provider {
-            case "tfl": try TfLProvider.parse(data, variant: source.variant)
-            case "transitous": try TransitousProvider.parse(data, origin: query.origin.name, destination: query.destination.name)
-            case "google": try GoogleRoutesProvider.parse(data, query: query, variant: source.variant)
-            default: []
-            }
-            all += journeys
-            sources.append(Source(fixture: source.fixture, provider: source.provider, variant: source.variant,
-                                  journeys: journeys.map { Found(signature: $0.routeSignature, departure: iso($0.departure), arrival: iso($0.arrival)) }))
-        }
-
-        let merged = JourneyMerger.merge(all)
-        var ranking: [String: Ranked] = [:]
-        for sort in SortOrder.allCases {
-            ranking[sort.rawValue] = ranked(JourneyRanker.rank(merged, arriveBy: q.arriveBy, sort: sort))
-        }
-        let f = expected.filtered
-        let filter = RouteFilter(maxChanges: f.maxChanges, maxWalkMinutes: f.maxWalkMinutes,
-                                 avoided: Set(f.avoided.compactMap(ModeGroup.init(rawValue:))))
-        let sort = try #require(SortOrder(rawValue: f.sort))
-
         var result = expected
-        result.sources = sources
-        result.merged = merged.map {
-            Merged(signature: $0.routeSignature, firstBoarding: iso($0.firstBoarding), departure: iso($0.departure),
-                   arrival: iso($0.arrival), sources: $0.sources.map { "\($0.provider.rawValue):\($0.variant)" })
+        result.sources = try expected.sources.map { source in
+            let journeys = try parse(source, query: query)
+            all += journeys
+            var s = source
+            s.journeys = journeys.map(found)
+            return s
         }
-        result.ranking = ranking
-        result.filtered.ranked = ranked(JourneyRanker.rank(merged, arriveBy: q.arriveBy, sort: sort, filter: filter))
+        var merged = JourneyMerger.merge(all)
+        if let network = expected.network {
+            let status = try NetworkStatus.parse(lines: ProviderParsingTests.fixture(String(network.lines.dropLast(5))),
+                                                 stops: ProviderParsingTests.fixture(String(network.stops.dropLast(5))))
+            merged = merged.map { journey in
+                var journey = journey
+                journey.notices = status.notices(for: journey)
+                return journey
+            }
+        }
+        result.merged = merged.map(summary)
+        result.ranking = [:]
+        for sort in SortOrder.allCases {
+            result.ranking[sort.rawValue] = ranked(JourneyRanker.rank(merged, arriveBy: expected.query.arriveBy, sort: sort))
+        }
+        result.filters = try expected.filters.map { f in
+            // Names this side doesn't know are left out, on both platforms.
+            let filter = RouteFilter(maxChanges: f.maxChanges, maxWalkMinutes: f.maxWalkMinutes,
+                                     avoided: Set(f.avoided.compactMap(ModeGroup.init(rawValue:))))
+            var out = f
+            out.ranked = ranked(JourneyRanker.rank(merged, arriveBy: expected.query.arriveBy, sort: try #require(SortOrder(rawValue: f.sort)), filter: filter))
+            return out
+        }
         return result
+    }
+
+    static func found(_ j: Journey) -> Found {
+        Found(signature: j.routeSignature, departure: iso(j.departure), arrival: iso(j.arrival), fare: j.fare,
+              legs: j.legs.map { l in
+                  FoundLeg(mode: l.mode.rawValue, line: l.line, from: l.fromName, to: l.toName, departure: iso(l.departure),
+                           arrival: iso(l.arrival), platform: l.platform, stopCount: l.stopCount)
+              })
+    }
+
+    static func summary(_ j: Journey) -> Merged {
+        Merged(signature: j.routeSignature, firstBoarding: iso(j.firstBoarding), departure: iso(j.departure), arrival: iso(j.arrival),
+               fare: j.fare, sources: j.sources.map { "\($0.provider.rawValue):\($0.variant)" },
+               notices: j.notices.map { n in
+                   Notice(leg: j.legs.firstIndex { $0.id == n.leg } ?? -1, severity: "\(n.severity)", title: n.title)
+               })
     }
 
     static func ranked(_ r: JourneyRanker.Ranked) -> Ranked {
@@ -145,4 +237,14 @@ struct SharedExpectationsTests {
     }
 
     static func iso(_ date: Date) -> String { Time.isoString(date) }
+}
+
+/// A small fixed-seed generator, so a shuffle that fails fails the same way again.
+struct SeededGenerator: RandomNumberGenerator {
+    var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return state
+    }
 }

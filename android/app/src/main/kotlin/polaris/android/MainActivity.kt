@@ -2,7 +2,9 @@ package polaris.android
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,7 +38,7 @@ import polaris.engine.AppSettings
 import polaris.engine.BuildDefaults
 import polaris.engine.Coordinate
 import polaris.engine.GoogleUsage
-import polaris.engine.HTTP
+import polaris.engine.AppIdentity
 import polaris.engine.InMemorySecretStore
 import polaris.engine.JourneyQuery
 import polaris.engine.JourneyRanker
@@ -48,7 +50,6 @@ import polaris.engine.RouteOption
 import polaris.engine.SearchModel
 import polaris.engine.SearchState
 import polaris.engine.TimeMode
-import polaris.engine.UrlConnectionTransport
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -81,8 +82,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         InMemorySecretStore(),
         BuildDefaults(BuildConfig.GOOGLE_ROUTES_API_KEY, BuildConfig.TFL_APP_KEY, BuildConfig.POLARIS_CONTACT),
     )
-    private val http = HTTP(UrlConnectionTransport, BuildConfig.VERSION_NAME) { settings.contact }
-    private val model = SearchModel(http, GoogleUsage(PreferencesStore(application)), packageName = application.packageName)
+    private val model = SearchModel.create(
+        settings, GoogleUsage(PreferencesStore(application)), BuildConfig.VERSION_NAME, appIdentity(application),
+    )
     val state = model.state
 
     val query = JourneyQuery(
@@ -95,6 +97,21 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         // Started here, not from composition, so a rotation or recomposition never repeats it:
         // one search per launch.
         viewModelScope.launch { model.search(query, settings) }
+    }
+}
+
+/**
+ * This app's package name and signing certificate, which Google checks a key restricted to an
+ * Android app against. Read from the running app, so it is right for whoever built and signed it.
+ */
+private fun appIdentity(context: Context): AppIdentity {
+    val signers = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            .signingInfo?.apkContentsSigners
+    }.getOrNull()
+    val certificate = signers?.firstOrNull()?.toByteArray()
+    return AppIdentity(context.packageName, certificate?.let(AppIdentity::fingerprint)).also {
+        Log.i("Polaris", "Google key restriction: package ${it.packageName}, certificate SHA-1 ${it.certificateSha1}")
     }
 }
 
@@ -117,6 +134,16 @@ private fun SearchScreen(viewModel: SearchViewModel = viewModel()) {
             if (ranked.more.isNotEmpty()) item { Heading("More routes") }
             items(ranked.more, key = { it.id }) { RouteText(it) }
             if (!state.isSearching && state.journeys.isEmpty() && state.query != null) item { Text("No routes found.") }
+            item {
+                // What TfL's and Transitous's terms ask apps using their data to show.
+                Text(
+                    "Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and " +
+                        "Geomni UK Map data © and database rights [2019]. Timetables from Transitous " +
+                        "(transitous.org/sources) with © OpenStreetMap contributors.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
         }
     }
 }

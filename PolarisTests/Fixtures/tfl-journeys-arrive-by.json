@@ -1,0 +1,415 @@
+{
+  "journeys": [
+    {
+      "startDateTime": "2026-11-08T16:30:00",
+      "arrivalDateTime": "2026-11-08T16:43:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-08T16:30:00",
+          "arrivalTime": "2026-11-08T16:32:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street"
+          },
+          "arrivalPoint": {
+            "commonName": "Liverpool Street Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5178, -0.0823]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-08T16:33:00",
+          "arrivalTime": "2026-11-08T16:40:00",
+          "scheduledDepartureTime": "2026-11-08T16:33:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street Station",
+            "platformName": "B"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf Station"
+          },
+          "mode": {
+            "id": "elizabeth-line",
+            "name": "elizabeth-line"
+          },
+          "routeOptions": [
+            {
+              "name": "Elizabeth line",
+              "directions": [
+                "Abbey Wood"
+              ],
+              "lineIdentifier": {
+                "id": "elizabeth",
+                "name": "Elizabeth line"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5178, -0.0823], [51.5195, -0.0597], [51.5054, -0.0235]]",
+            "stopPoints": [
+              {
+                "id": "whitechapel",
+                "name": "Whitechapel Station"
+              },
+              {
+                "id": "canary-wharf",
+                "name": "Canary Wharf Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-08T16:40:00",
+          "arrivalTime": "2026-11-08T16:43:00",
+          "departurePoint": {
+            "commonName": "Canary Wharf"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5054, -0.0235]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 290
+      }
+    },
+    {
+      "startDateTime": "2026-11-08T16:20:00",
+      "arrivalDateTime": "2026-11-08T16:45:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-08T16:20:00",
+          "arrivalTime": "2026-11-08T16:26:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street"
+          },
+          "arrivalPoint": {
+            "commonName": "Bank Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5178, -0.0823]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-08T16:28:00",
+          "arrivalTime": "2026-11-08T16:41:00",
+          "scheduledDepartureTime": "2026-11-08T16:28:00",
+          "departurePoint": {
+            "commonName": "Bank Station",
+            "platformName": "10"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf Station"
+          },
+          "mode": {
+            "id": "dlr",
+            "name": "dlr"
+          },
+          "routeOptions": [
+            {
+              "name": "DLR",
+              "directions": [
+                "Lewisham"
+              ],
+              "lineIdentifier": {
+                "id": "dlr",
+                "name": "DLR"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5133, -0.0886], [51.5112, -0.0569], [51.5124, -0.0397], [51.507, -0.0203], [51.5054, -0.0235]]",
+            "stopPoints": [
+              {
+                "id": "shadwell",
+                "name": "Shadwell Station"
+              },
+              {
+                "id": "limehouse",
+                "name": "Limehouse Station"
+              },
+              {
+                "id": "west-india-quay",
+                "name": "West India Quay Station"
+              },
+              {
+                "id": "canary-wharf",
+                "name": "Canary Wharf Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-08T16:41:00",
+          "arrivalTime": "2026-11-08T16:45:00",
+          "departurePoint": {
+            "commonName": "Canary Wharf"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5054, -0.0235]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 290
+      }
+    },
+    {
+      "startDateTime": "2026-11-08T16:25:00",
+      "arrivalDateTime": "2026-11-08T16:45:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-08T16:25:00",
+          "arrivalTime": "2026-11-08T16:27:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street"
+          },
+          "arrivalPoint": {
+            "commonName": "Bank Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5178, -0.0823]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-08T16:28:00",
+          "arrivalTime": "2026-11-08T16:31:00",
+          "scheduledDepartureTime": "2026-11-08T16:28:00",
+          "departurePoint": {
+            "commonName": "Bank Station",
+            "platformName": "4"
+          },
+          "arrivalPoint": {
+            "commonName": "London Bridge Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Northern",
+              "directions": [
+                "Morden"
+              ],
+              "lineIdentifier": {
+                "id": "northern",
+                "name": "Northern"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5133, -0.0886], [51.5052, -0.0864]]",
+            "stopPoints": [
+              {
+                "id": "london-bridge",
+                "name": "London Bridge Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-08T16:31:00",
+          "arrivalTime": "2026-11-08T16:34:00",
+          "departurePoint": {
+            "commonName": "London Bridge"
+          },
+          "arrivalPoint": {
+            "commonName": "London Bridge Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5052, -0.0864]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-08T16:36:00",
+          "arrivalTime": "2026-11-08T16:42:00",
+          "scheduledDepartureTime": "2026-11-08T16:36:00",
+          "departurePoint": {
+            "commonName": "London Bridge Station",
+            "platformName": "1"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Jubilee",
+              "directions": [
+                "Stratford"
+              ],
+              "lineIdentifier": {
+                "id": "jubilee",
+                "name": "Jubilee"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5052, -0.0864], [51.4979, -0.0637], [51.4982, -0.0502], [51.5054, -0.0235]]",
+            "stopPoints": [
+              {
+                "id": "bermondsey",
+                "name": "Bermondsey Station"
+              },
+              {
+                "id": "canada-water",
+                "name": "Canada Water Station"
+              },
+              {
+                "id": "canary-wharf",
+                "name": "Canary Wharf Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-08T16:42:00",
+          "arrivalTime": "2026-11-08T16:45:00",
+          "departurePoint": {
+            "commonName": "Canary Wharf"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5054, -0.0235]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 290
+      }
+    },
+    {
+      "startDateTime": "2026-11-08T16:10:00",
+      "arrivalDateTime": "2026-11-08T16:47:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-08T16:10:00",
+          "arrivalTime": "2026-11-08T16:11:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street"
+          },
+          "arrivalPoint": {
+            "commonName": "Liverpool Street Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5178, -0.0823]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-08T16:12:00",
+          "arrivalTime": "2026-11-08T16:45:00",
+          "scheduledDepartureTime": "2026-11-08T16:12:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street Station",
+            "platformName": "K"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf"
+          },
+          "mode": {
+            "id": "bus",
+            "name": "bus"
+          },
+          "routeOptions": [
+            {
+              "name": "135",
+              "directions": [
+                "Crossharbour"
+              ],
+              "lineIdentifier": {
+                "id": "135",
+                "name": "135"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5176, -0.0822], [51.5195, -0.0597], [51.5124, -0.0397], [51.5054, -0.0235]]",
+            "stopPoints": [
+              {
+                "id": "whitechapel",
+                "name": "Whitechapel Station"
+              },
+              {
+                "id": "limehouse",
+                "name": "Limehouse Station"
+              },
+              {
+                "id": "canary-wharf",
+                "name": "Canary Wharf Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-08T16:45:00",
+          "arrivalTime": "2026-11-08T16:47:00",
+          "departurePoint": {
+            "commonName": "Canary Wharf"
+          },
+          "arrivalPoint": {
+            "commonName": "Canary Wharf"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5054, -0.0235]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 175
+      }
+    }
+  ]
+}

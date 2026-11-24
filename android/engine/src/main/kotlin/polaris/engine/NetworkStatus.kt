@@ -224,8 +224,8 @@ private object Normalizer {
 }
 
 /**
- * TfL's network status, shared by every search: two requests, kept 3 minutes
- * (`SearchModel.networkFreshFor` in Swift). Concurrent searches share one fetch.
+ * TfL's network status: two requests, kept 3 minutes (`SearchModel.networkFreshFor` in Swift).
+ * `shared` is the app-wide one; concurrent searches share one fetch.
  */
 class NetworkStatusCache(private val clock: Clock = Clock.systemUTC()) {
     private val mutex = Mutex()
@@ -248,5 +248,8 @@ class NetworkStatusCache(private val clock: Clock = Clock.systemUTC()) {
 
     companion object {
         val freshFor: Duration = Duration.ofMinutes(3)
+
+        /** One for the whole app, as Swift's static `cachedNetwork` is: every search shares it. */
+        val shared = NetworkStatusCache()
     }
 }

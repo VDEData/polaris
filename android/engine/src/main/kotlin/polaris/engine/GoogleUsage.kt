@@ -73,6 +73,18 @@ class GoogleUsage(private val store: KeyValueStore) {
     var allowance: GoogleAllowance = store.getString(KEY)?.let { runCatching { HTTP.json.decodeFromString<GoogleAllowance>(it) }.getOrNull() } ?: GoogleAllowance()
         private set
 
+    /**
+     * Plans and spends in one step, so two searches started together can't both read the same
+     * count and spend past a threshold: how many requests this search may send to Google, already
+     * counted. On iOS the main actor makes the plan and the spend one step.
+     */
+    @Synchronized
+    fun reserve(deep: Boolean, variants: Int, now: Instant = Instant.now()): Int {
+        val requests = allowance.searchRequests(deep, variants, now)
+        spend(requests, now)
+        return requests
+    }
+
     @Synchronized
     fun spend(requests: Int, now: Instant = Instant.now()) {
         if (requests <= 0) return

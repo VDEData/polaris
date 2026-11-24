@@ -12,8 +12,7 @@ object JourneyMerger {
 
     fun merge(journeys: List<Journey>): List<Journey> {
         val merged = mutableListOf<Journey>()
-        // A stable sort, as Swift's is: within one source, the order it answered in.
-        val ordered = journeys.sortedBy { it.sources.firstOrNull()?.provider?.mergePriority ?: 9 }
+        val ordered = journeys.sortedWith(mergeOrder)
         for (journey in ordered) {
             val i = merged.indexOfFirst { isSame(it, journey) }
             if (i >= 0) {
@@ -29,6 +28,22 @@ object JourneyMerger {
         }
         return merged
     }
+
+    /**
+     * The order copies are taken in, so the result doesn't depend on which source or deep-search
+     * variant answered first: source by `mergePriority`, then the earliest boarding, departure and
+     * arrival, then lines, variant, fare and number of legs. Swift's `mergeOrder` is the same.
+     * Strings compare by UTF-16 unit here and by Unicode scalar in Swift; they differ only past
+     * the Basic Multilingual Plane, which line names and variant labels don't reach.
+     */
+    val mergeOrder: Comparator<Journey> = compareBy<Journey> { it.sources.firstOrNull()?.provider?.mergePriority ?: 9 }
+        .thenBy { it.firstBoarding }
+        .thenBy { it.departure }
+        .thenBy { it.arrival }
+        .thenBy { it.routeSignature }
+        .thenBy { it.sources.firstOrNull()?.variant ?: "" }
+        .thenBy { it.fare ?: "" }
+        .thenBy { it.legs.size }
 
     fun isSame(a: Journey, b: Journey): Boolean =
         a.routeSignature == b.routeSignature && abs(a.firstBoarding.seconds - b.firstBoarding.seconds) <= sameDepartureWindow
@@ -56,6 +71,9 @@ enum class ModeGroup(val label: String) {
     val detail: String? get() = if (this == rail) "National Rail, Overground, Elizabeth line" else null
 
     companion object {
+        /** By its stored name, as Swift's `ModeGroup(rawValue:)`: a name this version doesn't know is null. */
+        fun named(name: String): ModeGroup? = entries.firstOrNull { it.name == name }
+
         fun of(mode: LegMode): ModeGroup? = when (mode) {
             LegMode.tube -> tube
             LegMode.rail, LegMode.overground, LegMode.elizabeth -> rail

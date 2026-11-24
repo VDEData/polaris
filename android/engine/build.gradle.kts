@@ -11,6 +11,8 @@ kotlin {
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    // HTTP with retries switched off: see OkHttpTransport.
+    implementation(libs.okhttp)
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
 }

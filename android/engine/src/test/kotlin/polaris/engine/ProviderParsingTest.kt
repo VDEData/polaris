@@ -117,11 +117,14 @@ class ProviderParsingTest {
         assertEquals(LegMode.tube, LegMode.rail.refined("Victoria", "London Underground"))
     }
 
-    @Test fun coordinatesNearTheMeridianAreWrittenInFull() {
+    /** Same name and cases as in ProviderParsingTests.swift; journey-expectations.json has more. */
+    @Test fun coordinatePairsAreWrittenInPlainDecimals() {
         assertEquals("51.5308,-0.1238", Coordinate(51.5308, -0.1238).pair)
         assertEquals("51.4779,0.0005", Coordinate(51.4779, 0.0005).pair)
         assertEquals("51.4779,-0.00002", Coordinate(51.4779, -0.00002).pair)
         assertEquals("51.0,0.0", Coordinate(51.0, 0.0).pair)
+        assertEquals("1.0E-6", (0.000001).toString(), "what Kotlin would have written")
+        assertEquals("51.5,0.000001", Coordinate(51.5, 0.000001).pair)
     }
 
     @Test fun timesAreWrittenAndReadAsSwiftDoes() {

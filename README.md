@@ -173,29 +173,38 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 `android/` is a Kotlin port in progress. So far it holds the engine: the models, the TfL,
 Transitous and Google providers, merging, ranking, TfL's network status and Google's monthly
 count, with the same names and behaviour as the Swift, and the same request budgets. The app
-around it is one plain screen that runs a single search (King's Cross to Canary Wharf, TfL and
-Transitous, no keys) to prove the engine works on a device. There is no map, search box, Go or
-alerts on Android yet.
+around it is one plain screen that runs a single search (King's Cross to Canary Wharf) to prove
+the engine works on a device: TfL and Transitous, plus Google only if you built it with a Google
+key. There is no map, search box, Go or alerts on Android yet.
 
-You need JDK 17 and the Android SDK (platform 36), from Android Studio or the command-line tools.
+The engine needs only JDK 17; the app also needs the Android SDK (platform 36), from Android
+Studio or the command-line tools. Without an SDK, Gradle builds and tests the engine alone.
 
 ```sh
 cd android
 ./gradlew test               # the engine's tests, offline, on the JVM
-./gradlew :app:installDebug  # onto a running emulator or a connected phone
+./gradlew :app:installDebug  # onto a running emulator or a connected phone (needs the SDK)
 ```
 
 Per-builder values go in `android/local.properties` (git-ignored; copy
 `local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
 (default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS),
-and the optional `polaris.googleKey` and `polaris.tflKey`. A Google key for Android is restricted to
-your application ID and signing certificate rather than a bundle ID. With none of them set the build
-works as the iOS one does with no keys.
+and the optional `polaris.googleKey` and `polaris.tflKey`. With none of them set the build works as
+the iOS one does with no keys.
+
+Build-time keys are compiled into the app (`BuildConfig`), where anyone with the `.apk` can read
+them, just as on iOS. A Google key for Android is restricted to your application ID and the SHA-1
+of your signing certificate; the app sends both with each request, and neither is a secret, so the
+restriction only stops casual reuse. Restrict the key to the Routes API, set a daily quota cap in
+the Google Cloud console, and prefer entering keys in the app once Android has a settings screen.
 
 The engine's tests read the recordings in `PolarisTests/Fixtures` in place, and both platforms'
-tests assert against `PolarisTests/Fixtures/journey-expectations.json` (each source's route
-signatures, the merged groups and the ranking under every sort), so a change to one side's
-parsing, merging or ranking that the other doesn't make fails a test.
+tests assert against `PolarisTests/Fixtures/journey-expectations.json`: for a recorded King's Cross
+to Canary Wharf search and two hand-written TfL answers (an arrive-by search on a day with
+disruptions, and one in summer time), each leg's mode, line, stops, times, platform and stop count,
+the fares, the merged groups and TfL's notices on them, and the order under every sort and several
+filters. A change to one side's parsing, merging or ranking of those cases that the other doesn't
+make fails a test; the rest of each engine is covered by its own tests.
 
 ## Run your own alerts server
 

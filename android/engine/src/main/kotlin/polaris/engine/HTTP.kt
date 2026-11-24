@@ -1,14 +1,22 @@
 package polaris.engine
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import java.io.IOException
-import java.net.HttpURLConnection
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.net.URI
 import java.net.URLEncoder
 import java.time.Instant
@@ -91,25 +99,41 @@ fun interface HttpTransport {
     suspend fun send(request: HttpRequest): HttpResponse
 }
 
-/** The platform's own `HttpURLConnection`, on the IO dispatcher. No third-party HTTP library. */
-object UrlConnectionTransport : HttpTransport {
-    override suspend fun send(request: HttpRequest): HttpResponse = withContext(Dispatchers.IO) {
-        val connection = URI(request.url).toURL().openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = request.method
-            connection.connectTimeout = HTTP.TIMEOUT_MILLIS
-            connection.readTimeout = HTTP.TIMEOUT_MILLIS
-            connection.instanceFollowRedirects = false
-            request.headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            request.body?.let { body ->
-                connection.doOutput = true
-                connection.outputStream.use { it.write(body) }
-            }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            HttpResponse(status, stream?.use { it.readBytes() } ?: ByteArray(0))
-        } finally {
-            connection.disconnect()
+/**
+ * OkHttp with its silent retries off. "One request per search" must mean one request on the
+ * wire: `HttpURLConnection` may resend a request on a stale or failed connection (the JDK's,
+ * and the OkHttp copy built into Android), and neither lets that be switched off.
+ * Like URLSession it follows redirects, gives up after 20 seconds with nothing received, and
+ * cancelling the coroutine cancels the call.
+ */
+class OkHttpTransport(client: OkHttpClient? = null) : HttpTransport {
+    private val client = client ?: OkHttpClient.Builder()
+        .retryOnConnectionFailure(false)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .connectTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
+        .readTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
+        .writeTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
+        .build()
+
+    override suspend fun send(request: HttpRequest): HttpResponse {
+        val builder = Request.Builder().url(request.url)
+        request.headers.forEach { (name, value) -> builder.header(name, value) }
+        val body = request.body?.toRequestBody(request.headers["Content-Type"]?.toMediaTypeOrNull())
+        builder.method(request.method, body ?: if (request.method == "POST") ByteArray(0).toRequestBody() else null)
+        val call = client.newCall(builder.build())
+        return suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    continuation.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val result = runCatching { response.use { HttpResponse(it.code, it.body.bytes()) } }
+                    result.fold(continuation::resume, continuation::resumeWithException)
+                }
+            })
         }
     }
 }
