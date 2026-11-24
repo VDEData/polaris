@@ -48,6 +48,10 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Finding where the person is for a trip; further taps wait for it rather than starting another. */
     private var locating: kotlinx.coroutines.Job? = null
+    /** Where the trip being located goes: the latest place tapped while waiting replaces the one before. */
+    private var pending: Place? = null
+    /** A page was sent and isn't on top yet: further taps on Home are the same wish, until [pageShown]. */
+    private var awaitingPage = false
     private val _finding = MutableStateFlow(false)
     val finding: StateFlow<Boolean> = _finding.asStateFlow()
 
@@ -84,9 +88,20 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Plan to a place, from [origin] or from where the person is now (as iOS's `go(to:)`). */
     fun planTo(destination: Place, origin: Place? = null) {
-        // A second tap while the first is finding the person's position (or asking for it) is the same wish.
-        if (locating?.isActive == true || _need.value is Need.Trip) return
+        // Once a page is on its way, a tap on Home before it appears is the same wish (a double tap).
+        if (awaitingPage) return
         graph.places.remember(destination)
+        // Waiting for a fix or for the person's answer: this place replaces the one waiting.
+        if (origin == null && locating?.isActive == true) {
+            pending = destination
+            return
+        }
+        (_need.value as? Need.Trip)?.let { waiting ->
+            if (origin == null) {
+                _need.value = waiting.copy(destination = destination)
+                return
+            }
+        }
         if (origin != null) {
             push(JourneyQuery(origin, destination, TimeMode.LeaveNow))
         } else if (graph.locator.hasPermission) {
@@ -161,13 +176,16 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     fun forget(place: Place) = graph.places.forget(place)
 
     private fun locate(destination: Place) {
+        pending = destination
         if (locating?.isActive == true) return
         _finding.value = true
         locating = viewModelScope.launch {
             try {
                 val here = graph.locator.current()
-                if (here == null) _need.value = Need.Stranded(destination, locationOff = !graph.locator.hasPermission)
-                else push(JourneyQuery(currentLocation(here), destination, TimeMode.LeaveNow))
+                val to = pending ?: destination
+                pending = null
+                if (here == null) _need.value = Need.Stranded(to, locationOff = !graph.locator.hasPermission)
+                else push(JourneyQuery(currentLocation(here), to, TimeMode.LeaveNow))
             } finally {
                 _finding.value = false
             }
@@ -190,7 +208,13 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private fun push(query: JourneyQuery) {
+        awaitingPage = true
         pushes.trySend(ResultsPage(query))
+    }
+
+    /** The page on top changed: taps on Home count again once it is back on top. */
+    fun topChanged(isHome: Boolean) {
+        if (isHome) awaitingPage = false
     }
 
     companion object {

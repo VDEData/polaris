@@ -356,6 +356,64 @@ class ScreensTest {
         assertEquals(1, rig.locator.asked)
     }
 
+    /** On a device the main dispatcher is immediate and a fix under 20 s old comes back at once. */
+    @Test fun twoTapsWithAnImmediateFixStillOpenOnePage() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val rig = Rig()
+        val shell = ShellViewModel(rig.graph)
+        val pages = mutableListOf<androidx.navigation3.runtime.NavKey>()
+        val collecting = launch { shell.navigation.collect { pages += it } }
+        shell.planTo(wharf)
+        shell.planTo(wharf)
+        advanceUntilIdle()
+        collecting.cancel()
+        assertEquals(1, pages.size)
+    }
+
+    /** A slow fix: Home then Work before it comes plans to Work, not Home. */
+    @Test fun theLatestPlaceTappedDuringTheWaitWins() = runTest(dispatcher) {
+        val slow = object : polaris.android.app.Locator {
+            override val hasPermission = true
+            override suspend fun current(): Coordinate { kotlinx.coroutines.delay(2_000); return Coordinate(51.53, -0.12) }
+            override fun last() = null
+        }
+        val rig = Rig()
+        val graph = AppGraph(rig.settings, GoogleUsage(rig.kv), PlaceStore(rig.kv), rig.transport, rig.archive, slow, networkCache = NetworkStatusCache())
+        val shell = ShellViewModel(graph)
+        val pages = mutableListOf<androidx.navigation3.runtime.NavKey>()
+        val collecting = launch { shell.navigation.collect { pages += it } }
+        shell.planTo(kingsCross)
+        advanceTimeBy(500); runCurrent()
+        shell.planTo(wharf)
+        advanceUntilIdle()
+        collecting.cancel()
+        assertEquals(listOf("Canary Wharf"), pages.map { (it as ResultsPage).journeyQuery!!.destination.name })
+    }
+
+    @Test fun aSaveLandingAfterAPageClosedDoesNotBringItsFileBack() {
+        val dir = kotlin.io.path.createTempDirectory("polaris-archive").toFile()
+        val archive = polaris.android.app.FileSearchArchive(dir)
+        val search = polaris.engine.Snapshot.Search(trip, emptyMap(), emptyList(), false, java.time.Instant.parse("2026-11-24T09:00:00Z"))
+        archive.save("open", search)
+        archive.save("closed", search)
+        archive.keepOnly(setOf("open"))
+        archive.save("closed", search)
+        assertEquals(listOf("open.json"), dir.list()!!.sorted())
+    }
+
+    @Test fun aRestoredPageTurnsOldWhileItIsOpen() = runTest(dispatcher) {
+        var clock = java.time.Instant.parse("2026-11-24T09:00:00Z")
+        val rig = Rig()
+        val handle = SavedStateHandle()
+        ResultsViewModel(handle, rig.graph, "page", trip.copy(time = TimeMode.LeaveNow), io = dispatcher, now = { clock }).also { advanceUntilIdle() }
+        val again = ResultsViewModel(SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }), rig.graph, "page", trip.copy(time = TimeMode.LeaveNow), io = dispatcher, now = { clock })
+        advanceTimeBy(1_000); runCurrent()
+        assertTrue(!again.ui.value.old)
+        clock = clock.plusSeconds(11 * 60)
+        advanceTimeBy(11 * 60 * 1000L); runCurrent()
+        assertTrue(again.ui.value.old, "the page itself notices, without a recomposition")
+    }
+
     @Test fun aRestoredPageNeverShowsAnotherTripsRoutes() = runTest(dispatcher) {
         val dir = kotlin.io.path.createTempDirectory("polaris-archive").toFile()
         val rig = Rig()

@@ -151,4 +151,18 @@ class ScreensEngineTest {
             assertEquals(ride.path, l.path)
         }
     }
+
+    @Test fun sameNamedPlacesFarApartAreBothKept() {
+        fun m(id: String, name: String, area: String?, lat: Double, lon: Double, kind: PlaceMatch.Kind) =
+            PlaceMatch(Place(id = id, name = name, subtitle = area, coordinate = Coordinate(lat, lon)), kind)
+        // No area on either: two different High Streets.
+        val noArea = PlaceSearch.dedupe(listOf(m("a", "High Street", null, 51.50, -0.10, PlaceMatch.Kind.address), m("b", "High Street", null, 51.60, -0.20, PlaceMatch.Kind.address)))
+        assertEquals(2, noArea.size)
+        // A street and a stop of the same name in one borough, a kilometre apart.
+        val streetAndStop = PlaceSearch.dedupe(listOf(m("c", "Camden Road", "Camden", 51.5410, -0.1390, PlaceMatch.Kind.address), m("d", "Camden Road", "Camden", 51.5480, -0.1270, PlaceMatch.Kind.stop)))
+        assertEquals(2, streetAndStop.size)
+        // The same station twice, close together: once.
+        val same = PlaceSearch.dedupe(listOf(m("e", "Bank", "City", 51.5133, -0.0890, PlaceMatch.Kind.place), m("f", "Bank", "City", 51.5135, -0.0886, PlaceMatch.Kind.stop)))
+        assertEquals(listOf("f"), same.map { it.place.id })
+    }
 }

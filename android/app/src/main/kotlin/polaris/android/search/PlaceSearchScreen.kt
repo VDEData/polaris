@@ -204,6 +204,14 @@ fun PlaceSearchScreen(
                             items(ui.results, key = { it.place.id }) { match ->
                                 PlaceRow(iconFor(match), if (match.kind == PlaceMatch.Kind.stop) c.tint else c.inkSoft, match.place.name, match.place.subtitle) { pick(match.place) }
                             }
+                            item {
+                                // The geocoder's data is OpenStreetMap's, which asks for this credit.
+                                androidx.compose.material3.Text(
+                                    "Places from Transitous, © OpenStreetMap contributors",
+                                    Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall, color = c.inkFaint,
+                                )
+                            }
                             if (hasMapsApp) item {
                                 HorizontalDivider(Modifier.padding(start = 56.dp), color = c.hairline)
                                 PlaceRow(R.drawable.sym_travel_explore, c.tint, "Search “${ui.text.trim()}” in your maps app", "For shops, chains and kinds of place") {

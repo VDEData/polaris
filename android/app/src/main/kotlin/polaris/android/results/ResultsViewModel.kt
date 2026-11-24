@@ -68,6 +68,8 @@ class ResultsViewModel(
         val restoring: Boolean = false,
         /** When the routes shown were found, if they came back from the kept copy. */
         val restoredFrom: Instant? = null,
+        /** Routes brought back from the kept copy that are old enough to have changed. */
+        val old: Boolean = false,
         /** The trip as searched, with Current Location given its fix; null until a search has resolved it. */
         val resolved: JourneyQuery? = null,
     ) {
@@ -122,6 +124,21 @@ class ResultsViewModel(
             } else {
                 ui.copy(restoring = false, statuses = copy.statuses, journeys = copy.journeys, networkChecked = copy.networkChecked, restoredFrom = copy.savedAt)
             }
+            watchAge()
+        }
+    }
+
+    /** Turns the restored routes old when they reach the age, while the page is open; a new search ends it. */
+    private var ageing: Job? = null
+    private fun watchAge() {
+        ageing?.cancel()
+        val from = _ui.value.restoredFrom ?: return
+        ageing = viewModelScope.launch {
+            // One wait, until the copy reaches the age, then one look (no loop, so nothing ticks for ever).
+            val limit = if (_ui.value.query.time == TimeMode.LeaveNow) OLD_LEAVE_NOW else OLD_SET_TIME
+            val left = limit.minus(java.time.Duration.between(from, now())).toMillis()
+            if (left > 0) kotlinx.coroutines.delay(left + 1_000)
+            if (_ui.value.restoredFrom == from && isOld(_ui.value)) _ui.value = _ui.value.copy(old = true)
         }
     }
 
@@ -188,7 +205,8 @@ class ResultsViewModel(
         searching?.cancel()
         val query = _ui.value.query
         _ui.value = _ui.value.copy(stale = false, noFix = false, selectedId = null, locating = query.usesHere,
-            statuses = emptyMap(), journeys = emptyList(), networkChecked = false, restoring = false, restoredFrom = null, resolved = null)
+            statuses = emptyMap(), journeys = emptyList(), networkChecked = false, restoring = false, restoredFrom = null, resolved = null, old = false)
+        ageing?.cancel()
         val model = model ?: graph.searchModel().also { model = it }
         searching = viewModelScope.launch {
             var resolved = query

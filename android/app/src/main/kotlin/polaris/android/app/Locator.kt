@@ -68,22 +68,24 @@ class AndroidLocator(private val context: Context) : Locator {
         val m = manager ?: return null
         recent()?.let { return Coordinate(it.latitude, it.longitude) }
         val provider = providers().firstOrNull { it != LocationManager.PASSIVE_PROVIDER } ?: return null
-        val fresh = withTimeoutOrNull(10_000) {
-            suspendCancellableCoroutine<Location?> { done ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val signal = CancellationSignal()
+        // AndroidX's compat call covers Android 9 and 10 with a complete listener (their
+        // LocationListener has abstract provider callbacks) and removes it on cancel. Anything the
+        // platform throws (permission withdrawn mid-wait, a provider gone) means no fix, not a crash.
+        val fresh = runCatching {
+            withTimeoutOrNull(10_000) {
+                suspendCancellableCoroutine<Location?> { done ->
+                    val signal = androidx.core.os.CancellationSignal()
                     done.invokeOnCancellation { signal.cancel() }
-                    m.getCurrentLocation(provider, signal, executor) { done.resume(it) }
-                } else {
-                    // Android 9 and 10 have no single-fix call that takes a cancellation signal: the
-                    // listener is removed by hand when the wait is cancelled or times out.
-                    val listener = android.location.LocationListener { done.resume(it) }
-                    done.invokeOnCancellation { m.removeUpdates(listener) }
-                    @Suppress("DEPRECATION")
-                    m.requestSingleUpdate(provider, listener, android.os.Looper.getMainLooper())
+                    try {
+                        androidx.core.location.LocationManagerCompat.getCurrentLocation(m, provider, signal, executor) { done.resume(it) }
+                    } catch (e: SecurityException) {
+                        done.resume(null)
+                    } catch (e: IllegalArgumentException) {
+                        done.resume(null)
+                    }
                 }
             }
-        }
+        }.getOrNull()
         return fresh?.let { Coordinate(it.latitude, it.longitude) }
     }
 

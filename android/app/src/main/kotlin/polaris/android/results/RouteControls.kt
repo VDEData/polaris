@@ -182,7 +182,7 @@ fun SortAndFilterCard(sort: SortOrder, filter: RouteFilter, hidden: Int, setSort
             // Four segments across fit at ordinary sizes; at large text a menu, so no word breaks.
             val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
             if (large) Column(Modifier.surface(c)) {
-                MenuRow("Sort", sort.label, SortOrder.entries.map { it.label }) { i -> setSort(SortOrder.entries[i]) }
+                MenuRow("Sort", sort.label, SortOrder.entries.map { it.label }, keepCase = true) { i -> setSort(SortOrder.entries[i]) }
             } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 val orders = SortOrder.entries
                 orders.forEachIndexed { index, order ->
@@ -208,7 +208,7 @@ fun SortAndFilterCard(sort: SortOrder, filter: RouteFilter, hidden: Int, setSort
 }
 
 @Composable
-private fun MenuRow(label: String, value: String, choices: List<String>, pick: (Int) -> Unit) {
+private fun MenuRow(label: String, value: String, choices: List<String>, keepCase: Boolean = false, pick: (Int) -> Unit) {
     val c = polaris
     var open by rememberSaveable { mutableStateOf(false) }
     Box {
@@ -216,7 +216,7 @@ private fun MenuRow(label: String, value: String, choices: List<String>, pick: (
             Modifier.fillMaxWidth().clickable(role = Role.DropdownList) { open = true }.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("$label: ${value.replaceFirstChar { it.lowercase() }}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
+            Text("$label: ${if (keepCase) value else value.replaceFirstChar { it.lowercase() }}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
             Symbol(R.drawable.sym_keyboard_arrow_down, null, tint = c.inkSoft)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

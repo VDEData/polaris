@@ -68,6 +68,8 @@ import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalScene
 import polaris.android.shell.LocalSheet
+import polaris.android.shell.Rest
+import androidx.compose.ui.text.withLink
 import polaris.android.shell.LocalWindowLayout
 import polaris.android.shell.MapScene
 import polaris.android.shell.MeasuredBar
@@ -151,6 +153,8 @@ fun ResultsScreen(
     // Docked only where the map half has the height for it; a short landscape window keeps them in the card.
     val layout = LocalWindowLayout.current
     val docks = sheet.wide && !layout.short
+    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+    val belowFull = sheet.state?.rest != Rest.Full
     if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
             scene.dock(key) { SortAndFilterCard(ui.sort, ui.filter, ui.ranked.hidden, model::setSort, model::setFilter) }
@@ -169,7 +173,7 @@ fun ResultsScreen(
         ) {
             item(key = "trip") {
                 TripHeader(
-                    ui.query, ui.resolved, onBack,
+                    ui.query, ui.resolved, compact = layout.short, onBack = onBack,
                     edit = { isOrigin -> openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin))) },
                     swap = model::swap,
                     searchAgain = model::searchAgain,
@@ -200,12 +204,15 @@ fun ResultsScreen(
                 ui.stale -> item(key = "stale") {
                     Message("These routes weren't kept", "Android closed Polaris while it was in the background.", "Search again", model::searchAgain)
                 }
-                ui.restoredFrom != null && model.isOld(ui) -> item(key = "old") {
+                ui.old -> item(key = "old") {
                     Message("These routes are from ${ui.restoredFrom?.let { Clock.of(it) }}", "Times may have changed since. Search again for the latest.", "Search again", model::searchAgain)
                 }
             }
             val notices = ui.notices
-            if (notices.isNotEmpty()) item(key = "notices") { NoticeList(notices, summarised = layout.short) }
+            // One summary row (worst notice, "+N") wherever a list would push the first route out of
+            // the first screenful: two or more notices below full height, large text, or a short window.
+            val summarise = layout.short || (notices.size > 1 && (large || (belowFull && !docks)))
+            if (notices.isNotEmpty()) item(key = "notices") { NoticeList(notices, summarised = summarise) }
             routeCards(ui, model, onOpen)
         }
     }
@@ -303,13 +310,19 @@ private fun Bar(query: JourneyQuery, onBack: () -> Unit) {
  * way to change it.
  */
 @Composable
-private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, onBack: () -> Unit, edit: (Boolean) -> Unit, swap: () -> Unit, searchAgain: () -> Unit) {
+private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, compact: Boolean, onBack: () -> Unit, edit: (Boolean) -> Unit, swap: () -> Unit, searchAgain: () -> Unit) {
     val c = polaris
     val context = LocalContext.current
     var menu by rememberSaveable { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(top = 0.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, "Back") }
-        Column(Modifier.weight(1f)) {
+        // A short window (a phone on its side): from and to on one row, as iOS's compact trip editor,
+        // so the first route card fits under it.
+        if (compact) Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { End("From", query.origin, isStart = true, oneLine = true) { edit(true) } }
+            Symbol(R.drawable.sym_arrow_forward, null, Modifier.size(16.dp).padding(horizontal = 2.dp), tint = c.inkFaint)
+            Box(Modifier.weight(1f)) { End("To", query.destination, isStart = false, oneLine = true) { edit(false) } }
+        } else Column(Modifier.weight(1f)) {
             End("From", query.origin, isStart = true) { edit(true) }
             End("To", query.destination, isStart = false) { edit(false) }
         }
@@ -335,7 +348,7 @@ private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, onBack: () 
 }
 
 @Composable
-private fun End(label: String, place: Place, isStart: Boolean, onClick: () -> Unit) {
+private fun End(label: String, place: Place, isStart: Boolean, oneLine: Boolean = false, onClick: () -> Unit) {
     val c = polaris
     Row(
         Modifier
@@ -355,7 +368,7 @@ private fun End(label: String, place: Place, isStart: Boolean, onClick: () -> Un
             place.name,
             Modifier.weight(1f),
             style = if (isStart) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleMedium,
-            color = if (isStart) c.inkSoft else c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            color = if (isStart) c.inkSoft else c.ink, maxLines = if (oneLine) 1 else 2, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -504,8 +517,28 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, routes: Int
                         "with each one's badge. The star's points fill in as Google, TfL and Transitous answer.",
                     style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
                 )
+                DataCredits()
             }
     }
+}
+
+/** What TfL's and Transitous's terms ask apps using their data to show, with the links they ask for. */
+@Composable
+fun DataCredits(modifier: Modifier = Modifier) {
+    val c = polaris
+    val link = androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = c.tint))
+    fun url(text: String, href: String) = androidx.compose.ui.text.LinkAnnotation.Url(href, link)
+    val credits = androidx.compose.ui.text.buildAnnotatedString {
+        append("Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights [2019]. ")
+        append("Timetables and places from ")
+        withLink(url("Transitous", "https://transitous.org/sources")) { append("Transitous") }
+        append(" (")
+        withLink(url("sources", "https://transitous.org/sources")) { append("transitous.org/sources") }
+        append(") with © ")
+        withLink(url("OpenStreetMap", "https://www.openstreetmap.org/copyright")) { append("OpenStreetMap contributors") }
+        append(".")
+    }
+    Text(credits, modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
 }
 
 /** "HTTP 503" means little to anyone: say it plainly. Offline and timed out already read well. */

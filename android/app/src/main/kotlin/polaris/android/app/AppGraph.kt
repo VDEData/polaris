@@ -115,13 +115,15 @@ class MemorySearchArchive : SearchArchive {
 
 class FileSearchArchive(private val dir: File) : SearchArchive {
     private val memory = MemorySearchArchive()
+    /** Pages closed by [keepOnly]: a save still queued for one of them is dropped. */
+    private val closed = mutableSetOf<String>()
 
     override fun hold(id: String, search: Snapshot.Search) {
         if (safe(id)) memory.save(id, search)
     }
 
     @Synchronized override fun save(id: String, search: Snapshot.Search) {
-        if (!safe(id)) return
+        if (!safe(id) || id in closed) return
         memory.save(id, search)
         runCatching {
             dir.mkdirs()
@@ -136,6 +138,8 @@ class FileSearchArchive(private val dir: File) : SearchArchive {
 
     // One lock for writing, reading and pruning, so a prune never deletes a file being written.
     @Synchronized override fun keepOnly(ids: Set<String>) {
+        closed += memory.saved.keys - ids
+        dir.listFiles()?.forEach { if (it.nameWithoutExtension !in ids) closed += it.nameWithoutExtension }
         memory.keepOnly(ids)
         dir.listFiles()?.forEach { if (it.nameWithoutExtension !in ids) it.delete() }
     }

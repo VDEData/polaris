@@ -1,6 +1,7 @@
 package polaris.android.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,9 @@ fun HalfDialog(
         Box(
             Modifier
                 .fillMaxSize()
-                .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onDismissRequest)
+                // A plain tap outside dismisses; not a clickable, so TalkBack doesn't offer an unlabelled
+                // full-screen button (back and the dialog's own buttons are its ways out).
+                .pointerInput(onDismissRequest) { detectTapGestures { onDismissRequest() } }
                 .windowInsetsPadding(WindowInsets.safeDrawing),
             contentAlignment = if (layout.wide) Alignment.CenterStart else Alignment.Center,
         ) {
@@ -57,7 +60,7 @@ fun HalfDialog(
                 // Clicks inside the dialog don't dismiss it.
                 modifier = Modifier
                     .then(if (layout.wide) Modifier.padding(start = 16.dp).width(layout.cardWidth) else Modifier.padding(24.dp).widthIn(max = 560.dp))
-                    .clickable(remember { MutableInteractionSource() }, indication = null) {},
+                    .pointerInput(Unit) { detectTapGestures { } },
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 tonalElevation = 6.dp,

@@ -14,6 +14,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 
@@ -119,22 +121,28 @@ fun SheetPage(key: NavKey, bar: @Composable () -> Unit, content: @Composable () 
     val paper = polaris.android.ui.LocalPolaris.current.paper
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
         MeasuredBar({ sheet.reportBar(key, it) }) { bar() }
-        val low = sheet.lowness >= 0.5f
+        // Read through derived state: the page recomposes when the sheet crosses half way or starts
+        // to leave half, not on every frame of a drag (the fades themselves are read while drawing).
+        val low by androidx.compose.runtime.remember(sheet) { androidx.compose.runtime.derivedStateOf { sheet.lowness >= 0.5f } }
+        val leaving by androidx.compose.runtime.remember(sheet) { androidx.compose.runtime.derivedStateOf { sheet.lowness > 0f } }
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.fillMaxSize()
                 // The list fades out over the first half of the way down, the bar in over the second: never both.
                 .graphicsLayer { alpha = (1f - sheet.lowness * 2f).coerceIn(0f, 1f) }
-                .then(if (low) androidx.compose.ui.Modifier.clearAndSetSemantics {} else androidx.compose.ui.Modifier),
+                // Hidden at the low rest: not read by TalkBack, not reachable by keyboard or D-pad.
+                .then(if (low) androidx.compose.ui.Modifier.clearAndSetSemantics {}.focusProperties { canFocus = false; onEnter = { cancelFocusChange() } } else androidx.compose.ui.Modifier),
         ) { content() }
-        if (sheet.lowness > 0f) {
+        if (leaving) {
             androidx.compose.foundation.layout.Box(
                 androidx.compose.ui.Modifier.fillMaxWidth()
                     .graphicsLayer { alpha = (sheet.lowness * 2f - 1f).coerceIn(0f, 1f) }
                     .background(paper)
-                    // Taps here are the bar's, never the faded list's beneath; drags still move the sheet.
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .then(if (!low) androidx.compose.ui.Modifier.clearAndSetSemantics {} else androidx.compose.ui.Modifier),
-            ) { bar() }
+                    // The bar takes taps only once it is the one showing; until then they reach the list.
+                    .then(
+                        if (low) androidx.compose.ui.Modifier.pointerInput(Unit) { detectTapGestures { } }
+                        else androidx.compose.ui.Modifier.clearAndSetSemantics {}.focusProperties { canFocus = false; onEnter = { cancelFocusChange() } },
+                    ),
+            ) { if (low) bar() }
         }
     }
 }

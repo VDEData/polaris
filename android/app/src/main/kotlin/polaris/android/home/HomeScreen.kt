@@ -214,7 +214,8 @@ private fun SavedTile(
             }
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(place?.name ?: "Add", style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // Three lines in a half-width tile before a name is shortened, so it ends at a word.
+                Text(place?.name ?: "Add", style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             if (place != null) {
                 IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More for $title" }) {

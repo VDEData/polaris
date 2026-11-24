@@ -111,7 +111,14 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     val pages = rememberNavBackStack(HomePage)
     val scene = remember { MapScene() }
 
-    LaunchedEffect(shell) { shell.navigation.collect { pages.add(it) } }
+    LaunchedEffect(shell) {
+        shell.navigation.collect { page ->
+            // Never the same trip twice on top of itself.
+            val top = pages.lastOrNull()
+            if (!(page is ResultsPage && top is ResultsPage && top.query == page.query)) pages.add(page)
+        }
+    }
+    LaunchedEffect(pages.lastOrNull()) { shell.topChanged(pages.lastOrNull() is HomePage) }
     // A debug check's trip, opened once on a fresh start (never in release builds).
     var startedTrip by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(startTrip) {
@@ -142,7 +149,6 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
 
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    var windowLayout by remember { mutableStateOf(WindowLayout()) }
     val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList
     // A flat fold reports isSeparating false; the card still stops short of it.
     val hinge = hinges.firstOrNull { it.isVertical }
@@ -165,7 +171,6 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     val safeStart = WindowInsets.safeDrawing.asPaddingValues().calculateStartPadding(direction)
     val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
     val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart)
-    androidx.compose.runtime.SideEffect { windowLayout = layout }
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -190,11 +195,8 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
             }
         },
     )
-    }
-    }
-
     when (val n = need) {
-        is ShellViewModel.Need.Stranded -> CompositionLocalProvider(LocalWindowLayout provides windowLayout) {
+        is ShellViewModel.Need.Stranded -> CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
                 title = "Can't find where you are",
@@ -204,7 +206,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         }
         ShellViewModel.Need.LocationOff -> {
             val context = androidx.compose.ui.platform.LocalContext.current
-            CompositionLocalProvider(LocalWindowLayout provides windowLayout) {
+            CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
                 title = "Location is off for Polaris",
@@ -224,6 +226,9 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         }
         else -> Unit
     }
+    }
+    }
+
 }
 
 @Composable
@@ -330,9 +335,17 @@ private fun MapAndSheet(
             recentre = recentre,
             overlay = {
                 // The status bar's clock and icons sit on a soft band of paper, not straight on map labels.
+                // Opaque behind the bar itself, fading out over 16 dp below it, at every rest.
+                val band = polaris.paper
                 Box(
-                    Modifier.align(Alignment.TopCenter).fillMaxWidth().height(statusTop + 20.dp)
-                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(polaris.paper.copy(alpha = 0.92f), polaris.paper.copy(alpha = 0f)))),
+                    Modifier.align(Alignment.TopCenter).fillMaxWidth().height(statusTop + 16.dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                0f to band.copy(alpha = 0.96f),
+                                (statusTop / (statusTop + 16.dp)) to band.copy(alpha = 0.96f),
+                                1f to band.copy(alpha = 0f),
+                            ),
+                        ),
                 )
                 LocationButton(
                     Modifier.align(Alignment.TopEnd)
