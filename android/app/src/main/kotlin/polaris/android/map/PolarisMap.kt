@@ -214,8 +214,9 @@ fun PolarisMap(
     // Fit the camera to the journey, inside whatever covers the map.
     val padding = with(density) {
         intArrayOf(
-            fitPadding.calculateStartPadding(direction).roundToPx(), fitPadding.calculateTopPadding().roundToPx(),
-            fitPadding.calculateEndPadding(direction).roundToPx(), fitPadding.calculateBottomPadding().roundToPx(),
+            // MapLibre takes left, top, right, bottom: in a right-to-left layout start is the right.
+            fitPadding.calculateLeftPadding(direction).roundToPx(), fitPadding.calculateTopPadding().roundToPx(),
+            fitPadding.calculateRightPadding(direction).roundToPx(), fitPadding.calculateBottomPadding().roundToPx(),
         )
     }
     // Fitted when the journey changes, inside the padding at that moment; content growing over

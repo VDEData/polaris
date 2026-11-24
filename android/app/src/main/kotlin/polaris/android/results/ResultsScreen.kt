@@ -68,6 +68,7 @@ import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalScene
 import polaris.android.shell.LocalSheet
+import polaris.android.shell.LocalWindowLayout
 import polaris.android.shell.MapScene
 import polaris.android.shell.MeasuredBar
 import polaris.android.shell.SheetPage
@@ -147,7 +148,10 @@ fun ResultsScreen(
     var showSources by rememberSaveable { mutableStateOf(false) }
 
     // Wide, sort and filters dock on the map half, beside the list they change.
-    if (sheet.wide) {
+    // Docked only where the map half has the height for it; a short landscape window keeps them in the card.
+    val layout = LocalWindowLayout.current
+    val docks = sheet.wide && !layout.short
+    if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
             scene.dock(key) { SortAndFilterCard(ui.sort, ui.filter, ui.ranked.hidden, model::setSort, model::setFilter) }
             onDispose { scene.dock(key, null) }
@@ -173,7 +177,7 @@ fun ResultsScreen(
             }
             item(key = "controls") {
                 Controls(
-                    ui, wide = sheet.wide,
+                    ui, wide = docks,
                     pickTime = { kind -> if (kind == null) model.setTime(TimeMode.LeaveNow) else timeKind = kind },
                     setSort = model::setSort,
                     openFilters = { showFilters = true },
@@ -201,12 +205,12 @@ fun ResultsScreen(
                 }
             }
             val notices = ui.notices
-            if (notices.isNotEmpty()) item(key = "notices") { NoticeList(notices) }
+            if (notices.isNotEmpty()) item(key = "notices") { NoticeList(notices, summarised = layout.short) }
             routeCards(ui, model, onOpen)
         }
     }
 
-    if (showFilters && !sheet.wide) FilterSheet(ui.filter, onChange = model::setFilter, onDismiss = { showFilters = false })
+    if (showFilters && !docks) FilterSheet(ui.filter, onChange = model::setFilter, onDismiss = { showFilters = false })
     timeKind?.let { kind -> TimeDialog(kind, ui.query.time, onDismiss = { timeKind = null }) { model.setTime(it); timeKind = null } }
     if (showSources) SourcesDialog(ui.statuses, ui.ranked.top.size + ui.ranked.more.size) { showSources = false }
 }
@@ -527,12 +531,31 @@ private fun Message(title: String, body: String, action: String, onAction: () ->
  * iOS; tap a notice for TfL's own words.
  */
 @Composable
-private fun NoticeList(notices: List<ServiceNotice>) {
+private fun NoticeList(notices: List<ServiceNotice>, summarised: Boolean = false) {
     val c = polaris
     var all by rememberSaveable { mutableStateOf(false) }
     var open by rememberSaveable { mutableStateOf(setOf<String>()) }
-    val shown = if (all) notices else notices.take(3)
     val closed = notices.any { it.severity == ServiceNotice.Severity.closed }
+    // Where height is short (a phone on its side): one row, the worst notice and how many more,
+    // until tapped, so the first route stays in view (iOS's summarised notices).
+    if (summarised && !all) {
+        val worst = notices.first()
+        val minor = worst.severity == ServiceNotice.Severity.minor
+        Row(
+            Modifier.fillMaxWidth().surface(c)
+                .clickable(role = Role.Button, onClickLabel = "Show the notices") { all = true }
+                .semantics(mergeDescendants = true) { contentDescription = if (notices.size > 1) "${worst.title}, and ${notices.size - 1} more reported" else worst.title }
+                .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Symbol(if (minor) R.drawable.sym_info else R.drawable.sym_warning, null, Modifier.size(18.dp), tint = if (minor) c.inkSoft else c.warning)
+            Text(worst.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (notices.size > 1) Text("+${notices.size - 1}", style = MaterialTheme.typography.labelMedium, color = c.inkSoft)
+        }
+        return
+    }
+    val shown = if (all) notices else notices.take(3)
     Column(
         Modifier.fillMaxWidth()
             .background(if (closed) c.warning.copy(alpha = 0.06f) else Color.Transparent, SurfaceShape)

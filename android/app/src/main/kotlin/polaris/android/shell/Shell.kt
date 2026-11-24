@@ -161,7 +161,9 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         if (foldStart != null) (foldStart.toDp() - 48.dp - 16.dp).coerceIn(320.dp, 560.dp) else minOf(400.dp, maxWidth * 0.45f)
     }
     // The map's own half starts past the fold, so its credit and framed routes never straddle it.
-    val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
+    // The card sits inside the safe area (a camera cutout on the leading side in landscape), so the map half starts past both.
+    val safeStart = WindowInsets.safeDrawing.asPaddingValues().calculateStartPadding(direction)
+    val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
     val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart)
     androidx.compose.runtime.SideEffect { windowLayout = layout }
     CompositionLocalProvider(LocalWindowLayout provides layout) {

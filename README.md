@@ -205,7 +205,8 @@ the plumbing and the first screens:
 
 Debug builds add a second launcher entry, "Polaris map check", and can replay recorded answers
 instead of asking TfL or Transitous (`--es demo routes`; see `app/src/debug/.../Variant.kt`);
-neither is in release builds.
+neither is in release builds. Third-party licences for the Android app (the icons, MapLibre, the libraries) are in
+`android/THIRD_PARTY_NOTICES.md`.
 
 The engine needs only JDK 17; the app also needs the Android SDK (platform 36), from Android
 Studio or the command-line tools. Without an SDK, Gradle builds and tests the engine alone.

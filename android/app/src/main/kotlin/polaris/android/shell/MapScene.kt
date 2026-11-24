@@ -122,13 +122,14 @@ fun SheetPage(key: NavKey, bar: @Composable () -> Unit, content: @Composable () 
         val low = sheet.lowness >= 0.5f
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 1f - sheet.lowness }
+                // The list fades out over the first half of the way down, the bar in over the second: never both.
+                .graphicsLayer { alpha = (1f - sheet.lowness * 2f).coerceIn(0f, 1f) }
                 .then(if (low) androidx.compose.ui.Modifier.clearAndSetSemantics {} else androidx.compose.ui.Modifier),
         ) { content() }
         if (sheet.lowness > 0f) {
             androidx.compose.foundation.layout.Box(
                 androidx.compose.ui.Modifier.fillMaxWidth()
-                    .graphicsLayer { alpha = sheet.lowness }
+                    .graphicsLayer { alpha = (sheet.lowness * 2f - 1f).coerceIn(0f, 1f) }
                     .background(paper)
                     // Taps here are the bar's, never the faded list's beneath; drags still move the sheet.
                     .pointerInput(Unit) { detectTapGestures { } }
