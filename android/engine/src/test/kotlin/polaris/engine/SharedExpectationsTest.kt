@@ -12,7 +12,9 @@ import kotlin.test.assertEquals
  * (SharedExpectationsTests.swift) assert against too.
  */
 class SharedExpectationsTest {
-    @Serializable data class Expectations(val about: String, val coordinatePairs: List<Pair>, val cases: List<Case>)
+    @Serializable data class Expectations(val about: String, val coordinatePairs: List<Pair>, val text: TextOrder, val cases: List<Case>)
+    @Serializable data class TextOrder(val normalise: List<Normalised>, val unsorted: List<String>, val sorted: List<String>)
+    @Serializable data class Normalised(val line: String, val normalised: String)
     @Serializable data class Pair(val latitude: Double, val longitude: Double, val pair: String)
     @Serializable data class Case(
         val name: String, val query: Query, val network: Network? = null, val sources: List<Source>,
@@ -30,6 +32,8 @@ class SharedExpectationsTest {
     @Serializable data class Merged(
         val signature: String, val firstBoarding: String, val departure: String, val arrival: String, val fare: String? = null,
         val sources: List<String>, val notices: List<Notice>,
+        /** The leading copy's legs: which copy leads must come out the same on both sides. */
+        val legs: List<FoundLeg>,
     )
     @Serializable data class Notice(val leg: Int, val severity: String, val title: String)
     @Serializable data class Ranked(val top: List<Card>, val more: List<Card>, val hidden: Int)
@@ -77,12 +81,18 @@ class SharedExpectationsTest {
         j.routeSignature, iso(j.firstBoarding), iso(j.departure), iso(j.arrival), j.fare,
         j.sources.map { "${it.provider.name}:${it.variant}" },
         j.notices.map { n -> Notice(j.legs.indexOfFirst { it.id == n.leg }, n.severity.name, n.title) },
+        found(j).legs,
     )
     private fun ranked(r: JourneyRanker.Ranked) = Ranked(r.top.map(::card), r.more.map(::card), r.hidden)
     private fun card(o: RouteOption) = Card(
         o.journey.routeSignature, iso(o.journey.departure), iso(o.journey.arrival),
         o.otherDepartures.map(Time::isoString), o.providers.map { it.name },
     )
+
+    @Test fun textIsNormalisedAndOrderedAsInSwift() {
+        for (n in expected.text.normalise) assertEquals(n.normalised, Journey.normalise(n.line), n.line)
+        assertEquals(expected.text.sorted, expected.text.unsorted.sortedWith(Text::compare))
+    }
 
     @Test fun coordinatesAreWrittenTheSame() {
         for (p in expected.coordinatePairs) assertEquals(p.pair, Coordinate(p.latitude, p.longitude).pair)

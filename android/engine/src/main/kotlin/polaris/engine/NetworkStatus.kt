@@ -246,6 +246,9 @@ class NetworkStatusCache(private val clock: Clock = Clock.systemUTC()) {
         status
     }
 
+    /** Forgets the kept status (tests that use the shared cache start from empty). */
+    internal suspend fun clear() = mutex.withLock { cached = null }
+
     companion object {
         val freshFor: Duration = Duration.ofMinutes(3)
 

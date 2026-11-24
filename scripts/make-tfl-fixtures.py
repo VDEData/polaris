@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Writes two hand-written TfL Journey Planner answers for the shared expectations
+"""Writes three hand-written TfL Journey Planner answers for the shared expectations
 (PolarisTests/Fixtures/journey-expectations.json), between well-known public stations.
 
 - tfl-journeys-arrive-by.json: Liverpool Street to Canary Wharf on Sunday 8 November 2026,
   the day tfl-line-status.json and tfl-stop-disruptions.json were recorded, so TfL's notices
-  apply. Four ways, built so each sort puts a different one first, and one of them stops at
-  Canary Wharf on the Elizabeth line, which TfL reported closed to it that day.
+  apply. Four ways, built so the sorts disagree: best and fastest lead with the Northern and
+  Jubilee, fewest changes with the DLR, least walking with the 135. One of them stops at Canary
+  Wharf on the Elizabeth line, which TfL reported closed to it that day.
 - tfl-journeys-summer.json: Paddington to Tower Hill on Wednesday 15 July 2026, in British
   Summer Time, when TfL's zone-less London times are an hour ahead of UTC.
+- tfl-journeys-chain.json: King's Cross St. Pancras to Oxford Circus on the Victoria line, leaving
+  at 12:11 (twice, from two platforms), 12:14 and 12:17, to pin how merging groups a run of
+  departures and which copy leads.
 
 The shapes follow TfL's real responses (only the fields Polaris reads). Run from the repo root:
     python3 scripts/make-tfl-fixtures.py
@@ -37,12 +41,15 @@ STATIONS = {
     "Baker Street": (51.5226, -0.1571),
     "King's Cross St. Pancras": (51.5308, -0.1238),
     "Moorgate": (51.5186, -0.0886),
+    "Euston": (51.5282, -0.1337),
+    "Warren Street": (51.5247, -0.1384),
+    "Oxford Circus": (51.5152, -0.1419),
 }
 
 MODES = {"elizabeth": "elizabeth-line", "dlr": "dlr", "northern": "tube", "jubilee": "tube",
-         "circle": "tube", "135": "bus"}
+         "circle": "tube", "victoria": "tube", "135": "bus"}
 NAMES = {"elizabeth": "Elizabeth line", "dlr": "DLR", "northern": "Northern", "jubilee": "Jubilee",
-         "circle": "Circle", "135": "135"}
+         "circle": "Circle", "victoria": "Victoria", "135": "135"}
 
 
 def walk(start, end, frm, to):
@@ -130,7 +137,25 @@ summer = {"journeys": [
     ], 280),
 ]}
 
+chain_day = "2026-11-24T"
+
+
+def victoria(leave, platform):
+    h, m = 12, leave
+    t = lambda minutes: f"{chain_day}{h:02d}:{minutes:02d}:00"
+    return journey(t(m - 2), t(m + 9), [
+        walk(t(m - 2), t(m), "King's Cross St. Pancras", "King's Cross St. Pancras Station"),
+        ride("victoria", t(m), t(m + 7), "King's Cross St. Pancras", "Oxford Circus", ["Euston", "Warren Street"],
+             platform=platform, direction="Brixton"),
+        walk(t(m + 7), t(m + 9), "Oxford Circus", "Oxford Circus"),
+    ], 280)
+
+
+# Listed out of order on purpose: merging must not depend on it.
+chain = {"journeys": [victoria(17, "6"), victoria(11, "6"), victoria(14, "5"), victoria(11, "5")]}
+
 fixtures = pathlib.Path(__file__).resolve().parent.parent / "PolarisTests" / "Fixtures"
-for name, body in [("tfl-journeys-arrive-by.json", arrive_by), ("tfl-journeys-summer.json", summer)]:
+for name, body in [("tfl-journeys-arrive-by.json", arrive_by), ("tfl-journeys-summer.json", summer),
+                   ("tfl-journeys-chain.json", chain)]:
     (fixtures / name).write_text(json.dumps(body, indent=2, ensure_ascii=False) + "\n")
     print("wrote", fixtures / name)

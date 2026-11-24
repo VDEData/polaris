@@ -1,0 +1,360 @@
+{
+  "journeys": [
+    {
+      "startDateTime": "2026-11-24T12:15:00",
+      "arrivalDateTime": "2026-11-24T12:26:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-24T12:15:00",
+          "arrivalTime": "2026-11-24T12:17:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras"
+          },
+          "arrivalPoint": {
+            "commonName": "King's Cross St. Pancras Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5308, -0.1238]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-24T12:17:00",
+          "arrivalTime": "2026-11-24T12:24:00",
+          "scheduledDepartureTime": "2026-11-24T12:17:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras Station",
+            "platformName": "6"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Victoria",
+              "directions": [
+                "Brixton"
+              ],
+              "lineIdentifier": {
+                "id": "victoria",
+                "name": "Victoria"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5308, -0.1238], [51.5282, -0.1337], [51.5247, -0.1384], [51.5152, -0.1419]]",
+            "stopPoints": [
+              {
+                "id": "euston",
+                "name": "Euston Station"
+              },
+              {
+                "id": "warren-street",
+                "name": "Warren Street Station"
+              },
+              {
+                "id": "oxford-circus",
+                "name": "Oxford Circus Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-24T12:24:00",
+          "arrivalTime": "2026-11-24T12:26:00",
+          "departurePoint": {
+            "commonName": "Oxford Circus"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5152, -0.1419]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    },
+    {
+      "startDateTime": "2026-11-24T12:09:00",
+      "arrivalDateTime": "2026-11-24T12:20:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-24T12:09:00",
+          "arrivalTime": "2026-11-24T12:11:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras"
+          },
+          "arrivalPoint": {
+            "commonName": "King's Cross St. Pancras Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5308, -0.1238]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-24T12:11:00",
+          "arrivalTime": "2026-11-24T12:18:00",
+          "scheduledDepartureTime": "2026-11-24T12:11:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras Station",
+            "platformName": "6"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Victoria",
+              "directions": [
+                "Brixton"
+              ],
+              "lineIdentifier": {
+                "id": "victoria",
+                "name": "Victoria"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5308, -0.1238], [51.5282, -0.1337], [51.5247, -0.1384], [51.5152, -0.1419]]",
+            "stopPoints": [
+              {
+                "id": "euston",
+                "name": "Euston Station"
+              },
+              {
+                "id": "warren-street",
+                "name": "Warren Street Station"
+              },
+              {
+                "id": "oxford-circus",
+                "name": "Oxford Circus Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-24T12:18:00",
+          "arrivalTime": "2026-11-24T12:20:00",
+          "departurePoint": {
+            "commonName": "Oxford Circus"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5152, -0.1419]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    },
+    {
+      "startDateTime": "2026-11-24T12:12:00",
+      "arrivalDateTime": "2026-11-24T12:23:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-24T12:12:00",
+          "arrivalTime": "2026-11-24T12:14:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras"
+          },
+          "arrivalPoint": {
+            "commonName": "King's Cross St. Pancras Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5308, -0.1238]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-24T12:14:00",
+          "arrivalTime": "2026-11-24T12:21:00",
+          "scheduledDepartureTime": "2026-11-24T12:14:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras Station",
+            "platformName": "5"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Victoria",
+              "directions": [
+                "Brixton"
+              ],
+              "lineIdentifier": {
+                "id": "victoria",
+                "name": "Victoria"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5308, -0.1238], [51.5282, -0.1337], [51.5247, -0.1384], [51.5152, -0.1419]]",
+            "stopPoints": [
+              {
+                "id": "euston",
+                "name": "Euston Station"
+              },
+              {
+                "id": "warren-street",
+                "name": "Warren Street Station"
+              },
+              {
+                "id": "oxford-circus",
+                "name": "Oxford Circus Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-24T12:21:00",
+          "arrivalTime": "2026-11-24T12:23:00",
+          "departurePoint": {
+            "commonName": "Oxford Circus"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5152, -0.1419]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    },
+    {
+      "startDateTime": "2026-11-24T12:09:00",
+      "arrivalDateTime": "2026-11-24T12:20:00",
+      "legs": [
+        {
+          "departureTime": "2026-11-24T12:09:00",
+          "arrivalTime": "2026-11-24T12:11:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras"
+          },
+          "arrivalPoint": {
+            "commonName": "King's Cross St. Pancras Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5308, -0.1238]]"
+          }
+        },
+        {
+          "departureTime": "2026-11-24T12:11:00",
+          "arrivalTime": "2026-11-24T12:18:00",
+          "scheduledDepartureTime": "2026-11-24T12:11:00",
+          "departurePoint": {
+            "commonName": "King's Cross St. Pancras Station",
+            "platformName": "5"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Victoria",
+              "directions": [
+                "Brixton"
+              ],
+              "lineIdentifier": {
+                "id": "victoria",
+                "name": "Victoria"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5308, -0.1238], [51.5282, -0.1337], [51.5247, -0.1384], [51.5152, -0.1419]]",
+            "stopPoints": [
+              {
+                "id": "euston",
+                "name": "Euston Station"
+              },
+              {
+                "id": "warren-street",
+                "name": "Warren Street Station"
+              },
+              {
+                "id": "oxford-circus",
+                "name": "Oxford Circus Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-11-24T12:18:00",
+          "arrivalTime": "2026-11-24T12:20:00",
+          "departurePoint": {
+            "commonName": "Oxford Circus"
+          },
+          "arrivalPoint": {
+            "commonName": "Oxford Circus"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5152, -0.1419]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    }
+  ]
+}

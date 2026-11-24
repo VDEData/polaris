@@ -88,11 +88,13 @@ data class HttpRequest(
     val method: String = "GET",
     val headers: Map<String, String> = emptyMap(),
     val body: ByteArray? = null,
+    /** Whether a redirect to the same host may be followed. Never to another host. */
+    val followRedirects: Boolean = true,
 ) {
     val host: String get() = URI(url).host ?: ""
 }
 
-data class HttpResponse(val status: Int, val body: ByteArray)
+data class HttpResponse(val status: Int, val body: ByteArray, val location: String? = null)
 
 /** What sends requests: the network on a phone, a recording fake in tests. */
 fun interface HttpTransport {
@@ -100,24 +102,66 @@ fun interface HttpTransport {
 }
 
 /**
- * OkHttp with its silent retries off. "One request per search" must mean one request on the
- * wire: `HttpURLConnection` may resend a request on a stale or failed connection (the JDK's,
- * and the OkHttp copy built into Android), and neither lets that be switched off.
- * Like URLSession it follows redirects, gives up after 20 seconds with nothing received, and
- * cancelling the coroutine cancels the call.
+ * OkHttp with every automatic follow-up switched off, so "one request per search" means one
+ * request on the wire. `HttpURLConnection` may resend on a stale or failed connection (the JDK's,
+ * and the copy built into Android) and neither can be told not to; OkHttp can, but on its own it
+ * still resends a 503 that says `Retry-After: 0` and follows redirects to other hosts with every
+ * header but `Authorization`. So here:
+ * - no connection retries, and a guard that fails any second attempt at the same request;
+ * - a 503's `Retry-After` is dropped before OkHttp's follow-up logic sees it;
+ * - redirects are followed by Polaris itself, only to the same scheme, host and port, and only
+ *   for requests that allow it (`HttpRequest.followRedirects`; Google's carry a key and don't).
+ * Like URLSession it gives up after 20 seconds with nothing received, and cancelling the
+ * coroutine cancels the call.
  */
 class OkHttpTransport(client: OkHttpClient? = null) : HttpTransport {
+    private class Attempts {
+        val count = java.util.concurrent.atomic.AtomicInteger()
+    }
+
     private val client = client ?: OkHttpClient.Builder()
         .retryOnConnectionFailure(false)
-        .followRedirects(true)
-        .followSslRedirects(true)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .addNetworkInterceptor { chain ->
+            val attempts = chain.request().tag(Attempts::class.java)
+            if (attempts != null && attempts.count.incrementAndGet() > 1) {
+                throw IOException("Polaris sends each request once; a second attempt was refused")
+            }
+            val response = chain.proceed(chain.request())
+            if (response.code == 503) response.newBuilder().removeHeader("Retry-After").build() else response
+        }
         .connectTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
         .readTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
         .writeTimeout(HTTP.TIMEOUT_MILLIS.toLong(), TimeUnit.MILLISECONDS)
         .build()
 
     override suspend fun send(request: HttpRequest): HttpResponse {
-        val builder = Request.Builder().url(request.url)
+        var current = request
+        repeat(MAX_REDIRECTS + 1) {
+            val response = sendOnce(current)
+            val next = redirect(current, response) ?: return response
+            current = next
+        }
+        throw IOException("Too many redirects")
+    }
+
+    /** Where a redirect may take this request: the same scheme, host and port, or nowhere. */
+    private fun redirect(request: HttpRequest, response: HttpResponse): HttpRequest? {
+        if (!request.followRedirects || response.status !in setOf(301, 302, 303, 307, 308)) return null
+        val location = response.location ?: return null
+        val from = URI(request.url)
+        val to = runCatching { from.resolve(location) }.getOrNull() ?: return null
+        val samePlace = to.scheme.equals(from.scheme, ignoreCase = true) && to.host.equals(from.host, ignoreCase = true) && to.port == from.port
+        if (!samePlace) return null
+        // 303, and 301/302 after a POST, become a GET, as browsers and URLSession do.
+        val toGet = response.status == 303 || (response.status in setOf(301, 302) && request.method == "POST")
+        return if (toGet) request.copy(url = to.toString(), method = "GET", body = null, headers = request.headers - "Content-Type")
+        else request.copy(url = to.toString())
+    }
+
+    private suspend fun sendOnce(request: HttpRequest): HttpResponse {
+        val builder = Request.Builder().url(request.url).tag(Attempts::class.java, Attempts())
         request.headers.forEach { (name, value) -> builder.header(name, value) }
         val body = request.body?.toRequestBody(request.headers["Content-Type"]?.toMediaTypeOrNull())
         builder.method(request.method, body ?: if (request.method == "POST") ByteArray(0).toRequestBody() else null)
@@ -130,11 +174,15 @@ class OkHttpTransport(client: OkHttpClient? = null) : HttpTransport {
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    val result = runCatching { response.use { HttpResponse(it.code, it.body.bytes()) } }
+                    val result = runCatching { response.use { HttpResponse(it.code, it.body.bytes(), it.header("Location")) } }
                     result.fold(continuation::resume, continuation::resumeWithException)
                 }
             })
         }
+    }
+
+    private companion object {
+        const val MAX_REDIRECTS = 5
     }
 }
 

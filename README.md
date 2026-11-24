@@ -31,7 +31,12 @@ less walking, rail only, bus only) and TfL three ways. Most "blind spots" are
 ranking rather than missing data, and the variants surface routes a source knows
 about but buries. Results with the same lines boarding within 4 minutes merge
 into one journey with every source's badge, and later departures on the same
-lines fold into one card ("Or leave at 15:08 or 15:18").
+lines fold into one card ("Or leave at 15:08 or 15:18"). The merge is the same
+whichever source answers first: copies are taken TfL first, then Google, then
+Transitous, earliest boarding first, and each joins a journey only if it boards
+within 4 minutes of that journey's leading copy, whose times, legs and platforms
+the journey shows (the fare is the first any copy has). So 12:01, 12:04 and 12:07
+make two journeys, 12:01 and 12:07, on one card.
 
 **Google's free allowance.** Google is used only inside its free monthly allowance
 (planned to the lowest cap, 1,000 requests). The phone counts every Google request

@@ -143,6 +143,21 @@ data class Journey(
     }
 }
 
+/**
+ * Text compared as Swift's `<` compares it: canonically equivalent strings are equal, and order
+ * is by Unicode scalar value. So both sides are put in NFC and compared code point by code point
+ * (Kotlin's own `compareTo` goes by UTF-16 unit, which differs past U+FFFF and for decomposed
+ * accents).
+ */
+object Text {
+    fun compare(a: String, b: String): Int {
+        val x = Normalizer.normalize(a, Normalizer.Form.NFC).codePoints().toArray()
+        val y = Normalizer.normalize(b, Normalizer.Form.NFC).codePoints().toArray()
+        for (i in 0 until minOf(x.size, y.size)) if (x[i] != y[i]) return x[i].compareTo(y[i])
+        return x.size.compareTo(y.size)
+    }
+}
+
 /** Swift's `Character.isLetter || isNumber`: numbers include ½ and Roman numerals, not just digits. */
 internal fun isLetterOrNumber(c: Char): Boolean = c.isLetter() || when (Character.getType(c).toByte()) {
     Character.DECIMAL_DIGIT_NUMBER, Character.LETTER_NUMBER, Character.OTHER_NUMBER -> true

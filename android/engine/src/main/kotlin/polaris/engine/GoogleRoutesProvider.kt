@@ -48,6 +48,8 @@ class GoogleRoutesProvider(
         return HttpRequest(
             url = "https://routes.googleapis.com/directions/v2:computeRoutes", method = "POST", headers = headers,
             body = HTTP.json.encodeToString(body).encodeToByteArray(),
+            // It carries the key: an answer that points elsewhere is an error, not somewhere to send it.
+            followRedirects = false,
         )
     }
 

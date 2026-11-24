@@ -163,16 +163,17 @@ class BudgetTest {
 
     @Test fun theStatusIsSharedByEverySearchInTheApp() = runTest {
         // Two separate searches made the app's way share the one cache, as Swift's static does.
+        NetworkStatusCache.shared.clear()
         val transport = RecordingTransport()
         val settings = AppSettings().also { it.deepSearch = false }
         val first = SearchModel.create(settings, GoogleUsage(InMemoryKeyValueStore()), "0.1.0", AppIdentity(), transport)
         val second = SearchModel.create(settings, GoogleUsage(InMemoryKeyValueStore()), "0.1.0", AppIdentity(), transport)
         first.search(query, settings)
-        val afterFirst = transport.statusRequests()
+        assertEquals(2, transport.statusRequests(), "the first search fetched it")
         second.search(query, settings)
-        assertTrue(afterFirst <= 2)
-        assertEquals(afterFirst, transport.statusRequests(), "the second search reused the first one's status")
+        assertEquals(2, transport.statusRequests(), "the second search reused it")
         assertTrue(second.state.value.network != null)
+        NetworkStatusCache.shared.clear()
     }
 
     @Test fun tflOffMeansNoStatusEither() = runTest {
@@ -199,13 +200,20 @@ class BudgetTest {
         }
         val rig = Rig(now, googleKey = null, transport = transport)
         val elsewhere = query.copy(origin = Place(name = "Paddington", coordinate = Coordinate(51.5154, -0.1755)))
-        val first = launch { rig.search(query) }
+        var afterFirst = false
+        val first = launch {
+            rig.search(query)
+            // Only the search is cancelled, not the coroutine that asked for it.
+            afterFirst = true
+        }
         runCurrent()
         assertTrue(rig.model.state.value.isSearching)
         val second = launch { rig.search(elsewhere) }
         advanceUntilIdle()
-        assertTrue(first.isCancelled, "the first search was cancelled")
+        assertTrue(afterFirst, "the first caller carried on after its search was replaced")
+        assertTrue(first.isCompleted && !first.isCancelled)
         assertTrue(second.isCompleted)
+        assertEquals(6, rig.transport.sent.size, "the first search's held requests never went out")
         val settled = rig.model.state.value
         assertEquals(elsewhere, settled.query)
         release.complete(Unit)
@@ -242,13 +250,22 @@ class BudgetTest {
     }
 
     @Test fun searchesStartedTogetherDontSpendPastTheThreshold() = runTest {
-        // 698 used: one deep search may ask all five ways, which takes the month past 700,
-        // so the other, started at the same moment, may ask only one.
+        // 698 used: one deep search may ask all five ways, which takes the month past 700, so the
+        // other may ask only one. The clock holds both searches at the same point until both have
+        // reached it, so their plans always overlap; counting must still come out at 6, not 10.
         val usage = GoogleUsage(InMemoryKeyValueStore()).also { it.spend(698, now) }
         val transport = RecordingTransport()
-        val clock = MutableClock(now)
+        val together = java.util.concurrent.CyclicBarrier(2)
+        val clock = object : Clock() {
+            override fun instant(): Instant {
+                runCatching { together.await(2, java.util.concurrent.TimeUnit.SECONDS) }
+                return now
+            }
+            override fun getZone(): ZoneId = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId?): Clock = this
+        }
         val settings = AppSettings(build = BuildDefaults(googleKey = "test-key"))
-        val models = List(2) { SearchModel.create(settings, usage, "0.1.0", AppIdentity(), transport, NetworkStatusCache(clock), clock) }
+        val models = List(2) { SearchModel.create(settings, usage, "0.1.0", AppIdentity(), transport, NetworkStatusCache(MutableClock(now)), clock) }
         withContext(Dispatchers.Default) { models.map { async { it.search(query, settings) } }.awaitAll() }
         assertEquals(6, transport.to("routes.googleapis.com").size)
         assertEquals(704, usage.allowance.usedThisMonth(now))
@@ -301,6 +318,9 @@ class BudgetTest {
         val bare = Rig(now, app = AppIdentity("com.example.polaris"))
         bare.search(query)
         assertTrue(bare.transport.to("routes.googleapis.com").none { "X-Android-Cert" in it.headers })
+        // A request carrying the key never follows a redirect (TransportTest checks the transport keeps to that).
+        assertTrue(google.none { it.followRedirects })
+        assertTrue(rig.transport.sent.filter { it.host != "routes.googleapis.com" }.all { it.followRedirects })
     }
 
     private fun RecordingTransport.statusRequests() = sent.count { "/Line/Mode/" in it.url || "/StopPoint/Mode/" in it.url }
@@ -331,15 +351,22 @@ class GoogleAllowanceTest {
         assertEquals(0, allowance.usedThisMonth(iso("2026-12-01T09:00:00Z")))
         assertEquals("2026-11", GoogleAllowance.month(iso("2026-12-01T07:59:59Z")))
         assertEquals("2026-12", GoogleAllowance.month(iso("2026-12-01T08:00:00Z")))
-        // In summer California is seven hours behind UTC, not eight.
+    }
+
+    @Test fun inSummerGooglesMonthTurnsAnHourEarlier() {
+        // Pacific Daylight Time is seven hours behind UTC, not eight.
         assertEquals("2026-07", GoogleAllowance.month(iso("2026-08-01T06:59:59Z")))
         assertEquals("2026-08", GoogleAllowance.month(iso("2026-08-01T07:00:00Z")))
         val july = GoogleAllowance().spending(900, iso("2026-08-01T06:00:00Z"))
         assertEquals("2026-07", july.month)
         assertEquals(900, july.usedThisMonth(iso("2026-08-01T06:59:59Z")))
         assertEquals(0, july.usedThisMonth(iso("2026-08-01T07:00:00Z")))
-        // Spending in the new month starts the count again.
+    }
+
+    @Test fun spendingInANewMonthStartsTheCountAgain() {
+        val july = GoogleAllowance().spending(900, iso("2026-08-01T06:00:00Z"))
         assertEquals(GoogleAllowance("2026-08", 1), july.spending(1, iso("2026-08-01T07:00:00Z")))
+        assertEquals(GoogleAllowance("2026-07", 901), july.spending(1, iso("2026-08-01T06:59:59Z")))
     }
 
     @Test fun theCountIsKeptOnThePhone() {

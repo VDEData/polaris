@@ -71,12 +71,23 @@ class SearchModel(
     private var running: Job? = null
     private var found: List<Journey> = emptyList()
 
-    /** Runs to completion unless another search starts; cancel the caller to drop it. */
+    /** Runs to completion, or returns early when another search starts; cancel the caller to drop it. */
     suspend fun search(query: JourneyQuery, settings: AppSettings) {
-        val job = currentCoroutineContext()[Job]
+        val caller = currentCoroutineContext()[Job]
+        try {
+            // The search runs in a job of its own, so a newer search cancels just this one and
+            // whoever called it carries on.
+            coroutineScope { run(query, settings, coroutineContext[Job]!!) }
+        } catch (e: CancellationException) {
+            // Replaced by a newer search: return quietly. A cancelled caller is passed on.
+            if (caller?.isActive == false) throw e
+        }
+    }
+
+    private suspend fun run(query: JourneyQuery, settings: AppSettings, own: Job) {
         val mine = synchronized(this) {
-            running?.takeIf { it != job }?.cancel()
-            running = job
+            running?.cancel()
+            running = own
             found = emptyList()
             ++generation
         }
@@ -188,12 +199,21 @@ class SearchModel(
          * As Swift's `describe`: offline and timed out have their own words; anything else a
          * source couldn't answer is "No routes". With no connection Android fails the name lookup.
          */
-        fun describe(error: Throwable): String = when (error) {
-            is ProviderError -> error.errorDescription
-            is UnknownHostException -> "Offline"
-            is SocketTimeoutException -> "Timed out"
-            is java.io.InterruptedIOException -> if (error.message == "timeout") "Timed out" else "No routes"
+        fun describe(error: Throwable): String = when {
+            error is ProviderError -> error.errorDescription
+            isOffline(error) -> "Offline"
+            error is SocketTimeoutException -> "Timed out"
+            error is java.io.InterruptedIOException && error.message == "timeout" -> "Timed out"
             else -> "No routes"
+        }
+
+        /**
+         * iOS's "not connected": the name lookup fails, or the connect finds no network
+         * (ENETUNREACH, no route to host). A server refusing the connection is not offline.
+         */
+        private fun isOffline(error: Throwable): Boolean = generateSequence(error) { it.cause }.take(5).any { e ->
+            e is UnknownHostException || e is java.net.NoRouteToHostException ||
+                (e is java.net.ConnectException && (e.message ?: "").let { "ENETUNREACH" in it || "Network is unreachable" in it })
         }
     }
 }

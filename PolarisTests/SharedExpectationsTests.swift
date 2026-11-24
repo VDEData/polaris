@@ -12,7 +12,20 @@ struct SharedExpectationsTests {
     struct Expectations: Codable, Equatable {
         var about: String
         var coordinatePairs: [Pair]
+        var text: TextOrder
         var cases: [Case]
+    }
+
+    /// Line names normalised for matching, and text in the order both platforms sort it.
+    struct TextOrder: Codable, Equatable {
+        var normalise: [Normalised]
+        var unsorted: [String]
+        var sorted: [String]
+    }
+
+    struct Normalised: Codable, Equatable {
+        var line: String
+        var normalised: String
     }
 
     struct Pair: Codable, Equatable {
@@ -83,6 +96,8 @@ struct SharedExpectationsTests {
         var fare: String?
         var sources: [String]
         var notices: [Notice]
+        /// The leading copy's legs: which copy leads must come out the same on both sides.
+        var legs: [FoundLeg]
     }
 
     struct Notice: Codable, Equatable {
@@ -117,9 +132,20 @@ struct SharedExpectationsTests {
         try JSONDecoder().decode(Expectations.self, from: ProviderParsingTests.fixture("journey-expectations"))
     }
 
+    /// JSONDecoder skips keys it doesn't know, where the Android test rejects them: a field added to
+    /// the file must be read here too, or this fails.
+    @Test func readsEveryKeyInTheFile() throws {
+        let data = try ProviderParsingTests.fixture("journey-expectations")
+        let file = try JSONSerialization.jsonObject(with: data) as? NSObject
+        let read = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Self.expectations())) as? NSObject
+        #expect(file != nil && file == read, "journey-expectations.json has keys or values this test doesn't read")
+    }
+
     @Test func matchesTheSharedExpectations() throws {
         let expected = try Self.expectations()
         var actual = expected
+        actual.text.normalise = expected.text.normalise.map { Normalised(line: $0.line, normalised: Journey.normalise($0.line)) }
+        actual.text.sorted = expected.text.unsorted.sorted()
         actual.coordinatePairs = expected.coordinatePairs.map {
             Pair(latitude: $0.latitude, longitude: $0.longitude, pair: Coordinate(latitude: $0.latitude, longitude: $0.longitude).pair)
         }
@@ -132,6 +158,7 @@ struct SharedExpectationsTests {
             print("---- end journey-expectations actual ----")
         }
         #expect(actual.coordinatePairs == expected.coordinatePairs)
+        #expect(actual.text == expected.text)
         for (a, e) in zip(actual.cases, expected.cases) {
             #expect(a.sources == e.sources, "\(e.name): sources")
             #expect(a.merged == e.merged, "\(e.name): merged")
@@ -224,7 +251,8 @@ struct SharedExpectationsTests {
                fare: j.fare, sources: j.sources.map { "\($0.provider.rawValue):\($0.variant)" },
                notices: j.notices.map { n in
                    Notice(leg: j.legs.firstIndex { $0.id == n.leg } ?? -1, severity: "\(n.severity)", title: n.title)
-               })
+               },
+               legs: found(j).legs)
     }
 
     static func ranked(_ r: JourneyRanker.Ranked) -> Ranked {

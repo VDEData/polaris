@@ -5,9 +5,20 @@ import kotlin.math.abs
 
 // Ported from Polaris/Engine/JourneyMerger.swift and Polaris/Engine/JourneyRanker.swift.
 
-/** Folds every source's copy of the same journey into one, keeping all their badges. */
+/**
+ * Folds every source's copy of the same journey into one, keeping all their badges.
+ *
+ * A merged journey is one departure. Copies are taken in `mergeOrder`, and each joins the first
+ * merged journey whose leading copy boards within 4 minutes of its own first boarding; otherwise
+ * it leads a new one. Copies are compared with the leader, never with each other, so departures
+ * 3 minutes apart don't chain into one: 12:01, 12:04 and 12:07 on the same lines become 12:01
+ * (with 12:04 folded in) and 12:07, and the ranker's card then offers 12:07 as "Or leave at".
+ * A merged journey's times, legs and platforms are its leader's (the highest-priority source's
+ * earliest copy); its fare is the first one in merge order; its sources are all of them.
+ * Swift's `JourneyMerger` follows the same rule.
+ */
 object JourneyMerger {
-    /** Same lines boarding within this window are the same journey. */
+    /** Same lines boarding within this window of the leading copy are the same journey. */
     const val sameDepartureWindow: Double = 4 * 60.0
 
     fun merge(journeys: List<Journey>): List<Journey> {
@@ -32,18 +43,25 @@ object JourneyMerger {
     /**
      * The order copies are taken in, so the result doesn't depend on which source or deep-search
      * variant answered first: source by `mergePriority`, then the earliest boarding, departure and
-     * arrival, then lines, variant, fare and number of legs. Swift's `mergeOrder` is the same.
-     * Strings compare by UTF-16 unit here and by Unicode scalar in Swift; they differ only past
-     * the Basic Multilingual Plane, which line names and variant labels don't reach.
+     * arrival, then lines, variant, fare, number of legs and, last, every leg's details, so two
+     * copies differing only in a platform still come out the same way. Swift's `mergeOrder` is
+     * the same; text compares as Swift's `<` does (`Text.compare`).
      */
     val mergeOrder: Comparator<Journey> = compareBy<Journey> { it.sources.firstOrNull()?.provider?.mergePriority ?: 9 }
         .thenBy { it.firstBoarding }
         .thenBy { it.departure }
         .thenBy { it.arrival }
-        .thenBy { it.routeSignature }
-        .thenBy { it.sources.firstOrNull()?.variant ?: "" }
-        .thenBy { it.fare ?: "" }
+        .thenComparing({ it.routeSignature }, Text::compare)
+        .thenComparing({ it.sources.firstOrNull()?.variant ?: "" }, Text::compare)
+        .thenComparing({ it.fare ?: "" }, Text::compare)
         .thenBy { it.legs.size }
+        .thenComparing({ legKey(it) }, Text::compare)
+
+    /** Every leg's details in one string, the last tie-break. */
+    fun legKey(journey: Journey): String = journey.legs.joinToString(";") { l ->
+        listOf(l.mode.name, l.line ?: "", l.fromName, l.toName, l.platform ?: "", Time.isoString(l.departure),
+            Time.isoString(l.arrival), l.stopCount?.toString() ?: "").joinToString("|")
+    }
 
     fun isSame(a: Journey, b: Journey): Boolean =
         a.routeSignature == b.routeSignature && abs(a.firstBoarding.seconds - b.firstBoarding.seconds) <= sameDepartureWindow
@@ -139,7 +157,7 @@ object JourneyRanker {
                 a.isBlocked != b.isBlocked -> !a.isBlocked
                 cost(a) != cost(b) -> cost(a) < cost(b)
                 a.departure != b.departure -> a.departure > b.departure
-                else -> a.routeSignature < b.routeSignature
+                else -> Text.compare(a.routeSignature, b.routeSignature) < 0
             }
         }
         val order = Comparator<Journey> { a, b -> if (precedes(a, b)) -1 else if (precedes(b, a)) 1 else 0 }
