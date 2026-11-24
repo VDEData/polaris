@@ -28,7 +28,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Ordinary preferences (sources switched off, deep search, sort, filters, appearance, Google's
  * monthly count) in a Preferences DataStore. The engine reads them synchronously, so the file is
  * read once, off the main thread, before anything uses it ([load]); after that reads come from
- * memory and each write goes to memory at once and to disk in the background, in order.
+ * memory and each write goes to memory at once and to disk in the background. Each disk write
+ * takes the key's value at the moment it runs, so however the writes are scheduled the file
+ * ends up with the latest value (Google's count never goes backwards on disk).
  *
  * Phase 1 kept Google's count in SharedPreferences ("polaris"); it is carried over on first load.
  */
@@ -45,7 +47,8 @@ class DataStoreKeyValueStore private constructor(
         if (value == null) values.remove(key) else values[key] = value
         scope.launch {
             writes.withLock {
-                store.edit { prefs -> if (value == null) prefs.remove(stringPreferencesKey(key)) else prefs[stringPreferencesKey(key)] = value }
+                val latest = values[key]
+                store.edit { prefs -> if (latest == null) prefs.remove(stringPreferencesKey(key)) else prefs[stringPreferencesKey(key)] = latest }
             }
         }
     }

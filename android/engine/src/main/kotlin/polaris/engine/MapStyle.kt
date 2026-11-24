@@ -22,9 +22,13 @@ object MapStyle {
     const val OPENFREEMAP_TILES = "https://tiles.openfreemap.org/planet"
     const val OPENFREEMAP_GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf"
 
-    /** What OpenFreeMap asks every map using it to show, with OpenStreetMap's own credit. */
-    const val ATTRIBUTION = "© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors"
-    const val ATTRIBUTION_URL = "https://www.openstreetmap.org/copyright"
+    /** The credit OpenFreeMap asks every map using it to show, in its words, each part linked as on its site. */
+    val CREDITS: List<Pair<String, String>> = listOf(
+        "OpenFreeMap" to "https://openfreemap.org",
+        "© OpenMapTiles" to "https://www.openmaptiles.org/",
+        "Data from OpenStreetMap" to "https://www.openstreetmap.org/copyright",
+    )
+    val ATTRIBUTION: String = CREDITS.joinToString(" ") { it.first }
 
     data class Palette(
         val paper: String,

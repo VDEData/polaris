@@ -190,12 +190,13 @@ fun PolarisMap(
     }
 }
 
-/** OpenFreeMap's required credit, always visible, linking to OpenStreetMap's copyright page. */
+/** OpenFreeMap's required credit, always visible, each part linked as on OpenFreeMap's site. */
 @Composable
 private fun BoxScope.Attribution(colors: PolarisColors, modifier: Modifier) {
     val text = buildAnnotatedString {
-        withLink(LinkAnnotation.Url(MapStyle.ATTRIBUTION_URL, TextLinkStyles(SpanStyle(color = colors.ink.copy(alpha = 0.8f))))) {
-            append(MapStyle.ATTRIBUTION)
+        MapStyle.CREDITS.forEachIndexed { index, (words, url) ->
+            if (index > 0) append(" ")
+            withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = colors.ink.copy(alpha = 0.8f))))) { append(words) }
         }
     }
     Text(

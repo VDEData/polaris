@@ -36,9 +36,10 @@ class InMemoryDurableStore : DurableStore {
  * - an empty value removes the entry, as iOS's `Keychain.set("")` does;
  * - a value that can't be sealed or written is not kept, and [write] says so; nothing is ever
  *   stored in the clear;
- * - a value that can't be opened (its key was lost: the app's data restored onto another phone,
- *   or the Keystore reset) reads as absent and is removed, so the build's value or none applies
- *   and the person can enter it again;
+ * - a value that can't be opened reads as absent, so the build's value or none applies. It is
+ *   left in place, as iOS leaves a Keychain item it can't read yet: the failure may pass (the
+ *   Keystore busy or not yet unlocked), and if the key is truly gone (data restored onto another
+ *   phone, the Keystore reset) the next value entered replaces it;
  * - nothing here logs, and errors never carry the value.
  */
 class EncryptedSecretStore(private val cipher: SecretCipher, private val store: DurableStore) : SecretStore {
@@ -47,7 +48,6 @@ class EncryptedSecretStore(private val cipher: SecretCipher, private val store: 
         return try {
             cipher.open(Base64.getDecoder().decode(sealed)).decodeToString()
         } catch (e: Exception) {
-            store.write(key(account), null)
             null
         }
     }

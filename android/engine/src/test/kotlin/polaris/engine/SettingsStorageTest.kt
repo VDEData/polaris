@@ -56,14 +56,19 @@ class SettingsStorageTest {
         assertFalse(EncryptedSecretStore(FakeCipher(), FailingStore()).write("abc", "google"))
     }
 
-    @Test fun aValueThatCantBeOpenedReadsAsAbsentAndIsRemoved() {
+    @Test fun aValueThatCantBeOpenedReadsAsAbsentAndIsKeptForLater() {
         val disk = InMemoryDurableStore()
         EncryptedSecretStore(FakeCipher(), disk).write("abc", "google")
         // As after a restore onto another phone: the sealed bytes are there, the key isn't.
         val lost = FakeCipher().apply { broken = true }
         val settings = AppSettings(EncryptedSecretStore(lost, disk), BuildDefaults(googleKey = "built-in"))
         assertEquals("built-in", settings.googleKey)
-        assertTrue(disk.values.isEmpty())
+        // Left in place: if the failure passes, the entered key comes back.
+        val sealed = disk.values.getValue("secret.google")
+        assertEquals("abc", EncryptedSecretStore(FakeCipher(), disk).read("google"))
+        // Entering a new value replaces it.
+        assertTrue(EncryptedSecretStore(FakeCipher(), disk).write("def", "google"))
+        assertTrue(disk.values.getValue("secret.google") != sealed)
         // Garbage that isn't even base64 is the same.
         disk.values["secret.tfl"] = "%%%"
         assertNull(EncryptedSecretStore(FakeCipher(), disk).read("tfl"))

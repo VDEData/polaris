@@ -23,7 +23,8 @@ class MapStyleTest {
             // The TileJSON address, not a dated tile URL: OpenFreeMap moves those on with each build.
             assertEquals("https://tiles.openfreemap.org/planet", source["url"]!!.jsonPrimitive.content)
             assertEquals(MapStyle.ATTRIBUTION, source["attribution"]!!.jsonPrimitive.content)
-            assertTrue("OpenFreeMap" in MapStyle.ATTRIBUTION && "OpenMapTiles" in MapStyle.ATTRIBUTION && "OpenStreetMap" in MapStyle.ATTRIBUTION)
+            assertEquals("OpenFreeMap © OpenMapTiles Data from OpenStreetMap", MapStyle.ATTRIBUTION)
+            assertEquals(listOf("https://openfreemap.org", "https://www.openmaptiles.org/", "https://www.openstreetmap.org/copyright"), MapStyle.CREDITS.map { it.second })
             // No sprite to fetch, and every font is one OpenFreeMap serves.
             assertNull(s["sprite"])
             val fonts = s["layers"]!!.jsonArray.mapNotNull { it.jsonObject["layout"]?.jsonObject?.get("text-font") }

@@ -20,7 +20,6 @@ import polaris.engine.SortOrder
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -64,7 +63,9 @@ class StorageDeviceTest {
         cipher.deleteKey()
         val settings = AppSettings(EncryptedSecretStore(cipher, disk), BuildDefaults(tflKey = "built-in"))
         assertEquals("built-in", settings.tflKey)
-        assertNull(disk.read("secret.tfl"))
+        // A value entered now seals with a new key and reads back.
+        settings.tflKeyOverride = "new-key"
+        assertEquals("new-key", settings.tflKey)
     }
 
     @Test fun preferencesSurviveAFreshRead() = runBlocking {
