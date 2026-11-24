@@ -31,7 +31,12 @@ less walking, rail only, bus only) and TfL three ways. Most "blind spots" are
 ranking rather than missing data, and the variants surface routes a source knows
 about but buries. Results with the same lines boarding within 4 minutes merge
 into one journey with every source's badge, and later departures on the same
-lines fold into one card ("Or leave at 15:08 or 15:18").
+lines fold into one card ("Or leave at 15:08 or 15:18"). The merge is the same
+whichever source answers first: copies are taken TfL first, then Google, then
+Transitous, earliest boarding first, and each joins a journey only if it boards
+within 4 minutes of that journey's leading copy, whose times, legs and platforms
+the journey shows (the fare is the first any copy has). So 12:01, 12:04 and 12:07
+make two journeys, 12:01 and 12:07, on one card.
 
 **Google's free allowance.** Google is used only inside its free monthly allowance
 (planned to the lowest cap, 1,000 requests). The phone counts every Google request
@@ -168,6 +173,44 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 | `POLARIS_ALERTS_URL`, `POLARIS_ALERTS_TOKEN` | Your own alerts server, below | Alerts are off |
 | `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | No contact in the User-Agent |
 
+## Android (early: engine only)
+
+`android/` is a Kotlin port in progress. So far it holds the engine: the models, the TfL,
+Transitous and Google providers, merging, ranking, TfL's network status and Google's monthly
+count, with the same names and behaviour as the Swift, and the same request budgets. The app
+around it is one plain screen that runs a single search (King's Cross to Canary Wharf) to prove
+the engine works on a device: TfL and Transitous, plus Google only if you built it with a Google
+key. There is no map, search box, Go or alerts on Android yet.
+
+The engine needs only JDK 17; the app also needs the Android SDK (platform 36), from Android
+Studio or the command-line tools. Without an SDK, Gradle builds and tests the engine alone.
+
+```sh
+cd android
+./gradlew test               # the engine's tests, offline, on the JVM
+./gradlew :app:installDebug  # onto a running emulator or a connected phone (needs the SDK)
+```
+
+Per-builder values go in `android/local.properties` (git-ignored; copy
+`local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
+(default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS),
+and the optional `polaris.googleKey` and `polaris.tflKey`. With none of them set the build works as
+the iOS one does with no keys.
+
+Build-time keys are compiled into the app (`BuildConfig`), where anyone with the `.apk` can read
+them, just as on iOS. A Google key for Android is restricted to your application ID and the SHA-1
+of your signing certificate; the app sends both with each request, and neither is a secret, so the
+restriction only stops casual reuse. Restrict the key to the Routes API, set a daily quota cap in
+the Google Cloud console, and prefer entering keys in the app once Android has a settings screen.
+
+The engine's tests read the recordings in `PolarisTests/Fixtures` in place, and both platforms'
+tests assert against `PolarisTests/Fixtures/journey-expectations.json`: for a recorded King's Cross
+to Canary Wharf search and two hand-written TfL answers (an arrive-by search on a day with
+disruptions, and one in summer time), each leg's mode, line, stops, times, platform and stop count,
+the fares, the merged groups and TfL's notices on them, and the order under every sort and several
+filters. A change to one side's parsing, merging or ranking of those cases that the other doesn't
+make fails a test; the rest of each engine is covered by its own tests.
+
 ## Run your own alerts server
 
 Alerts need a server that watches TfL while the app is closed and sends pushes. There is no
@@ -274,6 +317,7 @@ tests share the TfL recordings.
 ```sh
 xcodebuild test -project Polaris.xcodeproj -scheme Polaris -destination 'platform=iOS Simulator,name=iPhone 17'
 cd worker && pnpm test && pnpm exec tsc --noEmit
+(cd android && ./gradlew test)
 ```
 
 If a recording is ever replaced, check it holds no key, token or personal location before committing it.
@@ -290,6 +334,7 @@ MIT. See `LICENSE`.
 - `Polaris/Shared` and `PolarisWidgets`: the trip's Live Activity (the attributes are compiled into both targets).
 - `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `apns.ts`.
 - `PolarisTests`: parsers against recorded Google/TfL/Transitous responses, boards, walking progress and leg-by-leg tracking, and the merge and ranking rules.
+- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM) and `app/` (one Compose screen).
 - `Polaris/Design/Theme.swift`: the star-atlas palette, light and dark (System, Light or Dark in Settings).
 
 Launch flags for checking screens without tapping (Debug only): `-setup` shows the first-run setup step; `-demo -demoReplan

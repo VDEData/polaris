@@ -163,8 +163,10 @@ struct Journey: Codable, Hashable, Sendable, Identifiable {
     /// First boarding time, used to tell apart the same route on different departures.
     var firstBoarding: Date { transitLegs.first?.departure ?? departure }
 
+    /// In NFC, so an accent typed as one character or as a letter plus a mark gives the same
+    /// bytes (the Android engine normalises the same way).
     static func normalise(_ line: String) -> String {
-        line.lowercased()
+        line.lowercased().precomposedStringWithCanonicalMapping
             .replacingOccurrences(of: "&", with: "and")
             .replacingOccurrences(of: " line", with: "")
             .filter { $0.isLetter || $0.isNumber }

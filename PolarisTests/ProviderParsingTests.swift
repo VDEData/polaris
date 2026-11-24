@@ -88,6 +88,16 @@ struct ProviderParsingTests {
         #expect(journey.fare == "£2.80")
     }
 
+    /// Same name and cases as in the Android engine's ProviderParsingTest; journey-expectations.json has more.
+    @Test func coordinatePairsAreWrittenInPlainDecimals() {
+        #expect(Coordinate(latitude: 51.5308, longitude: -0.1238).pair == "51.5308,-0.1238")
+        #expect(Coordinate(latitude: 51.4779, longitude: 0.0005).pair == "51.4779,0.0005")
+        #expect(Coordinate(latitude: 51.4779, longitude: -0.00002).pair == "51.4779,-0.00002")
+        #expect(Coordinate(latitude: 51.0, longitude: 0.0).pair == "51.0,0.0")
+        #expect("\(0.000001)" == "1e-06", "what Swift would have written")
+        #expect(Coordinate(latitude: 51.5, longitude: 0.000001).pair == "51.5,0.000001")
+    }
+
     @Test func polyline() {
         // Google's documented example.
         let points = Polyline.decode("_p~iF~ps|U_ulLnnqC_mqNvxq`@")

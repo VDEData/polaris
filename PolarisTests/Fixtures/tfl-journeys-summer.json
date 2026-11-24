@@ -1,0 +1,265 @@
+{
+  "journeys": [
+    {
+      "startDateTime": "2026-07-15T09:02:00",
+      "arrivalDateTime": "2026-07-15T09:28:00",
+      "legs": [
+        {
+          "departureTime": "2026-07-15T09:02:00",
+          "arrivalTime": "2026-07-15T09:04:00",
+          "departurePoint": {
+            "commonName": "Paddington"
+          },
+          "arrivalPoint": {
+            "commonName": "Paddington Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5154, -0.1755]]"
+          }
+        },
+        {
+          "departureTime": "2026-07-15T09:05:00",
+          "arrivalTime": "2026-07-15T09:17:00",
+          "scheduledDepartureTime": "2026-07-15T09:05:00",
+          "departurePoint": {
+            "commonName": "Paddington Station",
+            "platformName": "A"
+          },
+          "arrivalPoint": {
+            "commonName": "Liverpool Street Station"
+          },
+          "mode": {
+            "id": "elizabeth-line",
+            "name": "elizabeth-line"
+          },
+          "routeOptions": [
+            {
+              "name": "Elizabeth line",
+              "directions": [
+                "Abbey Wood"
+              ],
+              "lineIdentifier": {
+                "id": "elizabeth",
+                "name": "Elizabeth line"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5154, -0.1755], [51.5142, -0.1494], [51.5165, -0.131], [51.5203, -0.1053], [51.5178, -0.0823]]",
+            "stopPoints": [
+              {
+                "id": "bond-street",
+                "name": "Bond Street Station"
+              },
+              {
+                "id": "tottenham-court-road",
+                "name": "Tottenham Court Road Station"
+              },
+              {
+                "id": "farringdon",
+                "name": "Farringdon Station"
+              },
+              {
+                "id": "liverpool-street",
+                "name": "Liverpool Street Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-07-15T09:17:00",
+          "arrivalTime": "2026-07-15T09:20:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street"
+          },
+          "arrivalPoint": {
+            "commonName": "Liverpool Street Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5178, -0.0823]]"
+          }
+        },
+        {
+          "departureTime": "2026-07-15T09:22:00",
+          "arrivalTime": "2026-07-15T09:26:00",
+          "scheduledDepartureTime": "2026-07-15T09:22:00",
+          "departurePoint": {
+            "commonName": "Liverpool Street Station",
+            "platformName": "2"
+          },
+          "arrivalPoint": {
+            "commonName": "Tower Hill Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Circle",
+              "directions": [
+                "Hammersmith"
+              ],
+              "lineIdentifier": {
+                "id": "circle",
+                "name": "Circle"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5178, -0.0823], [51.5143, -0.0755], [51.5098, -0.0766]]",
+            "stopPoints": [
+              {
+                "id": "aldgate",
+                "name": "Aldgate Station"
+              },
+              {
+                "id": "tower-hill",
+                "name": "Tower Hill Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-07-15T09:26:00",
+          "arrivalTime": "2026-07-15T09:28:00",
+          "departurePoint": {
+            "commonName": "Tower Hill"
+          },
+          "arrivalPoint": {
+            "commonName": "Tower Hill"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5098, -0.0766]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    },
+    {
+      "startDateTime": "2026-07-15T09:04:00",
+      "arrivalDateTime": "2026-07-15T09:44:00",
+      "legs": [
+        {
+          "departureTime": "2026-07-15T09:04:00",
+          "arrivalTime": "2026-07-15T09:06:00",
+          "departurePoint": {
+            "commonName": "Paddington"
+          },
+          "arrivalPoint": {
+            "commonName": "Paddington Station"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5154, -0.1755]]"
+          }
+        },
+        {
+          "departureTime": "2026-07-15T09:07:00",
+          "arrivalTime": "2026-07-15T09:42:00",
+          "scheduledDepartureTime": "2026-07-15T09:07:00",
+          "departurePoint": {
+            "commonName": "Paddington Station",
+            "platformName": "1"
+          },
+          "arrivalPoint": {
+            "commonName": "Tower Hill Station"
+          },
+          "mode": {
+            "id": "tube",
+            "name": "tube"
+          },
+          "routeOptions": [
+            {
+              "name": "Circle",
+              "directions": [
+                "Edgware Road"
+              ],
+              "lineIdentifier": {
+                "id": "circle",
+                "name": "Circle"
+              }
+            }
+          ],
+          "path": {
+            "lineString": "[[51.5154, -0.1755], [51.5199, -0.1679], [51.5226, -0.1571], [51.5308, -0.1238], [51.5203, -0.1053], [51.5186, -0.0886], [51.5178, -0.0823], [51.5143, -0.0755], [51.5098, -0.0766]]",
+            "stopPoints": [
+              {
+                "id": "edgware-road",
+                "name": "Edgware Road Station"
+              },
+              {
+                "id": "baker-street",
+                "name": "Baker Street Station"
+              },
+              {
+                "id": "king's-cross-st.-pancras",
+                "name": "King's Cross St. Pancras Station"
+              },
+              {
+                "id": "farringdon",
+                "name": "Farringdon Station"
+              },
+              {
+                "id": "moorgate",
+                "name": "Moorgate Station"
+              },
+              {
+                "id": "liverpool-street",
+                "name": "Liverpool Street Station"
+              },
+              {
+                "id": "aldgate",
+                "name": "Aldgate Station"
+              },
+              {
+                "id": "tower-hill",
+                "name": "Tower Hill Station"
+              }
+            ]
+          },
+          "isDisrupted": false
+        },
+        {
+          "departureTime": "2026-07-15T09:42:00",
+          "arrivalTime": "2026-07-15T09:44:00",
+          "departurePoint": {
+            "commonName": "Tower Hill"
+          },
+          "arrivalPoint": {
+            "commonName": "Tower Hill"
+          },
+          "mode": {
+            "id": "walking",
+            "name": "walking"
+          },
+          "path": {
+            "lineString": "[[51.5098, -0.0766]]"
+          }
+        }
+      ],
+      "fare": {
+        "totalCost": 280
+      }
+    }
+  ]
+}

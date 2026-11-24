@@ -1,0 +1,3621 @@
+{
+  "about": "Shared by the iOS tests (SharedExpectationsTests.swift) and the Android engine's tests (SharedExpectationsTest.kt); both must read every key. For each case, every source fixture is parsed for the query (per leg: mode, line as the operator spells it, stop names, times, platform, stop count; per journey: fare); the journeys are merged (the result, including which copy leads, must not depend on their order), checked against TfL's recorded network status where a case names one, and ranked under every sort and under each filter. Unknown names in 'avoided' are ignored on both sides. coordinatePairs checks how a coordinate is written into a request; text checks line-name normalising (NFC) and the order text sorts in (by Unicode scalar, as Swift's <). Generated from the Swift implementation and checked by hand against the fixtures; the tfl-journeys-arrive-by, -summer and -chain fixtures are hand-written by scripts/make-tfl-fixtures.py. Times are UTC to the second.",
+  "coordinatePairs": [
+    {
+      "latitude": 51.5308,
+      "longitude": -0.1238,
+      "pair": "51.5308,-0.1238"
+    },
+    {
+      "latitude": 51.4779,
+      "longitude": 0.0005,
+      "pair": "51.4779,0.0005"
+    },
+    {
+      "latitude": 51.4779,
+      "longitude": -2e-05,
+      "pair": "51.4779,-0.00002"
+    },
+    {
+      "latitude": 51,
+      "longitude": 0,
+      "pair": "51.0,0.0"
+    },
+    {
+      "latitude": 51.5054,
+      "longitude": -0.0235,
+      "pair": "51.5054,-0.0235"
+    },
+    {
+      "latitude": 51.47793,
+      "longitude": -1.5e-06,
+      "pair": "51.47793,-0.0000015"
+    }
+  ],
+  "text": {
+    "normalise": [
+      {
+        "line": "Café Express",
+        "normalised": "caféexpress"
+      },
+      {
+        "line": "Café Express",
+        "normalised": "caféexpress"
+      },
+      {
+        "line": "Hammersmith & City line",
+        "normalised": "hammersmithandcity"
+      }
+    ],
+    "sorted": [
+      "Bakerloo",
+      "Vf",
+      "Vélo",
+      "bakerloo",
+      "ﬀ line",
+      "𝔸 line"
+    ],
+    "unsorted": [
+      "Vf",
+      "Vélo",
+      "𝔸 line",
+      "ﬀ line",
+      "Bakerloo",
+      "bakerloo"
+    ]
+  },
+  "cases": [
+    {
+      "name": "recorded, several variants per source",
+      "query": {
+        "arriveBy": false,
+        "destination": {
+          "latitude": 51.5054,
+          "longitude": -0.0235,
+          "name": "Canary Wharf"
+        },
+        "origin": {
+          "latitude": 51.5308,
+          "longitude": -0.1238,
+          "name": "King's Cross"
+        },
+        "time": "2026-10-28T11:55:00Z"
+      },
+      "network": {
+        "lines": "tfl-line-status.json",
+        "stops": "tfl-stop-disruptions.json"
+      },
+      "sources": [
+        {
+          "fixture": "tfl-journeys.json",
+          "journeys": [
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T11:58:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:07:00Z",
+                  "departure": "2026-10-28T11:58:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:16:00Z",
+                  "departure": "2026-10-28T12:07:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "Bank",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 4,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:10:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "London St Pancras International"
+                },
+                {
+                  "arrival": "2026-10-28T12:14:00Z",
+                  "departure": "2026-10-28T12:10:00Z",
+                  "from": "London St Pancras International",
+                  "line": "Thameslink",
+                  "mode": "rail",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:29:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:38:00Z",
+                  "departure": "2026-10-28T12:29:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:46:00Z",
+              "departure": "2026-10-28T12:10:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:10:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "London St Pancras International"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "London St Pancras International",
+                  "line": "Thameslink",
+                  "mode": "rail",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:27:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:46:00Z",
+                  "departure": "2026-10-28T12:37:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            }
+          ],
+          "provider": "tfl",
+          "variant": "Fastest"
+        },
+        {
+          "fixture": "tfl-journeys.json",
+          "journeys": [
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T11:58:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:07:00Z",
+                  "departure": "2026-10-28T11:58:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:16:00Z",
+                  "departure": "2026-10-28T12:07:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "Bank",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 4,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:10:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "London St Pancras International"
+                },
+                {
+                  "arrival": "2026-10-28T12:14:00Z",
+                  "departure": "2026-10-28T12:10:00Z",
+                  "from": "London St Pancras International",
+                  "line": "Thameslink",
+                  "mode": "rail",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:29:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:38:00Z",
+                  "departure": "2026-10-28T12:29:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:46:00Z",
+              "departure": "2026-10-28T12:10:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:10:00Z",
+                  "from": "9-11 EUSTON ROAD, LONDON",
+                  "mode": "walk",
+                  "to": "London St Pancras International"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "London St Pancras International",
+                  "line": "Thameslink",
+                  "mode": "rail",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:27:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:46:00Z",
+                  "departure": "2026-10-28T12:37:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "12 COOKS CLOSE, LONDON"
+                }
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            }
+          ],
+          "provider": "tfl",
+          "variant": "Fewer changes"
+        },
+        {
+          "fixture": "transitous-plan.json",
+          "journeys": [
+            {
+              "arrival": "2026-10-28T12:30:00Z",
+              "departure": "2026-10-28T12:00:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:04:00Z",
+                  "departure": "2026-10-28T12:00:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:07:00Z",
+                  "departure": "2026-10-28T12:04:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Hammersmith & City",
+                  "mode": "tube",
+                  "platform": "2",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:10:00Z",
+                  "departure": "2026-10-28T12:07:00Z",
+                  "from": "Farringdon",
+                  "mode": "walk",
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:12:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "platform": "A",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:30:00Z",
+                  "departure": "2026-10-28T12:22:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:36:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:08:00Z",
+                  "departure": "2026-10-28T12:03:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:17:00Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "platform": "8",
+                  "stopCount": 4,
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:19:00Z",
+                  "departure": "2026-10-28T12:17:00Z",
+                  "from": "Bank",
+                  "mode": "walk",
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:32:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "Bank",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 4,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:36:00Z",
+                  "departure": "2026-10-28T12:32:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:08:00Z",
+                  "departure": "2026-10-28T12:03:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "platform": "8",
+                  "stopCount": 5,
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:20:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "London Bridge",
+                  "mode": "walk",
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:26:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "London Bridge",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "platform": "4",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:28:00Z",
+                  "departure": "2026-10-28T12:26:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:28:00Z",
+                  "from": "Canary Wharf Station",
+                  "line": "D7",
+                  "mode": "bus",
+                  "platform": "K",
+                  "stopCount": 3,
+                  "to": "West India Avenue"
+                },
+                {
+                  "arrival": "2026-10-28T12:33:00Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "West India Avenue",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:jubilee>road:d7"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:12:00Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:15:00Z",
+                  "departure": "2026-10-28T12:12:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Metropolitan",
+                  "mode": "tube",
+                  "platform": "2",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:15:00Z",
+                  "from": "Farringdon",
+                  "mode": "walk",
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:29:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "platform": "A",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:29:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:metropolitan>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:41:00Z",
+              "departure": "2026-10-28T12:09:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:14:00Z",
+                  "departure": "2026-10-28T12:09:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:23:00Z",
+                  "departure": "2026-10-28T12:14:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "platform": "8",
+                  "stopCount": 4,
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:25:00Z",
+                  "departure": "2026-10-28T12:23:00Z",
+                  "from": "Bank",
+                  "mode": "walk",
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:25:00Z",
+                  "from": "Bank",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 4,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:41:00Z",
+                  "departure": "2026-10-28T12:37:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:19:00Z",
+                  "departure": "2026-10-28T12:15:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Circle",
+                  "mode": "tube",
+                  "platform": "2",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:25:00Z",
+                  "departure": "2026-10-28T12:22:00Z",
+                  "from": "Farringdon",
+                  "mode": "walk",
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:37:00Z",
+                  "departure": "2026-10-28T12:27:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "platform": "A",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:45:00Z",
+                  "departure": "2026-10-28T12:37:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:circle>rail:elizabeth"
+            }
+          ],
+          "provider": "transitous",
+          "variant": "Fastest"
+        },
+        {
+          "fixture": "google-routes.json",
+          "journeys": [
+            {
+              "arrival": "2026-10-28T12:33:30Z",
+              "departure": "2026-10-28T12:00:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:04:00Z",
+                  "departure": "2026-10-28T12:00:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:13:00Z",
+                  "departure": "2026-10-28T12:04:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:16:00Z",
+                  "departure": "2026-10-28T12:13:00Z",
+                  "from": "Bank Station",
+                  "mode": "walk",
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:30:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Bank Station",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 5,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:33:30Z",
+                  "departure": "2026-10-28T12:30:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:38:30Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:09:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:21:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Bank Station",
+                  "mode": "walk",
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:23:00Z",
+                  "from": "Bank Station",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 5,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:38:30Z",
+                  "departure": "2026-10-28T12:35:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:05:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:08:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Hammersmith & City",
+                  "mode": "tube",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:10:30Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "Farringdon",
+                  "mode": "walk",
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:25:00Z",
+                  "departure": "2026-10-28T12:14:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:28:40Z",
+                  "departure": "2026-10-28T12:25:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:06:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:14:00Z",
+                  "departure": "2026-10-28T12:06:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Green Park"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:14:00Z",
+                  "from": "Green Park",
+                  "mode": "walk",
+                  "to": "Green Park"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "Green Park",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "stopCount": 7,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:39:00Z",
+                  "departure": "2026-10-28T12:35:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:09:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:20:00Z",
+                  "departure": "2026-10-28T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 5,
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:23:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "London Bridge",
+                  "mode": "walk",
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:25:00Z",
+                  "from": "London Bridge",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:34:40Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:11:00Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:11:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Hammersmith & City",
+                  "mode": "tube",
+                  "stopCount": 3,
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:24:00Z",
+                  "from": "Liverpool Street",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 2,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:34:40Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ],
+          "provider": "google",
+          "variant": "Fastest"
+        },
+        {
+          "fixture": "google-routes.json",
+          "journeys": [
+            {
+              "arrival": "2026-10-28T12:33:30Z",
+              "departure": "2026-10-28T12:00:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:04:00Z",
+                  "departure": "2026-10-28T12:00:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:13:00Z",
+                  "departure": "2026-10-28T12:04:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:16:00Z",
+                  "departure": "2026-10-28T12:13:00Z",
+                  "from": "Bank Station",
+                  "mode": "walk",
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:30:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Bank Station",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 5,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:33:30Z",
+                  "departure": "2026-10-28T12:30:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:38:30Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:09:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:21:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Bank Station",
+                  "mode": "walk",
+                  "to": "Bank Station"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:23:00Z",
+                  "from": "Bank Station",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "stopCount": 5,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:38:30Z",
+                  "departure": "2026-10-28T12:35:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:05:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:08:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Hammersmith & City",
+                  "mode": "tube",
+                  "stopCount": 1,
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:10:30Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "Farringdon",
+                  "mode": "walk",
+                  "to": "Farringdon"
+                },
+                {
+                  "arrival": "2026-10-28T12:25:00Z",
+                  "departure": "2026-10-28T12:14:00Z",
+                  "from": "Farringdon",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:28:40Z",
+                  "departure": "2026-10-28T12:25:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:06:00Z",
+                  "departure": "2026-10-28T12:02:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:14:00Z",
+                  "departure": "2026-10-28T12:06:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "stopCount": 4,
+                  "to": "Green Park"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:14:00Z",
+                  "from": "Green Park",
+                  "mode": "walk",
+                  "to": "Green Park"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:19:00Z",
+                  "from": "Green Park",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "stopCount": 7,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:39:00Z",
+                  "departure": "2026-10-28T12:35:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:09:00Z",
+                  "departure": "2026-10-28T12:05:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:20:00Z",
+                  "departure": "2026-10-28T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "stopCount": 5,
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:23:00Z",
+                  "departure": "2026-10-28T12:20:00Z",
+                  "from": "London Bridge",
+                  "mode": "walk",
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:25:00Z",
+                  "from": "London Bridge",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:35:00Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:34:40Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "fare": "£3.10",
+              "legs": [
+                {
+                  "arrival": "2026-10-28T12:11:00Z",
+                  "departure": "2026-10-28T12:08:00Z",
+                  "from": "King's Cross",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-10-28T12:18:00Z",
+                  "departure": "2026-10-28T12:11:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Hammersmith & City",
+                  "mode": "tube",
+                  "stopCount": 3,
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-10-28T12:22:00Z",
+                  "departure": "2026-10-28T12:18:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-10-28T12:31:00Z",
+                  "departure": "2026-10-28T12:24:00Z",
+                  "from": "Liverpool Street",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "stopCount": 2,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-10-28T12:34:40Z",
+                  "departure": "2026-10-28T12:31:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ],
+          "provider": "google",
+          "variant": "Rail only"
+        }
+      ],
+      "merged": [
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T11:58:00Z",
+          "fare": "£3.10",
+          "firstBoarding": "2026-10-28T12:07:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:07:00Z",
+              "departure": "2026-10-28T11:58:00Z",
+              "from": "9-11 EUSTON ROAD, LONDON",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:16:00Z",
+              "departure": "2026-10-28T12:07:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Northern",
+              "mode": "tube",
+              "stopCount": 4,
+              "to": "Bank"
+            },
+            {
+              "arrival": "2026-10-28T12:31:00Z",
+              "departure": "2026-10-28T12:20:00Z",
+              "from": "Bank",
+              "line": "DLR",
+              "mode": "dlr",
+              "stopCount": 4,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:31:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "12 COOKS CLOSE, LONDON"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:northern>rail:dlr",
+          "sources": [
+            "tfl:Fastest",
+            "tfl:Fewer changes",
+            "google:Fastest",
+            "google:Rail only",
+            "transitous:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:38:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "firstBoarding": "2026-10-28T12:10:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:10:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "from": "9-11 EUSTON ROAD, LONDON",
+              "mode": "walk",
+              "to": "London St Pancras International"
+            },
+            {
+              "arrival": "2026-10-28T12:14:00Z",
+              "departure": "2026-10-28T12:10:00Z",
+              "from": "London St Pancras International",
+              "line": "Thameslink",
+              "mode": "rail",
+              "stopCount": 1,
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:29:00Z",
+              "departure": "2026-10-28T12:19:00Z",
+              "from": "Farringdon",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:29:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "12 COOKS CLOSE, LONDON"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:thameslink>rail:elizabeth",
+          "sources": [
+            "tfl:Fastest",
+            "tfl:Fewer changes"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:46:00Z",
+          "departure": "2026-10-28T12:10:00Z",
+          "firstBoarding": "2026-10-28T12:18:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:18:00Z",
+              "departure": "2026-10-28T12:10:00Z",
+              "from": "9-11 EUSTON ROAD, LONDON",
+              "mode": "walk",
+              "to": "London St Pancras International"
+            },
+            {
+              "arrival": "2026-10-28T12:22:00Z",
+              "departure": "2026-10-28T12:18:00Z",
+              "from": "London St Pancras International",
+              "line": "Thameslink",
+              "mode": "rail",
+              "stopCount": 1,
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:27:00Z",
+              "from": "Farringdon",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:46:00Z",
+              "departure": "2026-10-28T12:37:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "12 COOKS CLOSE, LONDON"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:thameslink>rail:elizabeth",
+          "sources": [
+            "tfl:Fastest",
+            "tfl:Fewer changes"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:28:40Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "fare": "£3.10",
+          "firstBoarding": "2026-10-28T12:05:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:05:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:08:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Hammersmith & City",
+              "mode": "tube",
+              "stopCount": 1,
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:10:30Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "from": "Farringdon",
+              "mode": "walk",
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:25:00Z",
+              "departure": "2026-10-28T12:14:00Z",
+              "from": "Farringdon",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:25:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:hammersmithandcity>rail:elizabeth",
+          "sources": [
+            "google:Fastest",
+            "google:Rail only",
+            "transitous:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:39:00Z",
+          "departure": "2026-10-28T12:02:00Z",
+          "fare": "£3.10",
+          "firstBoarding": "2026-10-28T12:06:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:06:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:14:00Z",
+              "departure": "2026-10-28T12:06:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Victoria",
+              "mode": "tube",
+              "stopCount": 4,
+              "to": "Green Park"
+            },
+            {
+              "arrival": "2026-10-28T12:18:00Z",
+              "departure": "2026-10-28T12:14:00Z",
+              "from": "Green Park",
+              "mode": "walk",
+              "to": "Green Park"
+            },
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:19:00Z",
+              "from": "Green Park",
+              "line": "Jubilee",
+              "mode": "tube",
+              "stopCount": 7,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:35:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:victoria>rail:jubilee",
+          "sources": [
+            "google:Fastest",
+            "google:Rail only"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:35:00Z",
+          "departure": "2026-10-28T12:05:00Z",
+          "fare": "£3.10",
+          "firstBoarding": "2026-10-28T12:09:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:09:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:20:00Z",
+              "departure": "2026-10-28T12:09:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Northern",
+              "mode": "tube",
+              "stopCount": 5,
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-10-28T12:23:00Z",
+              "departure": "2026-10-28T12:20:00Z",
+              "from": "London Bridge",
+              "mode": "walk",
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-10-28T12:31:00Z",
+              "departure": "2026-10-28T12:25:00Z",
+              "from": "London Bridge",
+              "line": "Jubilee",
+              "mode": "tube",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:31:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:northern>rail:jubilee",
+          "sources": [
+            "google:Fastest",
+            "google:Rail only"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:34:40Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "fare": "£3.10",
+          "firstBoarding": "2026-10-28T12:11:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:11:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:18:00Z",
+              "departure": "2026-10-28T12:11:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Hammersmith & City",
+              "mode": "tube",
+              "stopCount": 3,
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-10-28T12:22:00Z",
+              "departure": "2026-10-28T12:18:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-10-28T12:31:00Z",
+              "departure": "2026-10-28T12:24:00Z",
+              "from": "Liverpool Street",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "stopCount": 2,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:34:40Z",
+              "departure": "2026-10-28T12:31:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:hammersmithandcity>rail:elizabeth",
+          "sources": [
+            "google:Fastest",
+            "google:Rail only"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:33:00Z",
+          "departure": "2026-10-28T12:03:00Z",
+          "firstBoarding": "2026-10-28T12:08:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:08:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:18:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Northern",
+              "mode": "tube",
+              "platform": "8",
+              "stopCount": 5,
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-10-28T12:20:00Z",
+              "departure": "2026-10-28T12:18:00Z",
+              "from": "London Bridge",
+              "mode": "walk",
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-10-28T12:26:00Z",
+              "departure": "2026-10-28T12:20:00Z",
+              "from": "London Bridge",
+              "line": "Jubilee",
+              "mode": "tube",
+              "platform": "4",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:28:00Z",
+              "departure": "2026-10-28T12:26:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf Station"
+            },
+            {
+              "arrival": "2026-10-28T12:31:00Z",
+              "departure": "2026-10-28T12:28:00Z",
+              "from": "Canary Wharf Station",
+              "line": "D7",
+              "mode": "bus",
+              "platform": "K",
+              "stopCount": 3,
+              "to": "West India Avenue"
+            },
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:31:00Z",
+              "from": "West India Avenue",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:northern>rail:jubilee>road:d7",
+          "sources": [
+            "transitous:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:37:00Z",
+          "departure": "2026-10-28T12:08:00Z",
+          "firstBoarding": "2026-10-28T12:12:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:12:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:15:00Z",
+              "departure": "2026-10-28T12:12:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Metropolitan",
+              "mode": "tube",
+              "platform": "2",
+              "stopCount": 1,
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:18:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "from": "Farringdon",
+              "mode": "walk",
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:29:00Z",
+              "departure": "2026-10-28T12:19:00Z",
+              "from": "Farringdon",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "platform": "A",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:29:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:metropolitan>rail:elizabeth",
+          "sources": [
+            "transitous:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:41:00Z",
+          "departure": "2026-10-28T12:09:00Z",
+          "firstBoarding": "2026-10-28T12:14:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:14:00Z",
+              "departure": "2026-10-28T12:09:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:23:00Z",
+              "departure": "2026-10-28T12:14:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Northern",
+              "mode": "tube",
+              "platform": "8",
+              "stopCount": 4,
+              "to": "Bank"
+            },
+            {
+              "arrival": "2026-10-28T12:25:00Z",
+              "departure": "2026-10-28T12:23:00Z",
+              "from": "Bank",
+              "mode": "walk",
+              "to": "Bank"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:25:00Z",
+              "from": "Bank",
+              "line": "DLR",
+              "mode": "dlr",
+              "stopCount": 4,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:41:00Z",
+              "departure": "2026-10-28T12:37:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:northern>rail:dlr",
+          "sources": [
+            "transitous:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-10-28T12:45:00Z",
+          "departure": "2026-10-28T12:15:00Z",
+          "firstBoarding": "2026-10-28T12:19:00Z",
+          "legs": [
+            {
+              "arrival": "2026-10-28T12:19:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "from": "King's Cross",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-10-28T12:22:00Z",
+              "departure": "2026-10-28T12:19:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Circle",
+              "mode": "tube",
+              "platform": "2",
+              "stopCount": 1,
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:25:00Z",
+              "departure": "2026-10-28T12:22:00Z",
+              "from": "Farringdon",
+              "mode": "walk",
+              "to": "Farringdon"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:27:00Z",
+              "from": "Farringdon",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "platform": "A",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:37:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:circle>rail:elizabeth",
+          "sources": [
+            "transitous:Fastest"
+          ]
+        }
+      ],
+      "ranking": {
+        "best": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:jubilee>road:d7"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:41:00Z",
+              "departure": "2026-10-28T12:09:00Z",
+              "otherDepartures": [
+                "2026-10-28T11:58:00Z"
+              ],
+              "providers": [
+                "google",
+                "tfl",
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:metropolitan>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:10:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:circle>rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:08:00Z"
+              ],
+              "providers": [
+                "google",
+                "transitous"
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ]
+        },
+        "fastest": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:jubilee>road:d7"
+            },
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:metropolitan>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T11:58:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:09:00Z"
+              ],
+              "providers": [
+                "google",
+                "tfl",
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:10:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:circle>rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:08:00Z"
+              ],
+              "providers": [
+                "google",
+                "transitous"
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ]
+        },
+        "fewestChanges": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:metropolitan>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T11:58:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:09:00Z"
+              ],
+              "providers": [
+                "google",
+                "tfl",
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:10:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:circle>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:jubilee>road:d7"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:08:00Z"
+              ],
+              "providers": [
+                "google",
+                "transitous"
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ]
+        },
+        "leastWalking": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-10-28T12:35:00Z",
+              "departure": "2026-10-28T12:05:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:33:00Z",
+              "departure": "2026-10-28T12:03:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:jubilee>road:d7"
+            },
+            {
+              "arrival": "2026-10-28T12:41:00Z",
+              "departure": "2026-10-28T12:09:00Z",
+              "otherDepartures": [
+                "2026-10-28T11:58:00Z"
+              ],
+              "providers": [
+                "google",
+                "tfl",
+                "transitous"
+              ],
+              "signature": "rail:northern>rail:dlr"
+            },
+            {
+              "arrival": "2026-10-28T12:39:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "google"
+              ],
+              "signature": "rail:victoria>rail:jubilee"
+            },
+            {
+              "arrival": "2026-10-28T12:37:00Z",
+              "departure": "2026-10-28T12:08:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:metropolitan>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:38:00Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:10:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:thameslink>rail:elizabeth"
+            },
+            {
+              "arrival": "2026-10-28T12:45:00Z",
+              "departure": "2026-10-28T12:15:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "transitous"
+              ],
+              "signature": "rail:circle>rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-10-28T12:28:40Z",
+              "departure": "2026-10-28T12:02:00Z",
+              "otherDepartures": [
+                "2026-10-28T12:08:00Z"
+              ],
+              "providers": [
+                "google",
+                "transitous"
+              ],
+              "signature": "rail:hammersmithandcity>rail:elizabeth"
+            }
+          ]
+        }
+      },
+      "filters": [
+        {
+          "avoided": [],
+          "maxChanges": 1,
+          "ranked": {
+            "hidden": 1,
+            "more": [
+              {
+                "arrival": "2026-10-28T12:35:00Z",
+                "departure": "2026-10-28T12:05:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "google"
+                ],
+                "signature": "rail:northern>rail:jubilee"
+              },
+              {
+                "arrival": "2026-10-28T12:39:00Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "google"
+                ],
+                "signature": "rail:victoria>rail:jubilee"
+              },
+              {
+                "arrival": "2026-10-28T12:41:00Z",
+                "departure": "2026-10-28T12:09:00Z",
+                "otherDepartures": [
+                  "2026-10-28T11:58:00Z"
+                ],
+                "providers": [
+                  "google",
+                  "tfl",
+                  "transitous"
+                ],
+                "signature": "rail:northern>rail:dlr"
+              },
+              {
+                "arrival": "2026-10-28T12:37:00Z",
+                "departure": "2026-10-28T12:08:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "transitous"
+                ],
+                "signature": "rail:metropolitan>rail:elizabeth"
+              },
+              {
+                "arrival": "2026-10-28T12:38:00Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [
+                  "2026-10-28T12:10:00Z"
+                ],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:thameslink>rail:elizabeth"
+              },
+              {
+                "arrival": "2026-10-28T12:45:00Z",
+                "departure": "2026-10-28T12:15:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "transitous"
+                ],
+                "signature": "rail:circle>rail:elizabeth"
+              }
+            ],
+            "top": [
+              {
+                "arrival": "2026-10-28T12:28:40Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [
+                  "2026-10-28T12:08:00Z"
+                ],
+                "providers": [
+                  "google",
+                  "transitous"
+                ],
+                "signature": "rail:hammersmithandcity>rail:elizabeth"
+              }
+            ]
+          },
+          "sort": "best"
+        },
+        {
+          "avoided": [],
+          "maxWalkMinutes": 10,
+          "ranked": {
+            "hidden": 7,
+            "more": [],
+            "top": [
+              {
+                "arrival": "2026-10-28T12:28:40Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "google",
+                  "transitous"
+                ],
+                "signature": "rail:hammersmithandcity>rail:elizabeth"
+              }
+            ]
+          },
+          "sort": "fastest"
+        },
+        {
+          "avoided": [
+            "bus",
+            "spaceship"
+          ],
+          "ranked": {
+            "hidden": 1,
+            "more": [
+              {
+                "arrival": "2026-10-28T12:35:00Z",
+                "departure": "2026-10-28T12:05:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "google"
+                ],
+                "signature": "rail:northern>rail:jubilee"
+              },
+              {
+                "arrival": "2026-10-28T12:39:00Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "google"
+                ],
+                "signature": "rail:victoria>rail:jubilee"
+              },
+              {
+                "arrival": "2026-10-28T12:41:00Z",
+                "departure": "2026-10-28T12:09:00Z",
+                "otherDepartures": [
+                  "2026-10-28T11:58:00Z"
+                ],
+                "providers": [
+                  "google",
+                  "tfl",
+                  "transitous"
+                ],
+                "signature": "rail:northern>rail:dlr"
+              },
+              {
+                "arrival": "2026-10-28T12:37:00Z",
+                "departure": "2026-10-28T12:08:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "transitous"
+                ],
+                "signature": "rail:metropolitan>rail:elizabeth"
+              },
+              {
+                "arrival": "2026-10-28T12:38:00Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [
+                  "2026-10-28T12:10:00Z"
+                ],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:thameslink>rail:elizabeth"
+              },
+              {
+                "arrival": "2026-10-28T12:45:00Z",
+                "departure": "2026-10-28T12:15:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "transitous"
+                ],
+                "signature": "rail:circle>rail:elizabeth"
+              }
+            ],
+            "top": [
+              {
+                "arrival": "2026-10-28T12:28:40Z",
+                "departure": "2026-10-28T12:02:00Z",
+                "otherDepartures": [
+                  "2026-10-28T12:08:00Z"
+                ],
+                "providers": [
+                  "google",
+                  "transitous"
+                ],
+                "signature": "rail:hammersmithandcity>rail:elizabeth"
+              }
+            ]
+          },
+          "sort": "best"
+        }
+      ]
+    },
+    {
+      "name": "arrive by, TfL notices, sorts disagree",
+      "query": {
+        "arriveBy": true,
+        "destination": {
+          "latitude": 51.5054,
+          "longitude": -0.0235,
+          "name": "Canary Wharf"
+        },
+        "origin": {
+          "latitude": 51.5178,
+          "longitude": -0.0823,
+          "name": "Liverpool Street"
+        },
+        "time": "2026-11-08T17:00:00Z"
+      },
+      "network": {
+        "lines": "tfl-line-status.json",
+        "stops": "tfl-stop-disruptions.json"
+      },
+      "sources": [
+        {
+          "fixture": "tfl-journeys-arrive-by.json",
+          "journeys": [
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "fare": "£2.90",
+              "legs": [
+                {
+                  "arrival": "2026-11-08T16:32:00Z",
+                  "departure": "2026-11-08T16:30:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-11-08T16:40:00Z",
+                  "departure": "2026-11-08T16:33:00Z",
+                  "from": "Liverpool Street",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "platform": "B",
+                  "stopCount": 2,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-11-08T16:43:00Z",
+                  "departure": "2026-11-08T16:40:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:elizabeth"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "fare": "£2.90",
+              "legs": [
+                {
+                  "arrival": "2026-11-08T16:26:00Z",
+                  "departure": "2026-11-08T16:20:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-11-08T16:41:00Z",
+                  "departure": "2026-11-08T16:28:00Z",
+                  "from": "Bank",
+                  "line": "DLR",
+                  "mode": "dlr",
+                  "platform": "10",
+                  "stopCount": 4,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-11-08T16:45:00Z",
+                  "departure": "2026-11-08T16:41:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:dlr"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "fare": "£2.90",
+              "legs": [
+                {
+                  "arrival": "2026-11-08T16:27:00Z",
+                  "departure": "2026-11-08T16:25:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Bank"
+                },
+                {
+                  "arrival": "2026-11-08T16:31:00Z",
+                  "departure": "2026-11-08T16:28:00Z",
+                  "from": "Bank",
+                  "line": "Northern",
+                  "mode": "tube",
+                  "platform": "4",
+                  "stopCount": 1,
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-11-08T16:34:00Z",
+                  "departure": "2026-11-08T16:31:00Z",
+                  "from": "London Bridge",
+                  "mode": "walk",
+                  "to": "London Bridge"
+                },
+                {
+                  "arrival": "2026-11-08T16:42:00Z",
+                  "departure": "2026-11-08T16:36:00Z",
+                  "from": "London Bridge",
+                  "line": "Jubilee",
+                  "mode": "tube",
+                  "platform": "1",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-11-08T16:45:00Z",
+                  "departure": "2026-11-08T16:42:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "fare": "£1.75",
+              "legs": [
+                {
+                  "arrival": "2026-11-08T16:11:00Z",
+                  "departure": "2026-11-08T16:10:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-11-08T16:45:00Z",
+                  "departure": "2026-11-08T16:12:00Z",
+                  "from": "Liverpool Street",
+                  "line": "135",
+                  "mode": "bus",
+                  "platform": "K",
+                  "stopCount": 3,
+                  "to": "Canary Wharf"
+                },
+                {
+                  "arrival": "2026-11-08T16:47:00Z",
+                  "departure": "2026-11-08T16:45:00Z",
+                  "from": "Canary Wharf",
+                  "mode": "walk",
+                  "to": "Canary Wharf"
+                }
+              ],
+              "signature": "road:135"
+            }
+          ],
+          "provider": "tfl",
+          "variant": "Fastest"
+        }
+      ],
+      "merged": [
+        {
+          "arrival": "2026-11-08T16:47:00Z",
+          "departure": "2026-11-08T16:10:00Z",
+          "fare": "£1.75",
+          "firstBoarding": "2026-11-08T16:12:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-08T16:11:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:12:00Z",
+              "from": "Liverpool Street",
+              "line": "135",
+              "mode": "bus",
+              "platform": "K",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:45:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "road:135",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-11-08T16:45:00Z",
+          "departure": "2026-11-08T16:20:00Z",
+          "fare": "£2.90",
+          "firstBoarding": "2026-11-08T16:28:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-08T16:26:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Bank"
+            },
+            {
+              "arrival": "2026-11-08T16:41:00Z",
+              "departure": "2026-11-08T16:28:00Z",
+              "from": "Bank",
+              "line": "DLR",
+              "mode": "dlr",
+              "platform": "10",
+              "stopCount": 4,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:41:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:dlr",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-11-08T16:45:00Z",
+          "departure": "2026-11-08T16:25:00Z",
+          "fare": "£2.90",
+          "firstBoarding": "2026-11-08T16:28:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-08T16:27:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Bank"
+            },
+            {
+              "arrival": "2026-11-08T16:31:00Z",
+              "departure": "2026-11-08T16:28:00Z",
+              "from": "Bank",
+              "line": "Northern",
+              "mode": "tube",
+              "platform": "4",
+              "stopCount": 1,
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-11-08T16:34:00Z",
+              "departure": "2026-11-08T16:31:00Z",
+              "from": "London Bridge",
+              "mode": "walk",
+              "to": "London Bridge"
+            },
+            {
+              "arrival": "2026-11-08T16:42:00Z",
+              "departure": "2026-11-08T16:36:00Z",
+              "from": "London Bridge",
+              "line": "Jubilee",
+              "mode": "tube",
+              "platform": "1",
+              "stopCount": 3,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:42:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [
+            {
+              "leg": 3,
+              "severity": "minor",
+              "title": "Minor delays on the Jubilee"
+            }
+          ],
+          "signature": "rail:northern>rail:jubilee",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-11-08T16:43:00Z",
+          "departure": "2026-11-08T16:30:00Z",
+          "fare": "£2.90",
+          "firstBoarding": "2026-11-08T16:33:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-08T16:32:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-11-08T16:40:00Z",
+              "departure": "2026-11-08T16:33:00Z",
+              "from": "Liverpool Street",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "platform": "B",
+              "stopCount": 2,
+              "to": "Canary Wharf"
+            },
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:40:00Z",
+              "from": "Canary Wharf",
+              "mode": "walk",
+              "to": "Canary Wharf"
+            }
+          ],
+          "notices": [
+            {
+              "leg": 1,
+              "severity": "closed",
+              "title": "Canary Wharf part closed (Elizabeth line)"
+            }
+          ],
+          "signature": "rail:elizabeth",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        }
+      ],
+      "ranking": {
+        "best": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:dlr"
+            },
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "road:135"
+            }
+          ]
+        },
+        "fastest": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:dlr"
+            },
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "road:135"
+            }
+          ]
+        },
+        "fewestChanges": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:dlr"
+            },
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "road:135"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            }
+          ]
+        },
+        "leastWalking": {
+          "hidden": 0,
+          "more": [
+            {
+              "arrival": "2026-11-08T16:43:00Z",
+              "departure": "2026-11-08T16:30:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth"
+            }
+          ],
+          "top": [
+            {
+              "arrival": "2026-11-08T16:47:00Z",
+              "departure": "2026-11-08T16:10:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "road:135"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:25:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:northern>rail:jubilee"
+            },
+            {
+              "arrival": "2026-11-08T16:45:00Z",
+              "departure": "2026-11-08T16:20:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:dlr"
+            }
+          ]
+        }
+      },
+      "filters": [
+        {
+          "avoided": [
+            "bus",
+            "spaceship"
+          ],
+          "ranked": {
+            "hidden": 1,
+            "more": [
+              {
+                "arrival": "2026-11-08T16:43:00Z",
+                "departure": "2026-11-08T16:30:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:elizabeth"
+              }
+            ],
+            "top": [
+              {
+                "arrival": "2026-11-08T16:45:00Z",
+                "departure": "2026-11-08T16:25:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:northern>rail:jubilee"
+              },
+              {
+                "arrival": "2026-11-08T16:45:00Z",
+                "departure": "2026-11-08T16:20:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:dlr"
+              }
+            ]
+          },
+          "sort": "leastWalking"
+        },
+        {
+          "avoided": [],
+          "maxWalkMinutes": 5,
+          "ranked": {
+            "hidden": 2,
+            "more": [
+              {
+                "arrival": "2026-11-08T16:43:00Z",
+                "departure": "2026-11-08T16:30:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:elizabeth"
+              }
+            ],
+            "top": [
+              {
+                "arrival": "2026-11-08T16:47:00Z",
+                "departure": "2026-11-08T16:10:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "road:135"
+              }
+            ]
+          },
+          "sort": "best"
+        },
+        {
+          "avoided": [
+            "tube"
+          ],
+          "maxChanges": 0,
+          "ranked": {
+            "hidden": 1,
+            "more": [
+              {
+                "arrival": "2026-11-08T16:43:00Z",
+                "departure": "2026-11-08T16:30:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:elizabeth"
+              }
+            ],
+            "top": [
+              {
+                "arrival": "2026-11-08T16:45:00Z",
+                "departure": "2026-11-08T16:20:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:dlr"
+              },
+              {
+                "arrival": "2026-11-08T16:47:00Z",
+                "departure": "2026-11-08T16:10:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "road:135"
+              }
+            ]
+          },
+          "sort": "fewestChanges"
+        }
+      ]
+    },
+    {
+      "name": "British Summer Time",
+      "query": {
+        "arriveBy": false,
+        "destination": {
+          "latitude": 51.5098,
+          "longitude": -0.0766,
+          "name": "Tower Hill"
+        },
+        "origin": {
+          "latitude": 51.5154,
+          "longitude": -0.1755,
+          "name": "Paddington"
+        },
+        "time": "2026-07-15T08:00:00Z"
+      },
+      "sources": [
+        {
+          "fixture": "tfl-journeys-summer.json",
+          "journeys": [
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-07-15T08:04:00Z",
+                  "departure": "2026-07-15T08:02:00Z",
+                  "from": "Paddington",
+                  "mode": "walk",
+                  "to": "Paddington"
+                },
+                {
+                  "arrival": "2026-07-15T08:17:00Z",
+                  "departure": "2026-07-15T08:05:00Z",
+                  "from": "Paddington",
+                  "line": "Elizabeth line",
+                  "mode": "elizabeth",
+                  "platform": "A",
+                  "stopCount": 4,
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-07-15T08:20:00Z",
+                  "departure": "2026-07-15T08:17:00Z",
+                  "from": "Liverpool Street",
+                  "mode": "walk",
+                  "to": "Liverpool Street"
+                },
+                {
+                  "arrival": "2026-07-15T08:26:00Z",
+                  "departure": "2026-07-15T08:22:00Z",
+                  "from": "Liverpool Street",
+                  "line": "Circle",
+                  "mode": "tube",
+                  "platform": "2",
+                  "stopCount": 2,
+                  "to": "Tower Hill"
+                },
+                {
+                  "arrival": "2026-07-15T08:28:00Z",
+                  "departure": "2026-07-15T08:26:00Z",
+                  "from": "Tower Hill",
+                  "mode": "walk",
+                  "to": "Tower Hill"
+                }
+              ],
+              "signature": "rail:elizabeth>rail:circle"
+            },
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-07-15T08:06:00Z",
+                  "departure": "2026-07-15T08:04:00Z",
+                  "from": "Paddington",
+                  "mode": "walk",
+                  "to": "Paddington"
+                },
+                {
+                  "arrival": "2026-07-15T08:42:00Z",
+                  "departure": "2026-07-15T08:07:00Z",
+                  "from": "Paddington",
+                  "line": "Circle",
+                  "mode": "tube",
+                  "platform": "1",
+                  "stopCount": 8,
+                  "to": "Tower Hill"
+                },
+                {
+                  "arrival": "2026-07-15T08:44:00Z",
+                  "departure": "2026-07-15T08:42:00Z",
+                  "from": "Tower Hill",
+                  "mode": "walk",
+                  "to": "Tower Hill"
+                }
+              ],
+              "signature": "rail:circle"
+            }
+          ],
+          "provider": "tfl",
+          "variant": "Fastest"
+        }
+      ],
+      "merged": [
+        {
+          "arrival": "2026-07-15T08:28:00Z",
+          "departure": "2026-07-15T08:02:00Z",
+          "fare": "£2.80",
+          "firstBoarding": "2026-07-15T08:05:00Z",
+          "legs": [
+            {
+              "arrival": "2026-07-15T08:04:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "from": "Paddington",
+              "mode": "walk",
+              "to": "Paddington"
+            },
+            {
+              "arrival": "2026-07-15T08:17:00Z",
+              "departure": "2026-07-15T08:05:00Z",
+              "from": "Paddington",
+              "line": "Elizabeth line",
+              "mode": "elizabeth",
+              "platform": "A",
+              "stopCount": 4,
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-07-15T08:20:00Z",
+              "departure": "2026-07-15T08:17:00Z",
+              "from": "Liverpool Street",
+              "mode": "walk",
+              "to": "Liverpool Street"
+            },
+            {
+              "arrival": "2026-07-15T08:26:00Z",
+              "departure": "2026-07-15T08:22:00Z",
+              "from": "Liverpool Street",
+              "line": "Circle",
+              "mode": "tube",
+              "platform": "2",
+              "stopCount": 2,
+              "to": "Tower Hill"
+            },
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:26:00Z",
+              "from": "Tower Hill",
+              "mode": "walk",
+              "to": "Tower Hill"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:elizabeth>rail:circle",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-07-15T08:44:00Z",
+          "departure": "2026-07-15T08:04:00Z",
+          "fare": "£2.80",
+          "firstBoarding": "2026-07-15T08:07:00Z",
+          "legs": [
+            {
+              "arrival": "2026-07-15T08:06:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "from": "Paddington",
+              "mode": "walk",
+              "to": "Paddington"
+            },
+            {
+              "arrival": "2026-07-15T08:42:00Z",
+              "departure": "2026-07-15T08:07:00Z",
+              "from": "Paddington",
+              "line": "Circle",
+              "mode": "tube",
+              "platform": "1",
+              "stopCount": 8,
+              "to": "Tower Hill"
+            },
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:42:00Z",
+              "from": "Tower Hill",
+              "mode": "walk",
+              "to": "Tower Hill"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:circle",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        }
+      ],
+      "ranking": {
+        "best": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth>rail:circle"
+            },
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:circle"
+            }
+          ]
+        },
+        "fastest": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth>rail:circle"
+            },
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:circle"
+            }
+          ]
+        },
+        "fewestChanges": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:circle"
+            },
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth>rail:circle"
+            }
+          ]
+        },
+        "leastWalking": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-07-15T08:28:00Z",
+              "departure": "2026-07-15T08:02:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:elizabeth>rail:circle"
+            },
+            {
+              "arrival": "2026-07-15T08:44:00Z",
+              "departure": "2026-07-15T08:04:00Z",
+              "otherDepartures": [],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:circle"
+            }
+          ]
+        }
+      },
+      "filters": [
+        {
+          "avoided": [
+            "rail"
+          ],
+          "ranked": {
+            "hidden": 1,
+            "more": [],
+            "top": [
+              {
+                "arrival": "2026-07-15T08:44:00Z",
+                "departure": "2026-07-15T08:04:00Z",
+                "otherDepartures": [],
+                "providers": [
+                  "tfl"
+                ],
+                "signature": "rail:circle"
+              }
+            ]
+          },
+          "sort": "best"
+        }
+      ]
+    },
+    {
+      "name": "a chain of departures on the same lines",
+      "query": {
+        "arriveBy": false,
+        "destination": {
+          "latitude": 51.5152,
+          "longitude": -0.1419,
+          "name": "Oxford Circus"
+        },
+        "origin": {
+          "latitude": 51.5308,
+          "longitude": -0.1238,
+          "name": "King's Cross"
+        },
+        "time": "2026-11-24T11:55:00Z"
+      },
+      "sources": [
+        {
+          "fixture": "tfl-journeys-chain.json",
+          "journeys": [
+            {
+              "arrival": "2026-11-24T12:26:00Z",
+              "departure": "2026-11-24T12:15:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-11-24T12:17:00Z",
+                  "departure": "2026-11-24T12:15:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-11-24T12:24:00Z",
+                  "departure": "2026-11-24T12:17:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "platform": "6",
+                  "stopCount": 3,
+                  "to": "Oxford Circus"
+                },
+                {
+                  "arrival": "2026-11-24T12:26:00Z",
+                  "departure": "2026-11-24T12:24:00Z",
+                  "from": "Oxford Circus",
+                  "mode": "walk",
+                  "to": "Oxford Circus"
+                }
+              ],
+              "signature": "rail:victoria"
+            },
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-11-24T12:11:00Z",
+                  "departure": "2026-11-24T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-11-24T12:18:00Z",
+                  "departure": "2026-11-24T12:11:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "platform": "6",
+                  "stopCount": 3,
+                  "to": "Oxford Circus"
+                },
+                {
+                  "arrival": "2026-11-24T12:20:00Z",
+                  "departure": "2026-11-24T12:18:00Z",
+                  "from": "Oxford Circus",
+                  "mode": "walk",
+                  "to": "Oxford Circus"
+                }
+              ],
+              "signature": "rail:victoria"
+            },
+            {
+              "arrival": "2026-11-24T12:23:00Z",
+              "departure": "2026-11-24T12:12:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-11-24T12:14:00Z",
+                  "departure": "2026-11-24T12:12:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-11-24T12:21:00Z",
+                  "departure": "2026-11-24T12:14:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "platform": "5",
+                  "stopCount": 3,
+                  "to": "Oxford Circus"
+                },
+                {
+                  "arrival": "2026-11-24T12:23:00Z",
+                  "departure": "2026-11-24T12:21:00Z",
+                  "from": "Oxford Circus",
+                  "mode": "walk",
+                  "to": "Oxford Circus"
+                }
+              ],
+              "signature": "rail:victoria"
+            },
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "fare": "£2.80",
+              "legs": [
+                {
+                  "arrival": "2026-11-24T12:11:00Z",
+                  "departure": "2026-11-24T12:09:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "mode": "walk",
+                  "to": "King's Cross St. Pancras"
+                },
+                {
+                  "arrival": "2026-11-24T12:18:00Z",
+                  "departure": "2026-11-24T12:11:00Z",
+                  "from": "King's Cross St. Pancras",
+                  "line": "Victoria",
+                  "mode": "tube",
+                  "platform": "5",
+                  "stopCount": 3,
+                  "to": "Oxford Circus"
+                },
+                {
+                  "arrival": "2026-11-24T12:20:00Z",
+                  "departure": "2026-11-24T12:18:00Z",
+                  "from": "Oxford Circus",
+                  "mode": "walk",
+                  "to": "Oxford Circus"
+                }
+              ],
+              "signature": "rail:victoria"
+            }
+          ],
+          "provider": "tfl",
+          "variant": "Fastest"
+        }
+      ],
+      "merged": [
+        {
+          "arrival": "2026-11-24T12:20:00Z",
+          "departure": "2026-11-24T12:09:00Z",
+          "fare": "£2.80",
+          "firstBoarding": "2026-11-24T12:11:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-24T12:11:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "from": "King's Cross St. Pancras",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-11-24T12:18:00Z",
+              "departure": "2026-11-24T12:11:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Victoria",
+              "mode": "tube",
+              "platform": "5",
+              "stopCount": 3,
+              "to": "Oxford Circus"
+            },
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:18:00Z",
+              "from": "Oxford Circus",
+              "mode": "walk",
+              "to": "Oxford Circus"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:victoria",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        },
+        {
+          "arrival": "2026-11-24T12:26:00Z",
+          "departure": "2026-11-24T12:15:00Z",
+          "fare": "£2.80",
+          "firstBoarding": "2026-11-24T12:17:00Z",
+          "legs": [
+            {
+              "arrival": "2026-11-24T12:17:00Z",
+              "departure": "2026-11-24T12:15:00Z",
+              "from": "King's Cross St. Pancras",
+              "mode": "walk",
+              "to": "King's Cross St. Pancras"
+            },
+            {
+              "arrival": "2026-11-24T12:24:00Z",
+              "departure": "2026-11-24T12:17:00Z",
+              "from": "King's Cross St. Pancras",
+              "line": "Victoria",
+              "mode": "tube",
+              "platform": "6",
+              "stopCount": 3,
+              "to": "Oxford Circus"
+            },
+            {
+              "arrival": "2026-11-24T12:26:00Z",
+              "departure": "2026-11-24T12:24:00Z",
+              "from": "Oxford Circus",
+              "mode": "walk",
+              "to": "Oxford Circus"
+            }
+          ],
+          "notices": [],
+          "signature": "rail:victoria",
+          "sources": [
+            "tfl:Fastest"
+          ]
+        }
+      ],
+      "ranking": {
+        "best": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "otherDepartures": [
+                "2026-11-24T12:15:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:victoria"
+            }
+          ]
+        },
+        "fastest": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "otherDepartures": [
+                "2026-11-24T12:15:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:victoria"
+            }
+          ]
+        },
+        "fewestChanges": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "otherDepartures": [
+                "2026-11-24T12:15:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:victoria"
+            }
+          ]
+        },
+        "leastWalking": {
+          "hidden": 0,
+          "more": [],
+          "top": [
+            {
+              "arrival": "2026-11-24T12:20:00Z",
+              "departure": "2026-11-24T12:09:00Z",
+              "otherDepartures": [
+                "2026-11-24T12:15:00Z"
+              ],
+              "providers": [
+                "tfl"
+              ],
+              "signature": "rail:victoria"
+            }
+          ]
+        }
+      },
+      "filters": []
+    }
+  ]
+}
