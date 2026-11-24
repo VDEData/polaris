@@ -271,10 +271,12 @@ class BudgetTest {
         assertEquals(704, usage.allowance.usedThisMonth(now))
     }
 
-    @Test fun theUserAgentNamesAContactOnlyWhenThereIsAValidOne() {
-        assertEquals("Polaris/0.1.0 (Android transit app)", HTTP.userAgent("0.1.0", null))
-        assertEquals("Polaris/0.1.0 (Android transit app)", HTTP.userAgent("0.1.0", "someone"))
+    @Test fun theUserAgentAlwaysNamesAContact() {
+        val project = "Polaris/0.1.0 (Android transit app; https://github.com/VDEData/polaris)"
+        assertEquals(project, HTTP.userAgent("0.1.0", null))
+        assertEquals(project, HTTP.userAgent("0.1.0", "someone"))
         assertEquals("Polaris/0.1.0 (Android transit app; someone@example.org)", HTTP.userAgent("0.1.0", " someone@example.org "))
+        assertEquals(Contact.PROJECT, Contact.valid(Contact.PROJECT))
         // Mirrors FirstRunTests.swift.
         assertEquals("someone@example.org", Contact.valid(" someone@example.org "))
         assertTrue(Contact.valid("https://github.com/someone/polaris") != null)
@@ -282,6 +284,23 @@ class BudgetTest {
         assertEquals(null, Contact.valid("ftp://example.org"))
         assertEquals(null, Contact.valid("a@b.c\r\nX-Evil: 1"), "nothing that could break the header")
         assertEquals(null, Contact.valid("a".repeat(200) + "@example.org"))
+    }
+
+    /** Mirrors FirstRunTests.theUserAgentAlwaysNamesAContact: settings' if valid, else the build's, else the project's. */
+    @Test fun theContactIsEnteredThenBuiltThenTheProjects() {
+        val project = "Polaris/0.1.0 (Android transit app; https://github.com/VDEData/polaris)"
+        fun agent(entered: String?, built: String?): String {
+            val settings = AppSettings(build = BuildDefaults(contact = built))
+            if (entered != null) settings.contactOverride = entered
+            return HTTP(transport = { HttpResponse(200, ByteArray(0)) }, appVersion = "0.1.0") { settings.contact }.userAgent
+        }
+        assertEquals(project, agent(null, null), "none configured")
+        assertEquals(project, agent("", ""), "a local.properties line left empty")
+        assertEquals("Polaris/0.1.0 (Android transit app; https://example.org/my-polaris)", agent(null, "https://example.org/my-polaris"))
+        assertEquals("Polaris/0.1.0 (Android transit app; someone@example.org)", agent(" someone@example.org ", "https://example.org/my-polaris"))
+        assertEquals("Polaris/0.1.0 (Android transit app; https://example.org/my-polaris)", agent("someone", "https://example.org/my-polaris"),
+            "an invalid entry falls back to the build's")
+        assertEquals(project, agent("someone", "not a contact"))
     }
 
     @Test fun enteredKeysBeatTheBuildsAndBlankFallsBack() {

@@ -51,22 +51,29 @@ enum ProviderError: LocalizedError, Equatable {
 }
 
 enum HTTP {
-    /// "Polaris/0.1.0 (iOS transit app; <contact>)": the open-data services ask to be able to
-    /// reach whoever runs a client. The contact is the one entered in Settings, else
-    /// POLARIS_CONTACT from Config/*.xcconfig.
+    /// "Polaris/0.1.0 (iOS transit app; <contact>)": Transitous and TfL ask to be able to reach
+    /// whoever runs a client. The contact is the one entered in Settings, else POLARIS_CONTACT
+    /// from Config/*.xcconfig, else the project's page.
     static var userAgent: String {
         let info = Bundle.main.infoDictionary ?? [:]
-        let version = info["CFBundleShortVersionString"] as? String ?? "0"
-        let contact = Keychain.get("contact").flatMap(Contact.valid)
-            ?? (info["PolarisContact"] as? String).flatMap(Contact.valid) ?? ""
-        return "Polaris/\(version) (iOS transit app\(contact.isEmpty ? "" : "; \(contact)"))"
+        return userAgent(version: info["CFBundleShortVersionString"] as? String ?? "0",
+                         entered: Keychain.get("contact"), built: info["PolarisContact"] as? String)
     }
+
+    /// Always names a contact: the first valid one of `entered` and `built`, else `Contact.project`.
+    static func userAgent(version: String, entered: String?, built: String?) -> String {
+        let contact = entered.flatMap(Contact.valid) ?? built.flatMap(Contact.valid) ?? Contact.project
+        return "Polaris/\(version) (iOS transit app; \(contact))"
+    }
+
+    /// The shared session's settings (cache, cookies, cellular), with `SameOriginRedirects` deciding redirects.
+    static let session = URLSession(configuration: .default, delegate: SameOriginRedirects.shared, delegateQueue: nil)
 
     static func data(for request: URLRequest) async throws -> Data {
         var request = request
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 20
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else { throw ProviderError.http(status) }
         return data
@@ -76,6 +83,36 @@ enum HTTP {
         do { return try JSONDecoder().decode(type, from: data) } catch {
             throw ProviderError.badResponse
         }
+    }
+}
+
+/// A provider request follows a redirect only to the same scheme, host and port, and one that
+/// carries a key (Google's header, TfL's `app_key` query item) none at all: URLSession would
+/// otherwise take every header, the key's included, to wherever the redirect points. Android's
+/// `OkHttpTransport` keeps to the same places. A refused redirect reaches the caller as its 3xx.
+final class SameOriginRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    static let shared = SameOriginRedirects()
+    static let keyHeaders = ["X-Goog-Api-Key"]
+    static let keyQueryItems = ["app_key"]
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        guard let from = task.currentRequest ?? task.originalRequest else { return nil }
+        let carriesKey = [task.originalRequest, from, request].contains { $0.map(Self.carriesKey) ?? false }
+        return !carriesKey && Self.samePlace(from.url, request.url) ? request : nil
+    }
+
+    static func carriesKey(_ request: URLRequest) -> Bool {
+        if keyHeaders.contains(where: { request.value(forHTTPHeaderField: $0) != nil }) { return true }
+        guard let url = request.url, let items = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems else { return false }
+        return items.contains { item in keyQueryItems.contains { $0.caseInsensitiveCompare(item.name) == .orderedSame } }
+    }
+
+    static func samePlace(_ a: URL?, _ b: URL?) -> Bool {
+        guard let a, let b, let schemeA = a.scheme?.lowercased(), let hostA = a.host()?.lowercased(),
+              schemeA == b.scheme?.lowercased(), hostA == b.host()?.lowercased() else { return false }
+        func port(_ url: URL, _ scheme: String) -> Int? { url.port ?? ["http": 80, "https": 443][scheme] }
+        return port(a, schemeA) == port(b, schemeA)
     }
 }
 

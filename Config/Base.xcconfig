@@ -10,8 +10,10 @@ POLARIS_BUNDLE_ID = com.example.polaris
 DEVELOPMENT_TEAM =
 
 // How Polaris identifies itself to the open-data services (User-Agent): a URL or address
-// where whoever runs them can reach the person running this build. Empty sends none.
-POLARIS_CONTACT =
+// where whoever runs them can reach the person running this build. The default is the
+// project's page; if you distribute a build of your own, set yours in Secrets.xcconfig,
+// since its requests are yours to answer for. Empty or invalid also sends the project's page.
+POLARIS_CONTACT = https:/$()/github.com/VDEData/polaris
 
 // The alerts server (worker/) and its APP_TOKEN. Both empty: alerts are off until an
 // address and token are entered in Settings.

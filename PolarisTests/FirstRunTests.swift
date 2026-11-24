@@ -59,6 +59,21 @@ struct FirstRunTests {
         #expect(FirstRun.takeTurn(defaults: d, keychain: empty), "readable and new: shown")
     }
 
+    /// Every User-Agent names a contact: Settings' if valid, else the build's, else the project's page.
+    @Test func theUserAgentAlwaysNamesAContact() {
+        let project = "Polaris/0.1.0 (iOS transit app; https://github.com/VDEData/polaris)"
+        #expect(HTTP.userAgent(version: "0.1.0", entered: nil, built: nil) == project)
+        #expect(HTTP.userAgent(version: "0.1.0", entered: "", built: "") == project, "an xcconfig left empty")
+        #expect(HTTP.userAgent(version: "0.1.0", entered: nil, built: "https://example.org/my-polaris")
+                == "Polaris/0.1.0 (iOS transit app; https://example.org/my-polaris)")
+        #expect(HTTP.userAgent(version: "0.1.0", entered: " someone@example.org ", built: "https://example.org/my-polaris")
+                == "Polaris/0.1.0 (iOS transit app; someone@example.org)")
+        #expect(HTTP.userAgent(version: "0.1.0", entered: "someone", built: "https://example.org/my-polaris")
+                == "Polaris/0.1.0 (iOS transit app; https://example.org/my-polaris)", "an invalid entry falls back to the build's")
+        #expect(HTTP.userAgent(version: "0.1.0", entered: "someone", built: "not a contact") == project)
+        #expect(Contact.valid(Contact.project) == Contact.project)
+    }
+
     @Test func contactValidation() {
         #expect(Contact.valid(" someone@example.org ") == "someone@example.org")
         #expect(Contact.valid("https://github.com/someone/polaris") != nil)

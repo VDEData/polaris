@@ -21,7 +21,7 @@ enum SetupItem {
         case .google: "Adds Google's routes and fares to every search."
         case .tfl: "TfL answers without one; a key lifts its limit of 50 requests a minute."
         case .alerts: "Needed for alerts on your lines: a small server of your own watches TfL while Polaris is closed and sends the notifications."
-        case .contact: "Transitous is run by volunteers and asks apps to say who to reach about their requests. Blank uses this build's contact, if it has one."
+        case .contact: "Transitous is run by volunteers and asks apps to say who to reach about their requests. Blank sends this build's contact, or Polaris's project page if it has none."
         }
     }
 

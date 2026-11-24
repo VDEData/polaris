@@ -100,6 +100,10 @@ final class AppSettings {
 
 /// A contact for the User-Agent: an email address or a web address, short and on one line.
 enum Contact {
+    /// Sent when neither Settings nor the build gives a valid contact. A build you distribute
+    /// should set POLARIS_CONTACT to your own: its requests are yours to answer for.
+    static let project = "https://github.com/VDEData/polaris"
+
     static func valid(_ text: String) -> String? {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= 200, !text.contains(where: { $0.isNewline || $0 == "(" || $0 == ")" }) else { return nil }
