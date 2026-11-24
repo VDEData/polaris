@@ -101,7 +101,11 @@ data class HttpRequest(
         ?.let { "HttpRequest($method ${it.scheme}://${it.host}${it.rawPath ?: ""})" } ?: "HttpRequest($method redacted)"
 }
 
-data class HttpResponse(val status: Int, val body: ByteArray, val location: String? = null)
+data class HttpResponse(val status: Int, val body: ByteArray, val location: String? = null) {
+    /** A redirect's address can echo a key in its query: only its scheme, host and path are printed. */
+    override fun toString(): String = "HttpResponse($status, ${body.size} bytes" +
+        (location?.let { loc -> ", location=" + (runCatching { URI(loc) }.getOrNull()?.let { "${it.scheme ?: ""}://${it.host ?: ""}${it.rawPath ?: ""}" } ?: "redacted") } ?: "") + ")"
+}
 
 /** What sends requests: the network on a phone, a recording fake in tests. */
 fun interface HttpTransport {

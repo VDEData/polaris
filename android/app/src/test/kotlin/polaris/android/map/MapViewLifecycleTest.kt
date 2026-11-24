@@ -8,42 +8,55 @@ import kotlin.test.assertEquals
 class MapViewLifecycleTest {
     private class Recorder : MapViewLifecycle.Target {
         val calls = mutableListOf<String>()
+        override fun onCreate() { calls += "create" }
         override fun onStart() { calls += "start" }
         override fun onResume() { calls += "resume" }
         override fun onPause() { calls += "pause" }
         override fun onStop() { calls += "stop" }
+        override fun onSaveInstanceState() { calls += "save" }
+        override fun onLowMemory() { calls += "lowMemory" }
         override fun onDestroy() { calls += "destroy" }
     }
 
-    private fun run(vararg events: Event, dispose: Boolean = false): List<String> {
+    private fun run(vararg events: Event, create: Boolean = true, dispose: Boolean = false, block: MapViewLifecycle.() -> Unit = {}): List<String> {
         val view = Recorder()
         val lifecycle = MapViewLifecycle(view)
+        if (create) lifecycle.create()
         events.forEach(lifecycle::on)
+        lifecycle.block()
         if (dispose) lifecycle.dispose()
         return view.calls
     }
 
+    @Test fun observingAResumedOwnerReplaysCreateStartResumeOnce() {
+        // What a LifecycleEventObserver receives when added to an owner already resumed.
+        assertEquals(listOf("create", "start", "resume"), run(Event.ON_CREATE, Event.ON_START, Event.ON_RESUME))
+    }
+
     @Test fun theActivityStoppingThenTheCompositionLeavingStopsOnce() {
-        // The order an activity's destruction gives: the owner stops, then the composition is disposed.
-        assertEquals(listOf("start", "resume", "pause", "stop", "destroy"),
+        assertEquals(listOf("create", "start", "resume", "pause", "stop", "save", "save", "destroy"),
             run(Event.ON_CREATE, Event.ON_START, Event.ON_RESUME, Event.ON_PAUSE, Event.ON_STOP, dispose = true))
     }
 
-    @Test fun leavingTheCompositionWhileResumedPausesStopsThenDestroys() {
-        assertEquals(listOf("start", "resume", "pause", "stop", "destroy"),
+    @Test fun leavingTheCompositionWhileResumedPausesStopsSavesThenDestroys() {
+        assertEquals(listOf("create", "start", "resume", "pause", "stop", "save", "save", "destroy"),
             run(Event.ON_CREATE, Event.ON_START, Event.ON_RESUME, dispose = true))
     }
 
-    @Test fun anOwnerThatIsAlreadyResumedReplaysAndNothingRepeats() {
-        assertEquals(listOf("start", "resume"), run(Event.ON_START, Event.ON_RESUME, Event.ON_START, Event.ON_RESUME))
+    @Test fun stopThenStartAgainGoesRoundAgain() {
+        // The app goes to the background and comes back.
+        assertEquals(listOf("create", "start", "resume", "pause", "stop", "save", "start", "resume"),
+            run(Event.ON_CREATE, Event.ON_START, Event.ON_RESUME, Event.ON_PAUSE, Event.ON_STOP, Event.ON_START, Event.ON_RESUME))
     }
 
-    @Test fun destroyingTheOwnerThenDisposingDestroysOnceAndNothingAfter() {
-        assertEquals(listOf("start", "resume", "pause", "stop", "destroy"),
-            run(Event.ON_START, Event.ON_RESUME, Event.ON_PAUSE, Event.ON_STOP, Event.ON_DESTROY, Event.ON_START, dispose = true))
+    @Test fun nothingRunsBeforeCreateOrAfterDestroy() {
+        // An abandoned composition: never created, so nothing to destroy.
+        assertEquals(emptyList(), run(Event.ON_START, Event.ON_RESUME, create = false, dispose = true) { lowMemory() })
+        assertEquals(listOf("create", "start", "resume", "pause", "stop", "save", "save", "destroy"),
+            run(Event.ON_START, Event.ON_RESUME, Event.ON_DESTROY, Event.ON_START, dispose = true) { lowMemory() })
     }
 
-    @Test fun aStopWithoutAPauseStillPausesFirst() {
-        assertEquals(listOf("start", "resume", "pause", "stop"), run(Event.ON_START, Event.ON_RESUME, Event.ON_STOP))
+    @Test fun lowMemoryReachesALiveView() {
+        assertEquals(listOf("create", "start", "lowMemory"), run(Event.ON_START) { lowMemory() })
     }
 }

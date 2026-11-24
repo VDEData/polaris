@@ -1,153 +1,165 @@
 {
-  "about": "Alert server addresses: what iOS AlertServer.address gives for each input (generated from the Swift code). Both platforms assert every case.",
-  "cases": [
+  "about" : "Alert server addresses: what iOS AlertServer.address gives for each input. Written by scripts/make-alert-address-fixture.sh from the Swift code; both platforms assert every case.",
+  "cases" : [
     {
-      "input": "https://alerts.example.org",
-      "url": "https://alerts.example.org"
+      "input" : "https://alerts.example.org",
+      "url" : "https://alerts.example.org"
     },
     {
-      "input": "https://alerts_1.example.org",
-      "url": "https://alerts_1.example.org"
+      "input" : "https://alerts_1.example.org",
+      "url" : "https://alerts_1.example.org"
     },
     {
-      "input": "https://a.example.org/",
-      "url": "https://a.example.org"
+      "input" : "https://a.example.org/",
+      "url" : "https://a.example.org"
     },
     {
-      "input": "HTTPS://A.Example.org:443/Base/",
-      "url": "https://a.example.org/Base"
+      "input" : "HTTPS://A.Example.org:443/Base/",
+      "url" : "https://a.example.org/Base"
     },
     {
-      "input": "  https://a.example.org//  ",
-      "url": "https://a.example.org"
+      "input" : "  https://a.example.org//  ",
+      "url" : "https://a.example.org"
     },
     {
-      "input": "https://a.example.org:8443/x/y",
-      "url": "https://a.example.org:8443/x/y"
+      "input" : "https://a.example.org:8443/x/y",
+      "url" : "https://a.example.org:8443/x/y"
     },
     {
-      "input": "https://a.example.org/Path/To",
-      "url": "https://a.example.org/Path/To"
+      "input" : "https://a.example.org/Path/To",
+      "url" : "https://a.example.org/Path/To"
     },
     {
-      "input": "https://a.example.org/path%20x",
-      "url": "https://a.example.org/path%20x"
+      "input" : "https://a.example.org/path%20x",
+      "url" : "https://a.example.org/path%20x"
     },
     {
-      "input": "http://localhost:8787",
-      "url": "http://localhost:8787"
+      "input" : "https://alerts.example.com:443/",
+      "url" : "https://alerts.example.com"
     },
     {
-      "input": "http://LOCALHOST",
-      "url": "http://localhost"
+      "input" : "https://a.example.org:",
+      "url" : "https://a.example.org"
     },
     {
-      "input": "http://127.0.0.1:8787",
-      "url": "http://127.0.0.1:8787"
+      "input" : "https://a.example.org:99999",
+      "url" : "https://a.example.org:99999"
     },
     {
-      "input": "http://[::1]:8787",
-      "url": "http://[::1]:8787"
+      "input" : "https://a.example.org:0",
+      "url" : "https://a.example.org:0"
     },
     {
-      "input": "http://a.example.org",
-      "problem": "notHTTPS"
+      "input" : "https://a.example.org/x y",
+      "url" : "https://a.example.org/x%20y"
     },
     {
-      "input": "http://a.example.org:80",
-      "problem": "notHTTPS"
+      "input" : "https://ä.example.org",
+      "url" : "https://xn--4ca.example.org"
     },
     {
-      "input": "https://user@a.example.org",
-      "problem": "hasCredentials"
+      "input" : "https://a.example.org/ä",
+      "url" : "https://a.example.org/%C3%A4"
     },
     {
-      "input": "https://user:pw@a.example.org",
-      "problem": "hasCredentials"
+      "input" : "https://a.example.org/%zz",
+      "url" : "https://a.example.org/%25zz"
     },
     {
-      "input": "https://a.example.org?x=1",
-      "problem": "notAnAddress"
+      "input" : "https://[::1]",
+      "url" : "https://[::1]"
     },
     {
-      "input": "https://a.example.org?",
-      "problem": "notAnAddress"
+      "input" : "http://localhost:8787",
+      "url" : "http://localhost:8787"
     },
     {
-      "input": "https://a.example.org#f",
-      "problem": "notAnAddress"
+      "input" : "http://LOCALHOST",
+      "url" : "http://localhost"
     },
     {
-      "input": "https://a b.org",
-      "problem": "notAnAddress"
+      "input" : "http://localhost:80",
+      "url" : "http://localhost"
     },
     {
-      "input": "ftp://a.example.org",
-      "problem": "notAnAddress"
+      "input" : "http://127.0.0.1:8787",
+      "url" : "http://127.0.0.1:8787"
     },
     {
-      "input": "a.example.org",
-      "problem": "notAnAddress"
+      "input" : "http://[::1]:8787",
+      "url" : "http://[::1]:8787"
     },
     {
-      "input": "https://",
-      "problem": "notAnAddress"
+      "input" : "http://a.example.org",
+      "problem" : "notHTTPS"
     },
     {
-      "input": "",
-      "problem": "notAnAddress"
+      "input" : "http://a.example.org:80",
+      "problem" : "notHTTPS"
     },
     {
-      "input": "https://a.example.org:99999",
-      "url": "https://a.example.org:99999"
+      "input" : "http://203.0.113.5:8787",
+      "problem" : "notHTTPS"
     },
     {
-      "input": "https://a.example.org:abc",
-      "problem": "notAnAddress"
+      "input" : "https://user@a.example.org",
+      "problem" : "hasCredentials"
     },
     {
-      "input": "https://exa mple.org/x",
-      "problem": "notAnAddress"
+      "input" : "https://user:pw@a.example.org",
+      "problem" : "hasCredentials"
     },
     {
-      "input": "https://a.example.org/x y",
-      "url": "https://a.example.org/x%20y"
+      "input" : "https://a.example.org?x=1",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://ä.example.org",
-      "url": "https://xn--4ca.example.org"
+      "input" : "https://a.example.org?",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://a.example.org/ä",
-      "url": "https://a.example.org/%C3%A4"
+      "input" : "https://a.example.org#f",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "http://192.168.1.5:8787",
-      "problem": "notHTTPS"
+      "input" : "https://alerts.example.com/#a",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "javascript:alert(1)",
-      "problem": "notAnAddress"
+      "input" : "https://a b.org",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://alerts.example.com/#a",
-      "problem": "notAnAddress"
+      "input" : "https://exa mple.org/x",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "http://localhost:80",
-      "url": "http://localhost"
+      "input" : "ftp://a.example.org",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://alerts.example.com:443/",
-      "url": "https://alerts.example.com"
+      "input" : "a.example.org",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://[::1]",
-      "url": "https://[::1]"
+      "input" : "https://",
+      "problem" : "notAnAddress"
     },
     {
-      "input": "https://a.example.org:",
-      "url": "https://a.example.org"
+      "input" : "",
+      "problem" : "notAnAddress"
+    },
+    {
+      "input" : "javascript:alert(1)",
+      "problem" : "notAnAddress"
+    },
+    {
+      "input" : "https://a.example.org:abc",
+      "problem" : "notAnAddress"
+    },
+    {
+      "input" : "https://a.example.org:1234567890123456789",
+      "url" : "https://a.example.org:1234567890123456789"
     }
   ]
 }

@@ -30,13 +30,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * What only a device can show: the Android Keystore sealing and opening, a lost key, and DataStore
- * keeping preferences on disk. Every test uses its own Keystore alias and its own files, never the
+ * What only a device can show: the real Android Keystore's own answers (sealing and opening, a key
+ * that is really gone, bytes sealed by another real key) and DataStore keeping preferences on disk.
+ * The cipher's decisions on every other answer are tested on the JVM (KeystoreCipherTest). Every test uses its own Keystore alias and its own files, never the
  * app's (`polaris-secrets`, `polaris-preferences`), so running these where Polaris is installed
  * leaves that person's settings alone; the app's files are checked untouched at the end.
  *
- * Run with `./gradlew :app:connectedDebugAndroidTest`, with `ANDROID_SERIAL` set when more than one
- * device is connected: Gradle installs on and runs against every connected device.
+ * Run with `ANDROID_SERIAL=<emulator> ./gradlew :app:connectedDebugAndroidTest`. Always set
+ * ANDROID_SERIAL: Gradle installs on and runs against every connected device.
  */
 @RunWith(AndroidJUnit4::class)
 class StorageDeviceTest {
@@ -73,7 +74,7 @@ class StorageDeviceTest {
 
     @Test fun enteredKeysAreKeptSealedAndBeatTheBuild() {
         val settings = AppSettings(EncryptedSecretStore(cipher, disk()), BuildDefaults(googleKey = "built-in"))
-        assertTrue(settings.setGoogleKeyOverride("entered-key"))
+        assertEquals(AppSettings.Save.saved, settings.setGoogleKeyOverride("entered-key"))
         val raw = disk().read("secret.google")!!
         assertFalse(raw.contains("entered-key"))
         val again = AppSettings(EncryptedSecretStore(KeystoreCipher(alias = TEST_ALIAS), disk()), BuildDefaults(googleKey = "built-in"))
@@ -88,7 +89,7 @@ class StorageDeviceTest {
         assertEquals(setOf("tfl"), settings.lostSecrets)
         assertNull(disk().read("secret.tfl"))
         // A value entered now seals with a new key and reads back.
-        assertTrue(settings.setTflKeyOverride("new-key"))
+        assertEquals(AppSettings.Save.saved, settings.setTflKeyOverride("new-key"))
         assertEquals("new-key", settings.tflKey)
     }
 

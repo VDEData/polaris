@@ -1,7 +1,10 @@
 package polaris.android.map
 
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks2
 import android.content.Context
+import android.content.res.Configuration
+import android.os.Bundle
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -12,7 +15,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.zIndex
@@ -28,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,9 +82,10 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import polaris.android.BuildConfig
 import polaris.android.storage.Storage
-import kotlinx.coroutines.runBlocking
 import polaris.android.ui.PolarisColors
+import polaris.engine.Contact
 import polaris.engine.HTTP
+import java.io.IOException
 import polaris.engine.JourneyMap
 import polaris.engine.MapStyle
 
@@ -111,24 +124,41 @@ fun PolarisMap(
     val colors = PolarisColors.of(night)
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    // One MapView per lifecycle owner: a new owner gets a new view, created and destroyed with it.
+    // The view's own saved state (its camera), so a rotation or fold keeps where the person was.
+    var savedState by rememberSaveable { mutableStateOf<Bundle?>(null) }
+    // One MapView per lifecycle owner. Only constructed here; onCreate runs when the composition
+    // is applied (below), so a composition that is abandoned leaves nothing created behind.
     val mapView = remember(owner) {
         MapSetup.ensure(context)
-        MapView(context).apply { onCreate(null) }
+        MapView(context)
     }
     var map by remember(mapView) { mutableStateOf<MapLibreMap?>(null) }
     var style by remember(mapView) { mutableStateOf<Style?>(null) }
 
     DisposableEffect(owner, mapView) {
         val lifecycle = MapViewLifecycle(object : MapViewLifecycle.Target {
+            override fun onCreate() = mapView.onCreate(savedState)
             override fun onStart() = mapView.onStart()
             override fun onResume() = mapView.onResume()
             override fun onPause() = mapView.onPause()
             override fun onStop() = mapView.onStop()
+            override fun onSaveInstanceState() {
+                savedState = Bundle().also(mapView::onSaveInstanceState)
+            }
+            override fun onLowMemory() = mapView.onLowMemory()
             override fun onDestroy() = mapView.onDestroy()
         })
+        lifecycle.create()
         val observer = LifecycleEventObserver { _, event -> lifecycle.on(event) }
         owner.lifecycle.addObserver(observer)
+        val memory = object : ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) {
+                if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) lifecycle.lowMemory()
+            }
+            @Deprecated("Deprecated in Android") override fun onLowMemory() = lifecycle.lowMemory()
+            override fun onConfigurationChanged(newConfig: Configuration) {}
+        }
+        context.registerComponentCallbacks(memory)
         mapView.getMapAsync { m ->
             m.uiSettings.isLogoEnabled = false
             // The credit is drawn as visible text instead of behind an (i) button.
@@ -137,10 +167,11 @@ fun PolarisMap(
             m.uiSettings.isTiltGesturesEnabled = false
             // No tiles beyond what is on screen.
             m.prefetchZoomDelta = 0
-            m.cameraPosition = CameraPosition.Builder().target(home).zoom(12.0).build()
+            if (savedState == null) m.cameraPosition = CameraPosition.Builder().target(home).zoom(12.0).build()
             map = m
         }
         onDispose {
+            context.unregisterComponentCallbacks(memory)
             owner.lifecycle.removeObserver(observer)
             style = null
             map = null
@@ -172,11 +203,16 @@ fun PolarisMap(
     }
     // Fitted when the journey changes, inside the padding at that moment; content growing over
     // the map later (a results list, the keyboard) doesn't move the camera.
+    // Only a journey not fitted before: after a rotation the saved camera stays where it was.
     val currentPadding by rememberUpdatedState(padding)
+    var fitted by rememberSaveable { mutableStateOf<List<Double>?>(null) }
     LaunchedEffect(map, drawing?.bounds) {
         val m = map ?: return@LaunchedEffect
         val padding = currentPadding
         val bounds = drawing?.bounds ?: return@LaunchedEffect
+        val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east)
+        if (key == fitted) return@LaunchedEffect
+        fitted = key
         val margin = with(density) { 32.dp.roundToPx() }
         val update = if (bounds.isPoint) {
             CameraUpdateFactory.newLatLngZoom(LatLng(bounds.centre.latitude, bounds.centre.longitude), 15.0)
@@ -203,35 +239,57 @@ fun PolarisMap(
 }
 
 /**
- * OpenFreeMap's required credit, each part linked as on its site. The rule, for every screen:
- * it is the last thing drawn over the map, so nothing laid over the map covers it; it sits at the
- * bottom-start corner, above the bottom inset the screen gives (a sheet's top edge, the
- * navigation bar) or the keyboard, whichever is higher; and it takes no top padding, so a tall
- * panel or the keyboard can never squeeze it to nothing. Screens keep that corner clear.
+ * OpenFreeMap's required credit. The rule, for every screen:
+ * - it is the last thing drawn over the map, so nothing laid over the map covers it;
+ * - it sits at the bottom-start corner (right in a right-to-left language), inset by the real
+ *   window insets on every side (system bars, a cutout, the keyboard) and by the bottom the
+ *   screen covers (a sheet's top edge), whichever is larger;
+ * - it is always fully readable: it wraps as text grows and is never cut or squeezed (no top
+ *   padding, no line limit);
+ * - it is one 48 dp target that opens the three links, each a full-size menu item, rather than
+ *   three links too small to tap.
+ * Screens keep that corner clear.
  */
 @Composable
 private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingValues) {
     val direction = LocalLayoutDirection.current
-    val bottom = contentPadding.calculateBottomPadding()
-    val start = contentPadding.calculateStartPadding(direction)
-    val text = buildAnnotatedString {
-        MapStyle.CREDITS.forEachIndexed { index, (words, url) ->
-            if (index > 0) append(" ")
-            withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = colors.ink.copy(alpha = 0.8f))))) { append(words) }
-        }
-    }
-    Text(
-        text,
-        maxLines = 2,
-        modifier = Modifier
+    val uri = LocalUriHandler.current
+    var open by remember { mutableStateOf(false) }
+    val covered = WindowInsets(
+        left = contentPadding.calculateLeftPadding(direction),
+        right = contentPadding.calculateRightPadding(direction),
+        bottom = contentPadding.calculateBottomPadding(),
+    )
+    Box(
+        Modifier
             .align(Alignment.BottomStart)
             .zIndex(1f)
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets(left = start, bottom = bottom)))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .background(colors.paper.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = colors.ink.copy(alpha = 0.8f)),
-    )
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).union(covered))
+            .padding(horizontal = 4.dp),
+    ) {
+        Box(
+            Modifier
+                .sizeIn(minHeight = 48.dp)
+                .clickable(role = Role.Button, onClickLabel = "Show map data sources") { open = true },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                MapStyle.ATTRIBUTION,
+                modifier = Modifier
+                    .background(colors.paper.copy(alpha = 0.88f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = colors.ink.copy(alpha = 0.85f)),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MapStyle.CREDITS.forEach { (words, url) ->
+                DropdownMenuItem(text = { Text(words) }, onClick = {
+                    open = false
+                    runCatching { uri.openUri(url) }
+                })
+            }
+        }
+    }
 }
 
 val LONDON = LatLng(51.5074, -0.1278)
@@ -244,14 +302,22 @@ object MapSetup {
         if (done) return
         val app = context.applicationContext
         MapLibre.getInstance(app)
-        // The same User-Agent as every other request, from the same place (`AppSettings.contact`,
-        // so a contact entered in settings counts), read as each request goes. Interceptors run on
-        // OkHttp's own threads, where waiting for settings to load the first time is fine.
+        // The same User-Agent as every other request: `AppSettings.contact`, read from Storage's
+        // in-memory copy so the tile path never waits on storage or the Keystore. The interceptor
+        // can't throw anything but an IOException, which OkHttp reports as a failed request
+        // rather than crashing the app.
         HttpRequestUtil.setOkHttpClient(
             OkHttpClient.Builder()
                 .addInterceptor { chain ->
-                    val contact = runBlocking { Storage.settings(app) }.first.contact
-                    chain.proceed(chain.request().newBuilder().header("User-Agent", HTTP.userAgent(BuildConfig.VERSION_NAME, contact)).build())
+                    val agent = runCatching { HTTP.userAgent(BuildConfig.VERSION_NAME, Storage.contact) }
+                        .getOrDefault(HTTP.userAgent(BuildConfig.VERSION_NAME, Contact.PROJECT))
+                    try {
+                        chain.proceed(chain.request().newBuilder().header("User-Agent", agent).build())
+                    } catch (e: IOException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        throw IOException("map request failed", e)
+                    }
                 }
                 .build(),
         )

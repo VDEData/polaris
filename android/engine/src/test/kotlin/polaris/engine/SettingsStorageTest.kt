@@ -80,9 +80,9 @@ class SettingsStorageTest {
         assertFalse(EncryptedSecretStore(busy, disk).write("abc", "google"))
         assertTrue(disk.values.isEmpty())
         val settings = AppSettings(EncryptedSecretStore(FakeCipher(), FailingStore()))
-        assertFalse(settings.setGoogleKeyOverride("abc"), "the screen can say it wasn't saved")
-        assertFalse(settings.setTflKeyOverride("abc"))
-        assertFalse(settings.setContactOverride("me@example.org"))
+        assertEquals(AppSettings.Save.notSaved, settings.setGoogleKeyOverride("abc"), "the screen can say it wasn't saved")
+        assertEquals(AppSettings.Save.notSaved, settings.setTflKeyOverride("abc"))
+        assertEquals(AppSettings.Save.notSaved, settings.setContactOverride("me@example.org"))
     }
 
     @Test fun anUnreadableKeyWaitsAndIsNotReplacedByTheBuilds() {
@@ -91,31 +91,120 @@ class SettingsStorageTest {
         EncryptedSecretStore(cipher, disk).write("entered-g", "google")
         cipher.busy = true
         val settings = AppSettings(EncryptedSecretStore(cipher, disk), BuildDefaults(googleKey = "built-in"))
-        assertEquals(SecretRead.Unreadable, EncryptedSecretStore(cipher, disk).read("google"))
         assertNull(settings.googleKey, "not the build's key while the entered one can't be read")
+        assertEquals(AppSettings.SecretField.Unreadable, settings.googleKeyField, "its own state, not an empty field")
         assertTrue(settings.keysUnreadable)
-        // Kept in place: once the Keystore answers, the entered key is back.
+        // Each read tries again: once the Keystore answers, the entered key is back.
         cipher.busy = false
         assertEquals("entered-g", settings.googleKey)
-        assertFalse(settings.keysUnreadable)
+        assertEquals(AppSettings.SecretField.Entered("entered-g"), settings.googleKeyField)
     }
 
-    @Test fun aLostKeyIsRemovedReportedOnceThenAbsent() {
+    @Test fun aBlankSaveCantDeleteAnUnreadableValueButReEnteringReplacesIt() {
+        val disk = InMemoryDurableStore()
+        val cipher = FakeCipher()
+        val settings = AppSettings(EncryptedSecretStore(cipher, disk))
+        settings.setGoogleKeyOverride("entered-g")
+        cipher.busy = true
+        // A settings screen saving its (empty) field on the way out.
+        assertEquals(AppSettings.Save.keptUnreadable, settings.setGoogleKeyOverride(""))
+        assertTrue("secret.google" in disk.values)
+        // Re-entering is the way out (the cipher answers again for the new value).
+        cipher.busy = false
+        val sealedBefore = disk.values.getValue("secret.google")
+        cipher.busy = true
+        val stillBusy = settings.setGoogleKeyOverride("new-g")
+        assertEquals(AppSettings.Save.notSaved, stillBusy, "sealing needs the Keystore too")
+        assertEquals(sealedBefore, disk.values.getValue("secret.google"))
+        cipher.busy = false
+        assertEquals(AppSettings.Save.saved, settings.setGoogleKeyOverride("new-g"))
+        assertEquals("new-g", settings.googleKey)
+        // Forgetting on purpose works, readable or not.
+        cipher.busy = true
+        assertTrue(settings.forget(AppSettings.GOOGLE))
+        cipher.busy = false
+        assertEquals(AppSettings.SecretField.Empty, settings.googleKeyField)
+    }
+
+    @Test fun everySecretReportsWhenItCantBeRead() {
+        val disk = InMemoryDurableStore()
+        val cipher = FakeCipher()
+        val settings = AppSettings(EncryptedSecretStore(cipher, disk))
+        settings.setGoogleKeyOverride("g")
+        settings.setTflKeyOverride("t")
+        settings.setContactOverride("me@example.org")
+        settings.useAlertsServer("https://mine.example.org", "tok")
+        assertEquals(emptySet(), settings.unreadableSecrets)
+        cipher.busy = true
+        assertEquals(setOf("google", "tfl", "contact", AlertServer.ACCOUNT), settings.unreadableSecrets)
+    }
+
+    @Test fun aLostKeyIsRemovedAndTheNoticeOutlivesTheProcess() {
         val disk = InMemoryDurableStore()
         val cipher = FakeCipher()
         EncryptedSecretStore(cipher, disk).write("entered-t", "tfl")
         cipher.lost = true
         val settings = AppSettings(EncryptedSecretStore(cipher, disk), BuildDefaults(tflKey = "built-in"))
-        // Gone for good, so the build's applies, and the person is told.
+        // Gone for good, so the build's applies; the notice is recorded before the value goes.
         assertEquals("built-in", settings.tflKey)
         assertEquals(setOf("tfl"), settings.lostSecrets)
-        assertTrue(disk.values.isEmpty())
-        assertEquals(SecretRead.Absent, EncryptedSecretStore(cipher, disk).read("tfl"))
-        settings.acknowledgeLost()
-        assertEquals(emptySet(), settings.lostSecrets)
-        // Garbage that isn't even base64 can never be opened either.
-        disk.values["secret.tfl"] = "%%%"
-        assertEquals(SecretRead.Lost, EncryptedSecretStore(FakeCipher(), disk).read("tfl"))
+        assertFalse("secret.tfl" in disk.values)
+        assertEquals("1", disk.values["lost.tfl"], "names only, never the value")
+        // A new process (new objects over the same file) still has the notice.
+        val afterRestart = AppSettings(EncryptedSecretStore(FakeCipher(), disk))
+        assertEquals(setOf("tfl"), afterRestart.lostSecrets)
+        afterRestart.acknowledgeLost()
+        assertEquals(emptySet(), AppSettings(EncryptedSecretStore(FakeCipher(), disk)).lostSecrets)
+    }
+
+    @Test fun anyReadPathRecordsTheNotice() {
+        val disk = InMemoryDurableStore()
+        val cipher = FakeCipher()
+        EncryptedSecretStore(cipher, disk).write("g", "google")
+        cipher.lost = true
+        val settings = AppSettings(EncryptedSecretStore(cipher, disk))
+        // Only the "is anything unreadable?" check touches it.
+        assertFalse(settings.keysUnreadable)
+        assertEquals(setOf("google"), settings.lostSecrets)
+    }
+
+    @Test fun aLostNoticeThatCantBeWrittenKeepsTheValue() {
+        val disk = object : DurableStore {
+            val inner = InMemoryDurableStore()
+            override fun read(key: String) = inner.read(key)
+            override fun write(key: String, value: String?) = if (key.startsWith("lost.")) false else inner.write(key, value)
+        }
+        val cipher = FakeCipher()
+        EncryptedSecretStore(cipher, disk).write("g", "google")
+        cipher.lost = true
+        assertEquals(SecretRead.Unreadable, EncryptedSecretStore(cipher, disk).read("google"))
+        assertTrue("secret.google" in disk.inner.values, "never deleted without telling")
+    }
+
+    @Test fun aValueSavedWhileAReadIsFailingIsNeverDeleted() {
+        val disk = InMemoryDurableStore()
+        // Between this read's fetch and its decision, another save lands (the cipher fake does it
+        // mid-open, then reports the old bytes as lost).
+        lateinit var store: EncryptedSecretStore
+        val cipher = object : SecretCipher {
+            val plain = FakeCipher()
+            var interfere = false
+            override fun seal(plain: ByteArray) = this.plain.seal(plain)
+            override fun open(sealed: ByteArray): ByteArray {
+                if (interfere) {
+                    interfere = false
+                    disk.write("secret.google", java.util.Base64.getEncoder().encodeToString(this.plain.seal("saved meanwhile".encodeToByteArray())))
+                    throw SecretCipher.KeyLost("old bytes")
+                }
+                return this.plain.open(sealed)
+            }
+        }
+        store = EncryptedSecretStore(cipher, disk)
+        store.write("old", "google")
+        cipher.interfere = true
+        assertEquals(SecretRead.Unreadable, store.read("google"))
+        assertEquals("saved meanwhile", text(store.read("google")))
+        assertEquals(emptySet(), store.lostAccounts())
     }
 
     @Test fun enteredBeatsBuiltInBeatsNone() {
@@ -124,9 +213,9 @@ class SettingsStorageTest {
         assertEquals("built-g", settings.googleKey)
         assertNull(settings.tflKey)
         assertEquals("https://example.org/build", settings.contact)
-        assertTrue(settings.setGoogleKeyOverride("entered-g"))
-        assertTrue(settings.setTflKeyOverride("entered-t"))
-        assertTrue(settings.setContactOverride("me@example.org"))
+        assertEquals(AppSettings.Save.saved, settings.setGoogleKeyOverride("entered-g"))
+        assertEquals(AppSettings.Save.saved, settings.setTflKeyOverride("entered-t"))
+        assertEquals(AppSettings.Save.saved, settings.setContactOverride("me@example.org"))
         // A fresh AppSettings over the same store: it was kept, not just held in memory.
         val again = AppSettings(secrets, BuildDefaults(googleKey = "built-g"))
         assertEquals("entered-g", again.googleKey)
@@ -137,6 +226,14 @@ class SettingsStorageTest {
         assertEquals("built-g", again.googleKey)
         again.setContactOverride("not a contact")
         assertEquals(Contact.PROJECT, again.contact)
+    }
+
+    @Test fun savingASecretTellsTheContactCache() {
+        var told = 0
+        val settings = AppSettings().apply { onSecretsChanged = { told++ } }
+        settings.setContactOverride("me@example.org")
+        settings.forget(AppSettings.CONTACT)
+        assertEquals(2, told)
     }
 
     @Test fun ordinaryChoicesAreKeptUnderIOSsNames() {
@@ -188,43 +285,66 @@ class SettingsStorageTest {
         assertEquals(AlertServer("https://alerts.example.org", "built-token", isBuiltIn = true), settings.alertServer)
 
         // An entered address never borrows the built-in token.
-        assertFalse(settings.useAlertsServer("https://mine.example.org", ""))
+        assertEquals(AppSettings.Save.notSaved, settings.useAlertsServer("https://mine.example.org", ""))
         assertEquals("built-token", settings.alertServer?.token)
-        assertTrue(settings.useAlertsServer(" https://Mine.Example.org:443/ ", "my-token"))
+        assertEquals(AppSettings.Save.saved, settings.useAlertsServer(" https://Mine.Example.org:443/ ", "my-token"))
         assertEquals(AlertServer("https://mine.example.org", "my-token", isBuiltIn = false), settings.alertServer)
         assertEquals(AppSettings.EnteredServer.Saved("https://mine.example.org", "my-token"), settings.enteredAlertsServer)
 
         // Both blank goes back to the built-in one.
-        assertTrue(settings.useAlertsServer("", ""))
+        assertEquals(AppSettings.Save.saved, settings.useAlertsServer("", ""))
         assertEquals(true, settings.alertServer?.isBuiltIn)
         // With nothing built in, alerts are off.
         assertNull(AppSettings(InMemorySecretStore()).alertServer)
     }
 
-    @Test fun aTokenIsNeverStoredBesideAnotherServersAddressEvenWhenASaveFails() {
-        // Moving from server A to B, with the save's first write failing, then its second.
-        for (failFrom in listOf(1, 2)) {
-            val secrets = FlakySecrets()
-            val settings = AppSettings(secrets)
-            assertTrue(settings.useAlertsServer("https://a.example.org", "token-a"))
-            secrets.arm(failFrom)
-            val saved = settings.useAlertsServer("https://b.example.org", "token-b")
-            val pair = settings.alertServer.let { it?.url to it?.token }
-            val expected = if (saved) "https://b.example.org" to "token-b" else "https://a.example.org" to "token-a"
-            assertEquals(expected, pair, "failing from write $failFrom (saved: $saved)")
+    /**
+     * Records the stored pair after every write a save makes, so a moment where a token sits
+     * beside another server's address is caught whether or not anything fails.
+     */
+    @Test fun aTokenIsNeverStoredBesideAnotherServersAddressAtAnyMoment() {
+        val inner = InMemorySecretStore()
+        lateinit var settings: AppSettings
+        val moments = mutableListOf<Pair<String?, String?>>()
+        val recording = object : SecretStore {
+            override fun read(account: String) = inner.read(account)
+            override fun write(value: String, account: String): Boolean = inner.write(value, account).also {
+                val reader = AppSettings(inner)
+                moments += reader.alertServer.let { s -> s?.url to s?.token }
+            }
         }
+        settings = AppSettings(recording)
+        settings.useAlertsServer("https://a.example.org", "token-a")
+        settings.useAlertsServer("https://b.example.org", "token-b")
+        val allowed = setOf<Pair<String?, String?>>(null to null, "https://a.example.org" to "token-a", "https://b.example.org" to "token-b")
+        assertTrue(moments.all { it in allowed }, "$moments")
+        assertEquals("https://b.example.org" to "token-b", moments.last())
     }
 
-    @Test fun anUnreadableAlertsServerMeansWaitNotTheBuiltInOne() {
+    @Test fun aFailedSaveKeepsTheOldPairWhole() {
+        val secrets = FlakySecrets()
+        val settings = AppSettings(secrets)
+        assertEquals(AppSettings.Save.saved, settings.useAlertsServer("https://a.example.org", "token-a"))
+        secrets.arm(1)
+        assertEquals(AppSettings.Save.notSaved, settings.useAlertsServer("https://b.example.org", "token-b"))
+        assertEquals("https://a.example.org" to "token-a", settings.alertServer.let { it?.url to it?.token })
+    }
+
+    @Test fun anUnreadableOrUndecodableAlertsServerMeansWaitNotTheBuiltInOne() {
         val disk = InMemoryDurableStore()
         val cipher = FakeCipher()
         val settings = AppSettings(EncryptedSecretStore(cipher, disk), BuildDefaults(alertsUrl = "https://built.example.org", alertsToken = "built-token"))
-        assertTrue(settings.useAlertsServer("https://mine.example.org", "my-token"))
+        assertEquals(AppSettings.Save.saved, settings.useAlertsServer("https://mine.example.org", "my-token"))
         cipher.busy = true
         assertEquals(AppSettings.EnteredServer.Unreadable, settings.enteredAlertsServer)
         assertNull(settings.alertServer, "never the built-in server while the entered one can't be read")
+        assertEquals(AppSettings.Save.keptUnreadable, settings.useAlertsServer("", ""), "a blank save can't drop it either")
         cipher.busy = false
         assertEquals("https://mine.example.org", settings.alertServer?.url)
+        // A record that opens but doesn't decode is bad data: unreadable too, not "none".
+        EncryptedSecretStore(cipher, disk).write("{not a record", AlertServer.ACCOUNT)
+        assertEquals(AppSettings.EnteredServer.Unreadable, settings.enteredAlertsServer)
+        assertNull(settings.alertServer)
     }
 
     @Test fun typesHoldingKeysOrTokensNeverPrintThem() {
@@ -239,6 +359,8 @@ class SettingsStorageTest {
         val printed = listOf(
             build.toString(), settings.toString(), settings.alertServer.toString(), settings.enteredAlertsServer.toString(),
             secrets.read("google").toString(), secrets.toString(), request.toString(),
+            HttpResponse(302, ByteArray(3), location = "https://api.tfl.gov.uk/next?app_key=t-secret-9").toString(),
+            EncryptedSecretStore(FakeCipher(), InMemoryDurableStore()).toString(),
         )
         for (text in printed) assertFalse("secret" in text, text)
         assertTrue("set" in build.toString() && "https://a.example.org" in build.toString(), build.toString())

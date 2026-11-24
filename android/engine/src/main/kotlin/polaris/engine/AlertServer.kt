@@ -74,7 +74,7 @@ data class AlertServer(val url: String, val token: String, val isBuiltIn: Boolea
                 scheme == "http" -> throw InvalidAddress(Problem.notHTTPS)
                 else -> throw InvalidAddress(Problem.notAnAddress)
             }
-            val keptPort = port?.takeUnless { it == (if (scheme == "https") 443L else 80L) }
+            val keptPort = port?.takeUnless { it == java.math.BigInteger.valueOf(if (scheme == "https") 443L else 80L) }
             return buildString {
                 append(scheme).append("://").append(host)
                 if (keptPort != null) append(":").append(keptPort)
@@ -82,8 +82,8 @@ data class AlertServer(val url: String, val token: String, val isBuiltIn: Boolea
             }
         }
 
-        /** Host and port: `[v6]:port` or `name:port`; an empty port is none; a port must be digits. */
-        private fun splitHostPort(text: String): Pair<String, Long?>? {
+        /** Host and port: `[v6]:port` or `name:port`; an empty port is none; a port is any run of digits, as iOS takes it. */
+        private fun splitHostPort(text: String): Pair<String, java.math.BigInteger?>? {
             val (host, portText) = if (text.startsWith("[")) {
                 val close = text.indexOf(']')
                 if (close < 0) return null
@@ -95,8 +95,8 @@ data class AlertServer(val url: String, val token: String, val isBuiltIn: Boolea
                 if (colon < 0) text to null else text.substring(0, colon) to text.substring(colon + 1)
             }
             if (portText.isNullOrEmpty()) return host to null
-            if (!portText.all { it in '0'..'9' } || portText.length > 18) return null
-            return host to portText.toLong()
+            if (!portText.all { it in '0'..'9' }) return null
+            return host to java.math.BigInteger(portText)
         }
 
         /** Lower case; punycode for non-ASCII; null for characters a host can't hold (a space, `<`). */
@@ -109,12 +109,20 @@ data class AlertServer(val url: String, val token: String, val isBuiltIn: Boolea
 
         private const val PATH_SAFE = "-._~!$&'()*+,;=:@/%"
 
-        /** Percent-encodes, as UTF-8, what a URL path can't hold; `%` already there is kept. */
+        /**
+         * Percent-encodes, as UTF-8, what a URL path can't hold. A `%` that starts a valid escape
+         * is kept; one that doesn't is itself encoded (`/%zz` becomes `/%25zz`), as iOS does.
+         */
         private fun encodePath(path: String): String = buildString {
-            for (byte in path.encodeToByteArray()) {
+            val bytes = path.encodeToByteArray()
+            fun hex(i: Int) = i < bytes.size && (bytes[i].toInt().toChar().let { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' })
+            for ((i, byte) in bytes.withIndex()) {
                 val c = (byte.toInt() and 0xFF).toChar()
-                if (c.code < 128 && (c.isLetterOrDigit() || c in PATH_SAFE)) append(c)
-                else append("%").append("%02X".format(byte.toInt() and 0xFF))
+                when {
+                    c == '%' && hex(i + 1) && hex(i + 2) -> append(c)
+                    c.code < 128 && c != '%' && (c.isLetterOrDigit() || c in PATH_SAFE) -> append(c)
+                    else -> append("%").append("%02X".format(byte.toInt() and 0xFF))
+                }
             }
         }
 

@@ -116,10 +116,11 @@ class MapCheckModel(application: Application) : AndroidViewModel(application) {
             _search.value = PlaceSearch(http, viewModelScope).apply { bias(CENTRAL_LONDON) }
             _storage.value = listOf(
                 "Contact in User-Agent: ${settings.contact}",
-                "Google key: ${if (settings.googleKey != null) "set" else "none"} · TfL key: ${if (settings.tflKey != null) "set" else "none"}" +
-                    if (settings.keysUnreadable) " · an entered key can't be read yet" else "",
+                "Google key: ${if (settings.googleKey != null) "set" else "none"} · TfL key: ${if (settings.tflKey != null) "set" else "none"}",
+                settings.unreadableSecrets.takeIf { it.isNotEmpty() }?.let { "Saved but can't be read yet: ${it.joinToString()}" },
+                settings.lostSecrets.takeIf { it.isNotEmpty() }?.let { "Lost for good, enter again: ${it.joinToString()}" },
                 "Sort ${settings.sortOrder.label} · deep search ${if (settings.deepSearch) "on" else "off"} · alerts ${if (settings.alertServer != null) "on" else "off"}",
-            ).joinToString("\n")
+            ).filterNotNull().joinToString("\n")
         }
     }
 
@@ -135,7 +136,8 @@ private fun MapCheck(night: Boolean, model: MapCheckModel = viewModel()) {
     val search by model.search.collectAsStateWithLifecycle()
     val requests by model.requests.collectAsStateWithLifecycle()
     val storage by model.storage.collectAsStateWithLifecycle()
-    var picked by remember { mutableStateOf<PlaceMatch?>(null) }
+    // Kept through a rotation, so the map isn't re-fitted to something else.
+    var picked by rememberSaveable(stateSaver = PickedSaver) { mutableStateOf<PlaceMatch?>(null) }
     var text by rememberSaveable { mutableStateOf("") }
     fun granted() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     var showLocation by remember { mutableStateOf(granted()) }
@@ -164,8 +166,9 @@ private fun MapCheck(night: Boolean, model: MapCheckModel = viewModel()) {
             Column(
                 Modifier
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    // The map's credit sits in the bottom-start corner; the panel never reaches it.
-                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 36.dp)
+                    // The map's credit sits in the bottom-start corner and wraps as text grows; the
+                    // panel stops above room for it at any font scale.
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 32.dp + 28.dp * LocalDensity.current.fontScale)
                     .widthIn(max = 480.dp)
                     .fillMaxWidth()
                     .background(colors.surface, RoundedCornerShape(18.dp))
@@ -223,6 +226,21 @@ private fun MapCheck(night: Boolean, model: MapCheckModel = viewModel()) {
         }
     }
 }
+
+private val PickedSaver = androidx.compose.runtime.saveable.Saver<PlaceMatch?, List<Any>>(
+    save = { match ->
+        match?.let { listOf(it.place.id, it.place.name, it.place.subtitle ?: "", it.place.coordinate.latitude, it.place.coordinate.longitude, it.kind.name) } ?: emptyList()
+    },
+    restore = { saved ->
+        if (saved.isEmpty()) null else PlaceMatch(
+            polaris.engine.Place(
+                id = saved[0] as String, name = saved[1] as String, subtitle = (saved[2] as String).ifEmpty { null },
+                coordinate = Coordinate(saved[3] as Double, saved[4] as Double),
+            ),
+            PlaceMatch.Kind.valueOf(saved[5] as String),
+        )
+    },
+)
 
 private fun kind(match: PlaceMatch): String = when (match.kind) {
     PlaceMatch.Kind.stop -> "Stop"

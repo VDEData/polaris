@@ -1,6 +1,10 @@
 package polaris.android.storage
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.SharedPreferencesMigration
 import androidx.datastore.preferences.core.Preferences
@@ -18,6 +22,7 @@ import kotlinx.coroutines.withContext
 import polaris.android.BuildConfig
 import polaris.engine.AppSettings
 import polaris.engine.BuildDefaults
+import polaris.engine.Contact
 import polaris.engine.DurableStore
 import polaris.engine.EncryptedSecretStore
 import polaris.engine.GoogleUsage
@@ -94,7 +99,17 @@ class SealedPreferences(context: Context, file: String = APP_FILE) : DurableStor
 object Storage {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
-    private var ready: Pair<AppSettings, GoogleUsage>? = null
+    @Volatile private var ready: Pair<AppSettings, GoogleUsage>? = null
+
+    /**
+     * `AppSettings.contact`, kept in memory for the map's tile, style and font requests, which
+     * mustn't wait on storage or the Keystore. Until settings load it is the build's contact (or
+     * the project's page), which is what `AppSettings.contact` gives with nothing entered. It is
+     * refreshed when settings load, after a secret is saved, and when the phone is unlocked (an
+     * entered contact that couldn't be read before the first unlock is read then).
+     */
+    @Volatile var contact: String = Contact.valid(BuildConfig.POLARIS_CONTACT) ?: Contact.PROJECT
+        private set
 
     val buildDefaults: BuildDefaults
         get() = BuildDefaults(
@@ -107,10 +122,30 @@ object Storage {
 
     /** Call from a coroutine; the first call reads the files off the main thread. */
     suspend fun settings(context: Context): Pair<AppSettings, GoogleUsage> = mutex.withLock {
-        ready ?: run {
-            val preferences = DataStoreKeyValueStore.load(DataStoreKeyValueStore.appStore(context), scope)
-            val secrets = EncryptedSecretStore(KeystoreCipher(), SealedPreferences(context))
-            (AppSettings(secrets, buildDefaults, preferences) to GoogleUsage(preferences)).also { ready = it }
+        ready ?: withContext(Dispatchers.IO) {
+            val app = context.applicationContext
+            val preferences = DataStoreKeyValueStore.load(DataStoreKeyValueStore.appStore(app), scope)
+            val sealed = SealedPreferences(app)
+            // Development installs only: the first builds of this storage kept the alerts server
+            // as two entries. Nothing reads them; they are removed so no token lingers.
+            listOf("secret.alerts.server.url", "secret.alerts.server.token").forEach { if (sealed.read(it) != null) sealed.write(it, null) }
+            val settings = AppSettings(EncryptedSecretStore(KeystoreCipher(), sealed), buildDefaults, preferences)
+            settings.onSecretsChanged = { refreshContact() }
+            contact = settings.contact
+            ContextCompat.registerReceiver(
+                app,
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) = refreshContact()
+                },
+                IntentFilter(Intent.ACTION_USER_PRESENT),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            (settings to GoogleUsage(preferences)).also { ready = it }
         }
+    }
+
+    private fun refreshContact() {
+        val settings = ready?.first ?: return
+        scope.launch { contact = runCatching { settings.contact }.getOrDefault(contact) }
     }
 }
