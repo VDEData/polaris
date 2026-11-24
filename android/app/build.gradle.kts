@@ -6,8 +6,9 @@ plugins {
 }
 
 // Per-builder values, as Config/Secrets.xcconfig is on iOS: a Gradle property (-Ppolaris.googleKey=…)
-// wins, then the git-ignored local.properties, then the neutral default. A stranger's build sets
-// none of them and works: TfL and Transitous need no key, and Google is shown as needing one.
+// wins, then the git-ignored local.properties, then the default. A stranger's build sets none of
+// them and works: TfL and Transitous need no key, Google is shown as needing one, and the
+// User-Agent names the project's page.
 val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
@@ -29,7 +30,8 @@ android {
         buildConfigField("String", "GOOGLE_ROUTES_API_KEY", quoted(setting("polaris.googleKey")))
         buildConfigField("String", "TFL_APP_KEY", quoted(setting("polaris.tflKey")))
         // Who TfL and Transitous can reach about this build's requests: it goes in the User-Agent.
-        buildConfigField("String", "POLARIS_CONTACT", quoted(setting("polaris.contact")))
+        // The project's page unless the builder sets their own, as POLARIS_CONTACT on iOS.
+        buildConfigField("String", "POLARIS_CONTACT", quoted(setting("polaris.contact", "https://github.com/VDEData/polaris")))
     }
 
     buildTypes {

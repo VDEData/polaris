@@ -51,22 +51,32 @@ enum ProviderError: LocalizedError, Equatable {
 }
 
 enum HTTP {
-    /// "Polaris/0.1.0 (iOS transit app; <contact>)": the open-data services ask to be able to
-    /// reach whoever runs a client. The contact is the one entered in Settings, else
-    /// POLARIS_CONTACT from Config/*.xcconfig.
+    /// "Polaris/0.1.0 (iOS transit app; <contact>)": Transitous and TfL ask to be able to reach
+    /// whoever runs a client. The contact is the one entered in Settings, else POLARIS_CONTACT
+    /// from Config/*.xcconfig, else the project's page.
     static var userAgent: String {
         let info = Bundle.main.infoDictionary ?? [:]
-        let version = info["CFBundleShortVersionString"] as? String ?? "0"
-        let contact = Keychain.get("contact").flatMap(Contact.valid)
-            ?? (info["PolarisContact"] as? String).flatMap(Contact.valid) ?? ""
-        return "Polaris/\(version) (iOS transit app\(contact.isEmpty ? "" : "; \(contact)"))"
+        return userAgent(version: info["CFBundleShortVersionString"] as? String ?? "0",
+                         entered: Keychain.get("contact"), built: info["PolarisContact"] as? String)
     }
 
+    /// Always names a contact: the first valid one of `entered` and `built`, else `Contact.project`.
+    static func userAgent(version: String, entered: String?, built: String?) -> String {
+        let contact = entered.flatMap(Contact.valid) ?? built.flatMap(Contact.valid) ?? Contact.project
+        return "Polaris/\(version) (iOS transit app; \(contact))"
+    }
+
+    /// The shared session's settings (cache, cookies, cellular), with `SameOriginRedirects` deciding redirects.
+    static let session = URLSession(configuration: .default, delegate: SameOriginRedirects.shared, delegateQueue: nil)
+
+    /// Sends `request` once. A request that mustn't be redirected (`followsRedirects` false, or one
+    /// carrying a key header) is given `NoRedirects` for its task, which takes the session's place.
     static func data(for request: URLRequest) async throws -> Data {
         var request = request
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 20
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let noRedirects = !request.followsRedirects || SameOriginRedirects.carriesKeyHeader(request)
+        let (data, response) = try await session.data(for: request, delegate: noRedirects ? NoRedirects.shared : nil)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else { throw ProviderError.http(status) }
         return data
@@ -76,6 +86,53 @@ enum HTTP {
         do { return try JSONDecoder().decode(type, from: data) } catch {
             throw ProviderError.badResponse
         }
+    }
+}
+
+extension URLRequest {
+    private static let noRedirectsProperty = "Polaris.noRedirects"
+
+    /// Whether a redirect to the same scheme, host and port may be followed; never to another host
+    /// (`SameOriginRedirects`). The provider building a request that carries a key in a header
+    /// (Google's) sets it false, as `HttpRequest.followRedirects` on Android.
+    var followsRedirects: Bool {
+        get { URLProtocol.property(forKey: Self.noRedirectsProperty, in: self) == nil }
+        set {
+            guard let copy = (self as NSURLRequest).mutableCopy() as? NSMutableURLRequest else { return }
+            if newValue { URLProtocol.removeProperty(forKey: Self.noRedirectsProperty, in: copy) }
+            else { URLProtocol.setProperty(true, forKey: Self.noRedirectsProperty, in: copy) }
+            self = copy as URLRequest
+        }
+    }
+}
+
+/// A provider request follows a redirect only to the same scheme, host and port (so an https
+/// request never drops to http): URLSession would otherwise take every header and the query to
+/// wherever the redirect points. A key in the query (TfL's `app_key`) may follow a redirect on
+/// TfL's own host; requests not to be redirected at all (`followsRedirects`, Google's) get
+/// `NoRedirects` from `HTTP.data`, and this refuses them too should a key header slip through.
+/// The same rule as Android's `OkHttpTransport`. A refused redirect reaches the caller as its 3xx.
+final class SameOriginRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    static let shared = SameOriginRedirects()
+    /// Headers that carry a key: a request with one is never redirected, whatever it says.
+    static let keyHeaders = ["X-Goog-Api-Key"]
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        guard let from = task.currentRequest ?? task.originalRequest else { return nil }
+        let carriesKey = [task.originalRequest, from, request].contains { $0.map(Self.carriesKeyHeader) ?? false }
+        return !carriesKey && Self.samePlace(from.url, request.url) ? request : nil
+    }
+
+    static func carriesKeyHeader(_ request: URLRequest) -> Bool {
+        keyHeaders.contains { request.value(forHTTPHeaderField: $0) != nil }
+    }
+
+    static func samePlace(_ a: URL?, _ b: URL?) -> Bool {
+        guard let a, let b, let schemeA = a.scheme?.lowercased(), let hostA = a.host()?.lowercased(),
+              schemeA == b.scheme?.lowercased(), hostA == b.host()?.lowercased() else { return false }
+        func port(_ url: URL, _ scheme: String) -> Int? { url.port ?? ["http": 80, "https": 443][scheme] }
+        return port(a, schemeA) == port(b, schemeA)
     }
 }
 

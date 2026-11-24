@@ -188,6 +188,9 @@ class OkHttpTransport(client: OkHttpClient? = null) : HttpTransport {
 
 /** A contact for the User-Agent: an email address or a web address, short and on one line. */
 object Contact {
+    /** Sent when neither settings nor the build gives a valid contact. A distributed build should set its own. */
+    const val PROJECT = "https://github.com/VDEData/polaris"
+
     private val email = Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")
 
     fun valid(text: String?): String? {
@@ -203,7 +206,8 @@ object Contact {
 
 /**
  * Sends requests with Polaris's User-Agent. The open-data services ask to be able to reach
- * whoever runs a client, so the contact is the one entered in settings, else the build's.
+ * whoever runs a client, so the contact is the one entered in settings, else the build's, else
+ * the project's page: there is always one.
  */
 class HTTP(
     private val transport: HttpTransport,
@@ -223,8 +227,8 @@ class HTTP(
         const val TIMEOUT_MILLIS = 20_000
 
         fun userAgent(version: String, contact: String?): String {
-            val valid = Contact.valid(contact) ?: ""
-            return "Polaris/$version (Android transit app${if (valid.isEmpty()) "" else "; $valid"})"
+            val valid = Contact.valid(contact) ?: Contact.PROJECT
+            return "Polaris/$version (Android transit app; $valid)"
         }
 
         @PublishedApi internal val json = Json {

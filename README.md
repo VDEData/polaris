@@ -147,8 +147,10 @@ You need a Mac with Xcode 26 or later and [XcodeGen](https://github.com/yonaskol
    If signing complains about them on a free account, delete those two keys from
    `Polaris/Resources/Polaris.entitlements` in your copy.
 4. Set `POLARIS_CONTACT` to a URL or address where you can be reached: it goes in the
-   User-Agent sent to TfL and Transitous, who ask clients to identify themselves. It is empty
-   by default (the User-Agent is then just the app's name and version), so please set one.
+   User-Agent sent to TfL and Transitous, who ask clients to identify themselves. It defaults
+   to this project's page, which is fine for a build on your own phone. If you distribute a
+   build (TestFlight, an `.ipa`, a fork), put your own contact there: requests from your build
+   are yours to answer for.
 
 `Config/Base.xcconfig` holds the defaults and includes your `Secrets.xcconfig` last, so
 anything you set there wins. In an xcconfig `//` starts a comment: write URLs as
@@ -171,7 +173,7 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 | `GOOGLE_ROUTES_API_KEY` | [Google Cloud console](https://console.cloud.google.com): enable **Routes API**, create an API key restricted to iOS apps with your bundle ID and to the Routes API only | No Google routes |
 | `TFL_APP_KEY` | [TfL API portal](https://api-portal.tfl.gov.uk): subscribe, copy the primary key | TfL still answers, at 50 requests a minute |
 | `POLARIS_ALERTS_URL`, `POLARIS_ALERTS_TOKEN` | Your own alerts server, below | Alerts are off |
-| `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | No contact in the User-Agent |
+| `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | The User-Agent names this project's page |
 
 ## Android (early: engine only)
 
@@ -193,7 +195,8 @@ cd android
 
 Per-builder values go in `android/local.properties` (git-ignored; copy
 `local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
-(default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS),
+(default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS, and like it defaulting to this
+project's page: set your own if you distribute the build),
 and the optional `polaris.googleKey` and `polaris.tflKey`. With none of them set the build works as
 the iOS one does with no keys.
 

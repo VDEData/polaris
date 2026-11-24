@@ -6,6 +6,8 @@
 # polaris.applicationId=com.yourname.polaris
 
 # A URL or address where you can be reached: TfL and Transitous ask clients to identify themselves.
+# Left out, the User-Agent names the project's page; set your own if you distribute your build,
+# since its requests are yours to answer for.
 # polaris.contact=https://github.com/yourname
 
 # Optional keys. Anything here is compiled into the app, where anyone with the .apk can read it.

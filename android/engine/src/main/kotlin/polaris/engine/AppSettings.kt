@@ -23,7 +23,8 @@ class InMemorySecretStore : SecretStore {
 
 /**
  * Values a builder can set at build time (`local.properties` on Android, `Secrets.xcconfig` on
- * iOS). All empty in a stranger's build, which works with none of them.
+ * iOS). The keys are empty in a stranger's build, which works with none of them; the contact
+ * defaults to the project's page there (and `contact` falls back to it here).
  */
 data class BuildDefaults(
     val googleKey: String? = null,
@@ -62,8 +63,8 @@ class AppSettings(
     val hasBuiltInGoogleKey: Boolean get() = firstNonEmpty(build.googleKey) != null
     val hasBuiltInTfLKey: Boolean get() = firstNonEmpty(build.tflKey) != null
 
-    /** The entered contact if it's a valid one, else the build's, as `HTTP.userAgent` uses it on iOS. */
-    val contact: String? get() = Contact.valid(contactOverride) ?: Contact.valid(build.contact)
+    /** The entered contact if it's a valid one, else the build's, else the project's page, as on iOS. */
+    val contact: String get() = Contact.valid(contactOverride) ?: Contact.valid(build.contact) ?: Contact.PROJECT
 
     fun isEnabled(provider: ProviderID): Boolean = provider !in disabledProviders
 
