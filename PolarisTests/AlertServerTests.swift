@@ -16,6 +16,27 @@ struct AlertServerTests {
         #expect(try AlertServer.address("https://example.com/Polaris").absoluteString == "https://example.com/Polaris", "the path is kept as typed")
     }
 
+    /// Every case in Fixtures/alert-server-addresses.json, which Android's AlertServer asserts too,
+    /// so both platforms accept and spell the same addresses.
+    @Test func sharedAddressCases() throws {
+        struct Case: Decodable { var input: String; var url: String?; var problem: String? }
+        struct File: Decodable { var cases: [Case] }
+        let file = try JSONDecoder().decode(File.self, from: ProviderParsingTests.fixture("alert-server-addresses"))
+        #expect(file.cases.count > 30)
+        for c in file.cases {
+            if let url = c.url {
+                #expect(try AlertServer.address(c.input).absoluteString == url, "\(c.input)")
+            } else {
+                do {
+                    let url = try AlertServer.address(c.input)
+                    Issue.record("\(c.input) passed as \(url)")
+                } catch {
+                    #expect("\(error)" == c.problem, "\(c.input)")
+                }
+            }
+        }
+    }
+
     @Test func plainHTTPOnlyForThisMac() throws {
         #expect(try AlertServer.address("http://localhost:8787").port == 8787)
         #expect(try AlertServer.address("http://127.0.0.1:8787").host() == "127.0.0.1")
