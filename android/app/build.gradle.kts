@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    // Navigation 3 keeps the sheet's page stack across process death by serialising its keys.
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Per-builder values, as Config/Secrets.xcconfig is on iOS: a Gradle property (-Ppolaris.googleKey=…)
@@ -63,24 +65,36 @@ kotlin {
     jvmToolchain(17)
 }
 
-// The debug-only map check draws one recorded journey: copy just that recording into debug assets.
-abstract class MapCheckAssets : DefaultTask() {
-    @get:InputFile abstract val recording: RegularFileProperty
+// The app's JVM tests read the same recorded answers as the engine's.
+android.sourceSets["test"].resources.srcDir(rootProject.layout.projectDirectory.dir("../PolarisTests/Fixtures"))
+android.sourceSets["test"].resources.srcDir(rootProject.layout.projectDirectory.dir("engine/src/test/resources"))
+
+// Debug builds only: the map check draws one recorded journey, and the demo answers (Variant.kt)
+// replay recorded TfL and Transitous answers. Only these recordings are copied into debug assets.
+abstract class DebugRecordings : DefaultTask() {
+    @get:InputFiles abstract val recordings: ConfigurableFileCollection
     @get:OutputDirectory abstract val output: DirectoryProperty
 
     @TaskAction fun copy() {
         val dir = output.get().asFile
         dir.deleteRecursively()
-        dir.mkdirs()
-        recording.get().asFile.copyTo(dir.resolve("transitous-plan.json"))
+        dir.resolve("demo").mkdirs()
+        recordings.files.forEach { file ->
+            if (file.name == "transitous-plan.json") file.copyTo(dir.resolve(file.name))
+            file.copyTo(dir.resolve("demo/${file.name}"))
+        }
     }
 }
-val mapCheckAssets = tasks.register<MapCheckAssets>("mapCheckAssets") {
-    recording.set(rootProject.layout.projectDirectory.file("../PolarisTests/Fixtures/transitous-plan.json"))
+val mapCheckAssets = tasks.register<DebugRecordings>("mapCheckAssets") {
+    val fixtures = rootProject.layout.projectDirectory.dir("../PolarisTests/Fixtures")
+    recordings.from(
+        listOf("transitous-plan.json", "tfl-journeys.json").map { fixtures.file(it) },
+        listOf("transitous-geocode-kings-cross.json", "transitous-geocode-trafalgar-square.json").map { rootProject.layout.projectDirectory.file("engine/src/test/resources/$it") },
+    )
 }
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(mapCheckAssets, MapCheckAssets::output)
+        variant.sources.assets?.addGeneratedSourceDirectory(mapCheckAssets, DebugRecordings::output)
     }
 }
 
@@ -94,12 +108,23 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
+    // Window size classes and the fold's position, for the wide and foldable layouts.
+    implementation(libs.compose.material3.adaptive)
+    // The sheet's page stack, with system and predictive back, and a ViewModel per page.
+    implementation(libs.navigation3.runtime)
+    implementation(libs.navigation3.ui)
+    implementation(libs.lifecycle.viewmodel.navigation3)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.maplibre.android)
     // The same OkHttp the engine uses, given to MapLibre so tile requests carry the User-Agent.
     implementation(libs.okhttp)
     implementation(libs.androidx.datastore.preferences)
     testImplementation(kotlin("test-junit"))
+    testImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(kotlin("test"))

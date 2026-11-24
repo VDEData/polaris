@@ -113,6 +113,22 @@ fun PolarisMap(
     showLocation: Boolean = false,
     /** Where to look when there is no journey. */
     home: LatLng = LONDON,
+    /** Other routes, drawn faintly under [drawing] (the results page's alternatives). */
+    others: List<JourneyMap.Drawing> = emptyList(),
+    /**
+     * The box the camera fits when it changes, inside [contentPadding]: by default the journey's
+     * own; the results page passes every route's, so selecting one doesn't move the camera.
+     */
+    frame: JourneyMap.Bounds? = drawing?.bounds,
+    /** What the camera fits routes inside, when more covers the map than its credit must clear (a docked card). */
+    fitPadding: PaddingValues = contentPadding,
+    /**
+     * A change here fits [frame] again inside the padding of that moment (a docked card measured
+     * after the routes came). Not the padding itself: a sheet being dragged changes it every frame.
+     */
+    refitOn: Any? = null,
+    /** A request to centre on the person; a new [Recentre.token] is a new request. */
+    recentre: Recentre? = null,
     /**
      * What the screen lays over the map (panels, cards, controls). Drawn under the map's credit,
      * which therefore can't be covered; see `MapCredit` for where it sits.
@@ -189,16 +205,16 @@ fun PolarisMap(
         }
     }
 
-    LaunchedEffect(style, drawing) {
+    LaunchedEffect(style, drawing, others) {
         val s = style ?: return@LaunchedEffect
-        JourneyLayers.show(s, drawing)
+        JourneyLayers.show(s, drawing, others)
     }
 
     // Fit the camera to the journey, inside whatever covers the map.
     val padding = with(density) {
         intArrayOf(
-            contentPadding.calculateStartPadding(direction).roundToPx(), contentPadding.calculateTopPadding().roundToPx(),
-            contentPadding.calculateEndPadding(direction).roundToPx(), contentPadding.calculateBottomPadding().roundToPx(),
+            fitPadding.calculateStartPadding(direction).roundToPx(), fitPadding.calculateTopPadding().roundToPx(),
+            fitPadding.calculateEndPadding(direction).roundToPx(), fitPadding.calculateBottomPadding().roundToPx(),
         )
     }
     // Fitted when the journey changes, inside the padding at that moment; content growing over
@@ -206,12 +222,17 @@ fun PolarisMap(
     // Only a journey not fitted before: after a rotation the saved camera stays where it was.
     val currentPadding by rememberUpdatedState(padding)
     var fitted by rememberSaveable { mutableStateOf<List<Double>?>(null) }
-    LaunchedEffect(map, drawing?.bounds) {
+    // Also refitted when [refitOn] changes within this composition, but not after a rotation,
+    // where the saved camera stands.
+    var refitSeen by remember { mutableStateOf<Any?>(Unit) }
+    LaunchedEffect(map, frame, refitOn) {
         val m = map ?: return@LaunchedEffect
         val padding = currentPadding
-        val bounds = drawing?.bounds ?: return@LaunchedEffect
+        val bounds = frame ?: return@LaunchedEffect
         val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east)
-        if (key == fitted) return@LaunchedEffect
+        val refit = refitSeen != Unit && refitSeen != refitOn
+        refitSeen = refitOn
+        if (key == fitted && !refit) return@LaunchedEffect
         fitted = key
         val margin = with(density) { 32.dp.roundToPx() }
         val update = if (bounds.isPoint) {
@@ -223,6 +244,24 @@ fun PolarisMap(
             )
         }
         m.easeCamera(update, 400)
+    }
+
+    // Each request once, and not again after a rotation (the token is saved).
+    var recentred by rememberSaveable { mutableStateOf<Long?>(null) }
+    LaunchedEffect(map, recentre) {
+        val m = map ?: return@LaunchedEffect
+        val r = recentre ?: return@LaunchedEffect
+        if (r.token == recentred) return@LaunchedEffect
+        recentred = r.token
+        val p = currentPadding
+        // Centred in the part of the map left showing: MapLibre's padding moves the centre.
+        m.easeCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(LatLng(r.coordinate.latitude, r.coordinate.longitude))
+                    .zoom(maxOf(m.cameraPosition.zoom, 15.0)).padding(p[0].toDouble(), p[1].toDouble(), p[2].toDouble(), p[3].toDouble()).build(),
+            ),
+            400,
+        )
     }
 
     LaunchedEffect(style, showLocation) {
@@ -294,6 +333,9 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
 
 val LONDON = LatLng(51.5074, -0.1278)
 
+/** Centre the map on the person. */
+data class Recentre(val coordinate: polaris.engine.Coordinate, val token: Long)
+
 /** MapLibre's one-time set-up: its instance, and the app's User-Agent on every tile, style and font request. */
 object MapSetup {
     private var done = false
@@ -328,15 +370,26 @@ object MapSetup {
 /** The journey's sources and layers: lines in their colours on a casing, dotted walks, stops, the gold star. */
 private object JourneyLayers {
     const val LINES = "polaris-journey-lines"
+    const val OTHERS = "polaris-other-lines"
     const val STOPS = "polaris-journey-stops"
     const val STAR = "polaris-star"
 
     fun install(context: Context, style: Style, colors: PolarisColors) {
         style.addImage(STAR, starBitmap(context))
+        style.addSource(GeoJsonSource(OTHERS))
         style.addSource(GeoJsonSource(LINES))
         style.addSource(GeoJsonSource(STOPS))
         val transit = Expression.eq(Expression.get("walk"), Expression.literal(false))
         val walk = Expression.eq(Expression.get("walk"), Expression.literal(true))
+        // The alternatives: their rides only, thin and faint, under the chosen route.
+        style.addLayer(
+            LineLayer("polaris-other", OTHERS).withFilter(transit).withProperties(
+                PropertyFactory.lineColor(Expression.toColor(Expression.get("color"))),
+                PropertyFactory.lineOpacity(0.4f),
+                PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), Expression.zoom(), Expression.stop(10, 2f), Expression.stop(16, 5f))),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+            ),
+        )
         style.addLayer(
             LineLayer("polaris-casing", LINES).withFilter(transit).withProperties(
                 PropertyFactory.lineColor(colors.casing.toArgb()),
@@ -380,8 +433,11 @@ private object JourneyLayers {
         )
     }
 
-    fun show(style: Style, drawing: JourneyMap.Drawing?) {
+    fun show(style: Style, drawing: JourneyMap.Drawing?, others: List<JourneyMap.Drawing>) {
         val empty = """{"type":"FeatureCollection","features":[]}"""
+        style.getSourceAs<GeoJsonSource>(OTHERS)?.setGeoJson(
+            if (others.isEmpty()) empty else JourneyMap.linesGeoJson(JourneyMap.Drawing(others.flatMap { it.lines }, emptyList(), null)),
+        )
         style.getSourceAs<GeoJsonSource>(LINES)?.setGeoJson(drawing?.let(JourneyMap::linesGeoJson) ?: empty)
         style.getSourceAs<GeoJsonSource>(STOPS)?.setGeoJson(drawing?.let(JourneyMap::stopsGeoJson) ?: empty)
     }

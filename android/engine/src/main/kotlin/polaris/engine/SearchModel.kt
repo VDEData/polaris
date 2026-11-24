@@ -104,12 +104,18 @@ class SearchModel(
             TfLProvider(http, settings.tflKey),
             TransitousProvider(http),
         )
+        // A key that is saved but can't be read right now: that source waits this search out rather
+        // than going without the key or with another one (AppSettings never hands over the build's).
+        val tflUnreadable = settings.tflKeyField == AppSettings.SecretField.Unreadable
+        val googleUnreadable = settings.googleKeyField == AppSettings.SecretField.Unreadable
         val statuses = mutableMapOf<ProviderID, ProviderStatus>()
         for (provider in providers) {
             statuses[provider.id] = when {
+                !settings.isEnabled(provider.id) -> ProviderStatus.Off("Turned off")
+                provider.id == ProviderID.tfl && tflUnreadable -> ProviderStatus.Off(UNREADABLE_KEY)
+                provider.id == ProviderID.google && googleUnreadable -> ProviderStatus.Off(UNREADABLE_KEY)
                 provider.id == ProviderID.google && (google is GooglePlan.Off || googleRequests == 0) ->
                     ProviderStatus.Off((google as? GooglePlan.Off)?.reason ?: "Free allowance used this month")
-                !settings.isEnabled(provider.id) -> ProviderStatus.Off("Turned off")
                 else -> ProviderStatus.Loading
             }
         }
@@ -118,7 +124,8 @@ class SearchModel(
         write(mine) { SearchState(query = query, statuses = statuses.toMap()) }
 
         val deep = settings.deepSearch
-        val checksNetwork = settings.isEnabled(ProviderID.tfl)
+        // TfL's status is TfL's too: skipped with TfL, or while its saved key can't be read.
+        val checksNetwork = settings.isEnabled(ProviderID.tfl) && !tflUnreadable
         val tflKey = settings.tflKey
         val active = providers.filter { statuses[it.id] == ProviderStatus.Loading }
         coroutineScope {
@@ -175,6 +182,9 @@ class SearchModel(
     }
 
     companion object {
+        /** A source whose saved key can't be read right now (the phone not yet unlocked, the Keystore busy). */
+        const val UNREADABLE_KEY = "Saved key can't be read yet"
+
         /**
          * The engine as the app uses it: the real network, the build's contact, the app's identity
          * for Google. Tests pass their own transport to the same factory.
