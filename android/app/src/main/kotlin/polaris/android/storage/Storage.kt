@@ -54,14 +54,18 @@ class DataStoreKeyValueStore private constructor(
     }
 
     companion object {
+        /** The app's own file. Tests make their own DataStore on another file and never use this. */
+        const val APP_FILE = "polaris-preferences"
+
         private val Context.preferences by preferencesDataStore(
-            name = "polaris-preferences",
+            name = APP_FILE,
             produceMigrations = { context -> listOf(SharedPreferencesMigration(context, "polaris")) },
         )
 
+        fun appStore(context: Context): DataStore<Preferences> = context.applicationContext.preferences
+
         /** Reads the file (on the IO dispatcher) and returns the store, ready for synchronous use. */
-        suspend fun load(context: Context, scope: CoroutineScope): DataStoreKeyValueStore = withContext(Dispatchers.IO) {
-            val store = context.applicationContext.preferences
+        suspend fun load(store: DataStore<Preferences>, scope: CoroutineScope): DataStoreKeyValueStore = withContext(Dispatchers.IO) {
             val prefs = store.data.first()
             DataStoreKeyValueStore(store, scope).apply {
                 prefs.asMap().forEach { (key, value) -> if (value is String) values[key.name] = value }
@@ -73,13 +77,17 @@ class DataStoreKeyValueStore private constructor(
 /**
  * Where sealed secrets are written: a private SharedPreferences file, with `commit`, so a write
  * says whether it was kept (a key that wasn't saved mustn't be used). Only Keystore-sealed bytes
- * go in it, never a value in the clear.
+ * go in it, never a value in the clear. [file] is the app's own unless a test passes its own.
  */
-class SealedPreferences(context: Context) : DurableStore {
-    private val prefs = context.applicationContext.getSharedPreferences("polaris-secrets", Context.MODE_PRIVATE)
+class SealedPreferences(context: Context, file: String = APP_FILE) : DurableStore {
+    private val prefs = context.applicationContext.getSharedPreferences(file, Context.MODE_PRIVATE)
     override fun read(key: String): String? = prefs.getString(key, null)
     override fun write(key: String, value: String?): Boolean =
         prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.commit()
+
+    companion object {
+        const val APP_FILE = "polaris-secrets"
+    }
 }
 
 /** The app's settings and counts, built once per process from real storage. */
@@ -100,7 +108,7 @@ object Storage {
     /** Call from a coroutine; the first call reads the files off the main thread. */
     suspend fun settings(context: Context): Pair<AppSettings, GoogleUsage> = mutex.withLock {
         ready ?: run {
-            val preferences = DataStoreKeyValueStore.load(context, scope)
+            val preferences = DataStoreKeyValueStore.load(DataStoreKeyValueStore.appStore(context), scope)
             val secrets = EncryptedSecretStore(KeystoreCipher(), SealedPreferences(context))
             (AppSettings(secrets, buildDefaults, preferences) to GoogleUsage(preferences)).also { ready = it }
         }

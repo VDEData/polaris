@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
@@ -20,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -39,7 +45,6 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import okhttp3.OkHttpClient
@@ -64,8 +69,9 @@ import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import polaris.android.BuildConfig
+import polaris.android.storage.Storage
+import kotlinx.coroutines.runBlocking
 import polaris.android.ui.PolarisColors
-import polaris.engine.Contact
 import polaris.engine.HTTP
 import polaris.engine.JourneyMap
 import polaris.engine.MapStyle
@@ -94,33 +100,38 @@ fun PolarisMap(
     showLocation: Boolean = false,
     /** Where to look when there is no journey. */
     home: LatLng = LONDON,
+    /**
+     * What the screen lays over the map (panels, cards, controls). Drawn under the map's credit,
+     * which therefore can't be covered; see `MapCredit` for where it sits.
+     */
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val owner = LocalLifecycleOwner.current
     val colors = PolarisColors.of(night)
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    var map by remember { mutableStateOf<MapLibreMap?>(null) }
-    var style by remember { mutableStateOf<Style?>(null) }
-    val mapView = remember {
+    // One MapView per lifecycle owner: a new owner gets a new view, created and destroyed with it.
+    val mapView = remember(owner) {
         MapSetup.ensure(context)
         MapView(context).apply { onCreate(null) }
     }
+    var map by remember(mapView) { mutableStateOf<MapLibreMap?>(null) }
+    var style by remember(mapView) { mutableStateOf<Style?>(null) }
 
-    DisposableEffect(lifecycle, mapView) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                else -> {}
-            }
-        }
-        lifecycle.addObserver(observer)
+    DisposableEffect(owner, mapView) {
+        val lifecycle = MapViewLifecycle(object : MapViewLifecycle.Target {
+            override fun onStart() = mapView.onStart()
+            override fun onResume() = mapView.onResume()
+            override fun onPause() = mapView.onPause()
+            override fun onStop() = mapView.onStop()
+            override fun onDestroy() = mapView.onDestroy()
+        })
+        val observer = LifecycleEventObserver { _, event -> lifecycle.on(event) }
+        owner.lifecycle.addObserver(observer)
         mapView.getMapAsync { m ->
             m.uiSettings.isLogoEnabled = false
-            // The credit is drawn as visible text below instead of behind an (i) button.
+            // The credit is drawn as visible text instead of behind an (i) button.
             m.uiSettings.isAttributionEnabled = false
             m.uiSettings.isRotateGesturesEnabled = false
             m.uiSettings.isTiltGesturesEnabled = false
@@ -130,10 +141,10 @@ fun PolarisMap(
             map = m
         }
         onDispose {
-            lifecycle.removeObserver(observer)
+            owner.lifecycle.removeObserver(observer)
             style = null
-            mapView.onStop()
-            mapView.onDestroy()
+            map = null
+            lifecycle.dispose()
         }
     }
 
@@ -185,14 +196,24 @@ fun PolarisMap(
     }
 
     Box(modifier) {
-        AndroidView(factory = { mapView }, modifier = Modifier.matchParentSize())
-        Attribution(colors, Modifier.align(Alignment.BottomStart).padding(contentPadding).padding(horizontal = 8.dp, vertical = 4.dp))
+        key(mapView) { AndroidView(factory = { mapView }, modifier = Modifier.matchParentSize()) }
+        overlay()
+        MapCredit(colors, contentPadding)
     }
 }
 
-/** OpenFreeMap's required credit, always visible, each part linked as on OpenFreeMap's site. */
+/**
+ * OpenFreeMap's required credit, each part linked as on its site. The rule, for every screen:
+ * it is the last thing drawn over the map, so nothing laid over the map covers it; it sits at the
+ * bottom-start corner, above the bottom inset the screen gives (a sheet's top edge, the
+ * navigation bar) or the keyboard, whichever is higher; and it takes no top padding, so a tall
+ * panel or the keyboard can never squeeze it to nothing. Screens keep that corner clear.
+ */
 @Composable
-private fun BoxScope.Attribution(colors: PolarisColors, modifier: Modifier) {
+private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingValues) {
+    val direction = LocalLayoutDirection.current
+    val bottom = contentPadding.calculateBottomPadding()
+    val start = contentPadding.calculateStartPadding(direction)
     val text = buildAnnotatedString {
         MapStyle.CREDITS.forEachIndexed { index, (words, url) ->
             if (index > 0) append(" ")
@@ -201,24 +222,37 @@ private fun BoxScope.Attribution(colors: PolarisColors, modifier: Modifier) {
     }
     Text(
         text,
-        modifier = modifier.background(colors.paper.copy(alpha = 0.85f), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+        maxLines = 2,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .zIndex(1f)
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets(left = start, bottom = bottom)))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .background(colors.paper.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = colors.ink.copy(alpha = 0.8f)),
     )
 }
 
 val LONDON = LatLng(51.5074, -0.1278)
 
-/** MapLibre's one-time set-up: its instance, and the app's User-Agent on every tile request. */
+/** MapLibre's one-time set-up: its instance, and the app's User-Agent on every tile, style and font request. */
 object MapSetup {
     private var done = false
 
     @Synchronized fun ensure(context: Context) {
         if (done) return
-        MapLibre.getInstance(context.applicationContext)
-        val agent = HTTP.userAgent(BuildConfig.VERSION_NAME, Contact.valid(BuildConfig.POLARIS_CONTACT))
+        val app = context.applicationContext
+        MapLibre.getInstance(app)
+        // The same User-Agent as every other request, from the same place (`AppSettings.contact`,
+        // so a contact entered in settings counts), read as each request goes. Interceptors run on
+        // OkHttp's own threads, where waiting for settings to load the first time is fine.
         HttpRequestUtil.setOkHttpClient(
             OkHttpClient.Builder()
-                .addInterceptor { chain -> chain.proceed(chain.request().newBuilder().header("User-Agent", agent).build()) }
+                .addInterceptor { chain ->
+                    val contact = runBlocking { Storage.settings(app) }.first.contact
+                    chain.proceed(chain.request().newBuilder().header("User-Agent", HTTP.userAgent(BuildConfig.VERSION_NAME, contact)).build())
+                }
                 .build(),
         )
         done = true

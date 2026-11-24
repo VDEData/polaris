@@ -204,9 +204,14 @@ Studio or the command-line tools. Without an SDK, Gradle builds and tests the en
 
 ```sh
 cd android
-./gradlew test               # the engine's tests, offline, on the JVM
-./gradlew :app:installDebug  # onto a running emulator or a connected phone (needs the SDK)
+./gradlew test                                     # the engine's tests (and the app's JVM tests with the SDK), offline
+adb devices                                        # see what is connected first
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:installDebug   # onto that one device only
 ```
+
+Gradle's install and connected-test tasks (`installDebug`, `connectedDebugAndroidTest`) go to
+**every** connected device and emulator at once, including a phone that is only plugged in to
+charge. Always set `ANDROID_SERIAL` to the one you mean (the name `adb devices` prints).
 
 Per-builder values go in `android/local.properties` (git-ignored; copy
 `local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
@@ -216,9 +221,9 @@ the optional `polaris.googleKey`, `polaris.tflKey`, `polaris.alertsUrl` and `pol
 and `polaris.mapTiles` and `polaris.mapGlyphs` to use your own OpenMapTiles-compatible tile server
 instead of OpenFreeMap. With none of them set the build works as the iOS one does with no keys.
 
-`./gradlew :app:connectedDebugAndroidTest` runs the few checks only a device can do (the Keystore,
-DataStore) on a running emulator. Gradle installs on every connected device, so set `ANDROID_SERIAL`
-when a phone is plugged in too.
+`ANDROID_SERIAL=<emulator> ./gradlew :app:connectedDebugAndroidTest` runs the few checks only a
+device can do (the Keystore, DataStore) on that emulator. They use their own files and Keystore
+alias, never the app's, so a debug install's entered keys are left alone.
 
 Build-time keys are compiled into the app (`BuildConfig`), where anyone with the `.apk` can read
 them, just as on iOS. A Google key for Android is restricted to your application ID and the SHA-1

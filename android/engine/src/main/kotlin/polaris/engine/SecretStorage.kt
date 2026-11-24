@@ -4,11 +4,15 @@ import java.util.Base64
 
 /**
  * Seals and opens secrets. On Android it is an AES-GCM key held by the Android Keystore, which
- * never leaves the secure hardware; in tests a fake. Either call may throw.
+ * never leaves the secure hardware; in tests a fake. Either call may throw: [KeyLost] when what
+ * was sealed can never be opened again, anything else when it might work later.
  */
 interface SecretCipher {
     fun seal(plain: ByteArray): ByteArray
     fun open(sealed: ByteArray): ByteArray
+
+    /** The key that sealed this is gone or permanently unusable, or the bytes were sealed by another key. */
+    class KeyLost(reason: String) : Exception(reason)
 }
 
 /**
@@ -36,20 +40,35 @@ class InMemoryDurableStore : DurableStore {
  * - an empty value removes the entry, as iOS's `Keychain.set("")` does;
  * - a value that can't be sealed or written is not kept, and [write] says so; nothing is ever
  *   stored in the clear;
- * - a value that can't be opened reads as absent, so the build's value or none applies. It is
- *   left in place, as iOS leaves a Keychain item it can't read yet: the failure may pass (the
- *   Keystore busy or not yet unlocked), and if the key is truly gone (data restored onto another
- *   phone, the Keystore reset) the next value entered replaces it;
+ * - a value that can't be opened now reads as [SecretRead.Unreadable] and is left in place, as
+ *   iOS leaves a Keychain item it can't read yet: the failure may pass, and nothing else is used
+ *   meanwhile;
+ * - a value whose key is gone for good ([SecretCipher.KeyLost]: data restored onto another phone,
+ *   the Keystore reset, a key invalidated) can never be opened: it is removed and read once as
+ *   [SecretRead.Lost], so the settings screen can ask for it again; after that it is absent;
  * - nothing here logs, and errors never carry the value.
  */
 class EncryptedSecretStore(private val cipher: SecretCipher, private val store: DurableStore) : SecretStore {
-    override fun read(account: String): String? {
-        val sealed = store.read(key(account)) ?: return null
-        return try {
-            cipher.open(Base64.getDecoder().decode(sealed)).decodeToString()
-        } catch (e: Exception) {
-            null
+    override fun read(account: String): SecretRead {
+        val sealed = store.read(key(account)) ?: return SecretRead.Absent
+        val bytes = try {
+            Base64.getDecoder().decode(sealed)
+        } catch (e: IllegalArgumentException) {
+            // Not something this store wrote: it can never be opened.
+            return lose(account)
         }
+        return try {
+            SecretRead.Value(cipher.open(bytes).decodeToString())
+        } catch (e: SecretCipher.KeyLost) {
+            lose(account)
+        } catch (e: Exception) {
+            SecretRead.Unreadable
+        }
+    }
+
+    private fun lose(account: String): SecretRead {
+        store.write(key(account), null)
+        return SecretRead.Lost
     }
 
     override fun write(value: String, account: String): Boolean {

@@ -99,6 +99,7 @@ dependencies {
     // The same OkHttp the engine uses, given to MapLibre so tile requests carry the User-Agent.
     implementation(libs.okhttp)
     implementation(libs.androidx.datastore.preferences)
+    testImplementation(kotlin("test-junit"))
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(kotlin("test"))

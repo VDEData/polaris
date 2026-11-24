@@ -1,6 +1,11 @@
 package polaris.engine
 
-import java.net.URI
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import java.net.IDN
 
 /**
  * Where alerts are kept and checked (`worker/`): an address and the token that server expects.
@@ -10,42 +15,106 @@ import java.net.URI
  */
 data class AlertServer(val url: String, val token: String, val isBuiltIn: Boolean) {
     enum class Problem(val message: String) {
-        NotAnAddress("That isn't a web address."),
-        NotHttps("The address must start with https:// (http only for localhost, while developing)."),
-        HasCredentials("Put the token in its own field, not in the address."),
+        // Named as Swift's `AlertServer.Problem` cases, which the shared fixture records.
+        notAnAddress("That isn't a web address."),
+        notHTTPS("The address must start with https:// (http only for localhost, while developing)."),
+        hasCredentials("Put the token in its own field, not in the address."),
     }
 
     class InvalidAddress(val problem: Problem) : Exception(problem.message)
 
+    /** The token never reaches a log through `toString`. */
+    override fun toString() = "AlertServer(url=$url, token=redacted, isBuiltIn=$isBuiltIn)"
+
     companion object {
-        /** Where the entered server is kept: the same accounts as the iOS Keychain's. */
-        const val URL_ACCOUNT = "alerts.server.url"
-        const val TOKEN_ACCOUNT = "alerts.server.token"
+        /** The secret account holding the entered server: address and token as one record. */
+        const val ACCOUNT = "alerts.server"
+
+        fun encodeRecord(url: String, token: String): String = buildJsonObject {
+            put("url", url)
+            put("token", token)
+        }.toString()
+
+        fun decodeRecord(text: String): Pair<String, String>? = runCatching {
+            val o = HTTP.json.parseToJsonElement(text).jsonObject
+            val url = o["url"]?.jsonPrimitive?.contentOrNull
+            val token = o["token"]?.jsonPrimitive?.contentOrNull
+            if (url.isNullOrBlank() || token.isNullOrBlank()) null else url to token
+        }.getOrNull()
 
         /**
          * An address someone typed or built in: https, or http for a server on this computer
-         * during development. No user, password, query or fragment; a trailing slash is dropped,
-         * and so is the default port.
+         * during development. No user, password, query or fragment; trailing slashes and the
+         * default port are dropped; the path is kept as typed.
+         *
+         * This follows what iOS's `URLComponents(string:)` accepts and how `URL` spells it, case by
+         * case in `PolarisTests/Fixtures/alert-server-addresses.json` (generated from the Swift):
+         * underscores in host names pass, a non-ASCII host is written in punycode, characters a
+         * path can't hold are percent-encoded, a space in the host fails, any number is a port.
          */
         fun address(text: String): String {
             var trimmed = text.trim()
             while (trimmed.endsWith("/")) trimmed = trimmed.dropLast(1)
-            val uri = runCatching { URI(trimmed) }.getOrNull() ?: throw InvalidAddress(Problem.NotAnAddress)
-            val scheme = uri.scheme?.lowercase() ?: throw InvalidAddress(Problem.NotAnAddress)
-            val host = uri.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: throw InvalidAddress(Problem.NotAnAddress)
-            if (uri.rawQuery != null || uri.rawFragment != null) throw InvalidAddress(Problem.NotAnAddress)
-            if (uri.rawUserInfo != null) throw InvalidAddress(Problem.HasCredentials)
+            val parts = Regex("^([A-Za-z][A-Za-z0-9+.\\-]*)://([^/?#]*)([^?#]*)(\\?[^#]*)?(#.*)?$").matchEntire(trimmed)
+                ?: throw InvalidAddress(Problem.notAnAddress)
+            val scheme = parts.groupValues[1].lowercase()
+            val authority = parts.groupValues[2]
+            val rawPath = parts.groupValues[3]
+            if (parts.groups[4] != null || parts.groups[5] != null) throw InvalidAddress(Problem.notAnAddress)
+
+            val at = authority.lastIndexOf('@')
+            val hostPort = if (at >= 0) authority.substring(at + 1) else authority
+            val (rawHost, port) = splitHostPort(hostPort) ?: throw InvalidAddress(Problem.notAnAddress)
+            val host = asciiHost(rawHost) ?: throw InvalidAddress(Problem.notAnAddress)
+            if (host.isEmpty()) throw InvalidAddress(Problem.notAnAddress)
+            if (at >= 0) throw InvalidAddress(Problem.hasCredentials)
             when {
                 scheme == "https" -> {}
                 scheme == "http" && host in setOf("localhost", "127.0.0.1", "::1", "[::1]") -> {}
-                scheme == "http" -> throw InvalidAddress(Problem.NotHttps)
-                else -> throw InvalidAddress(Problem.NotAnAddress)
+                scheme == "http" -> throw InvalidAddress(Problem.notHTTPS)
+                else -> throw InvalidAddress(Problem.notAnAddress)
             }
-            val port = uri.port.takeUnless { it == -1 || it == (if (scheme == "https") 443 else 80) }
+            val keptPort = port?.takeUnless { it == (if (scheme == "https") 443L else 80L) }
             return buildString {
                 append(scheme).append("://").append(host)
-                if (port != null) append(":").append(port)
-                append(uri.rawPath ?: "")
+                if (keptPort != null) append(":").append(keptPort)
+                append(encodePath(rawPath))
+            }
+        }
+
+        /** Host and port: `[v6]:port` or `name:port`; an empty port is none; a port must be digits. */
+        private fun splitHostPort(text: String): Pair<String, Long?>? {
+            val (host, portText) = if (text.startsWith("[")) {
+                val close = text.indexOf(']')
+                if (close < 0) return null
+                val rest = text.substring(close + 1)
+                if (rest.isNotEmpty() && !rest.startsWith(":")) return null
+                text.substring(0, close + 1) to rest.removePrefix(":").takeIf { rest.isNotEmpty() }
+            } else {
+                val colon = text.lastIndexOf(':')
+                if (colon < 0) text to null else text.substring(0, colon) to text.substring(colon + 1)
+            }
+            if (portText.isNullOrEmpty()) return host to null
+            if (!portText.all { it in '0'..'9' } || portText.length > 18) return null
+            return host to portText.toLong()
+        }
+
+        /** Lower case; punycode for non-ASCII; null for characters a host can't hold (a space, `<`). */
+        private fun asciiHost(host: String): String? {
+            if (host.startsWith("[")) return host.lowercase()
+            if (host.any { it.isWhitespace() || it in "<>\"{}|\\^`" }) return null
+            val ascii = if (host.all { it.code < 128 }) host else runCatching { IDN.toASCII(host) }.getOrNull() ?: return null
+            return ascii.lowercase()
+        }
+
+        private const val PATH_SAFE = "-._~!$&'()*+,;=:@/%"
+
+        /** Percent-encodes, as UTF-8, what a URL path can't hold; `%` already there is kept. */
+        private fun encodePath(path: String): String = buildString {
+            for (byte in path.encodeToByteArray()) {
+                val c = (byte.toInt() and 0xFF).toChar()
+                if (c.code < 128 && (c.isLetterOrDigit() || c in PATH_SAFE)) append(c)
+                else append("%").append("%02X".format(byte.toInt() and 0xFF))
             }
         }
 

@@ -115,8 +115,9 @@ class MapCheckModel(application: Application) : AndroidViewModel(application) {
             val http = HTTP(counting, BuildConfig.VERSION_NAME) { settings.contact }
             _search.value = PlaceSearch(http, viewModelScope).apply { bias(CENTRAL_LONDON) }
             _storage.value = listOf(
-                "Contact in User-Agent: ${settings.contact ?: "none set"}",
-                "Google key: ${if (settings.googleKey != null) "set" else "none"} · TfL key: ${if (settings.tflKey != null) "set" else "none"}",
+                "Contact in User-Agent: ${settings.contact}",
+                "Google key: ${if (settings.googleKey != null) "set" else "none"} · TfL key: ${if (settings.tflKey != null) "set" else "none"}" +
+                    if (settings.keysUnreadable) " · an entered key can't be read yet" else "",
                 "Sort ${settings.sortOrder.label} · deep search ${if (settings.deepSearch) "on" else "off"} · alerts ${if (settings.alertServer != null) "on" else "off"}",
             ).joinToString("\n")
         }
@@ -159,64 +160,66 @@ private fun MapCheck(night: Boolean, model: MapCheckModel = viewModel()) {
             drawing = drawing, night = night, modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = top + 8.dp, bottom = bars.calculateBottomPadding(), start = 8.dp, end = 8.dp),
             showLocation = showLocation,
-        )
-        Column(
-            Modifier
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(12.dp)
-                .widthIn(max = 480.dp)
-                .fillMaxWidth()
-                .background(colors.surface, RoundedCornerShape(18.dp))
-                .border(0.75.dp, colors.hairline, RoundedCornerShape(18.dp))
-                .padding(12.dp)
-                .verticalScroll(rememberScrollState())
-                .onSizeChanged { panelHeight = it.height + with(density) { (12.dp + bars.calculateTopPadding()).roundToPx() } },
-            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Map check (debug build only)", style = MaterialTheme.typography.titleMedium, color = colors.ink,
-                modifier = Modifier.semantics { heading() })
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it; picked = null; search?.type(it) },
-                label = { Text("Search places (Transitous)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val state = search?.state?.collectAsStateWithLifecycle()?.value
-            val results = state?.results.orEmpty()
-            if (results.isNotEmpty() && picked == null) {
-                Column {
-                    results.forEach { match ->
-                        Column(Modifier.fillMaxWidth().clickable { picked = match; text = match.place.name }.padding(vertical = 8.dp)) {
-                            Text(match.place.name, color = colors.ink, style = MaterialTheme.typography.bodyLarge)
-                            Text(listOfNotNull(kind(match), match.place.subtitle).joinToString(" · "), color = colors.ink.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.bodySmall)
+            Column(
+                Modifier
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    // The map's credit sits in the bottom-start corner; the panel never reaches it.
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 36.dp)
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth()
+                    .background(colors.surface, RoundedCornerShape(18.dp))
+                    .border(0.75.dp, colors.hairline, RoundedCornerShape(18.dp))
+                    .padding(12.dp)
+                    .verticalScroll(rememberScrollState())
+                    .onSizeChanged { panelHeight = it.height + with(density) { (12.dp + bars.calculateTopPadding()).roundToPx() } },
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("Map check (debug build only)", style = MaterialTheme.typography.titleMedium, color = colors.ink,
+                    modifier = Modifier.semantics { heading() })
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it; picked = null; search?.type(it) },
+                    label = { Text("Search places (Transitous)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val state = search?.state?.collectAsStateWithLifecycle()?.value
+                val results = state?.results.orEmpty()
+                if (results.isNotEmpty() && picked == null) {
+                    Column {
+                        results.forEach { match ->
+                            Column(Modifier.fillMaxWidth().clickable { picked = match; text = match.place.name }.padding(vertical = 8.dp)) {
+                                Text(match.place.name, color = colors.ink, style = MaterialTheme.typography.bodyLarge)
+                                Text(listOfNotNull(kind(match), match.place.subtitle).joinToString(" · "), color = colors.ink.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            HorizontalDivider(color = colors.hairline)
                         }
-                        HorizontalDivider(color = colors.hairline)
                     }
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    buildString {
-                        append("Geocoder requests: $requests")
-                        when {
-                            state?.isSearching == true -> append(" · searching")
-                            state?.error != null -> append(" · ${state.error}")
-                        }
-                        append("\n").append(if (picked != null) "Showing ${picked!!.place.name}" else "Recorded journey: King's Cross to Canary Wharf")
-                    },
-                    color = colors.ink.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
-                )
-                if (!showLocation) {
-                    FilledTonalButton(onClick = {
-                        ask.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
-                    }) { Text("Show me") }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        buildString {
+                            append("Geocoder requests: $requests")
+                            when {
+                                state?.isSearching == true -> append(" · searching")
+                                state?.error != null -> append(" · ${state.error}")
+                            }
+                            append("\n").append(if (picked != null) "Showing ${picked!!.place.name}" else "Recorded journey: King's Cross to Canary Wharf")
+                        },
+                        color = colors.ink.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
+                    )
+                    if (!showLocation) {
+                        FilledTonalButton(onClick = {
+                            ask.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+                        }) { Text("Show me") }
+                    }
                 }
+                Text(storage, color = colors.ink.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+                Text("Journey and places from Transitous (transitous.org/sources) with © OpenStreetMap contributors.",
+                    color = colors.ink.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
             }
-            Text(storage, color = colors.ink.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
-            Text("Journey and places from Transitous (transitous.org/sources) with © OpenStreetMap contributors.",
-                color = colors.ink.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
         }
     }
 }

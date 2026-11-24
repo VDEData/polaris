@@ -107,7 +107,7 @@ class PlaceSearchTest {
         assertEquals(listOf("trafalgar square", "trafalgar"), transport.sent.map { query(it)["text"] })
     }
 
-    @Test fun aKeystrokeCancelsTheRequestInFlightAndItsAnswerIsDropped() = runTest {
+    @Test fun aKeystrokeCancelsTheRequestInFlight() = runTest {
         val (search, transport) = rig()
         val hold = CompletableDeferred<Unit>()
         transport.hold = hold
@@ -115,13 +115,36 @@ class PlaceSearchTest {
         advanceTimeBy(PlaceSearch.DEBOUNCE_MILLIS + 1)
         runCurrent()
         assertEquals(1, transport.sent.size)
-        // Still waiting for that answer when the person types on.
         search.type("kings cross st pancras")
         hold.complete(Unit)
         settle()
         assertEquals(2, transport.sent.size)
         assertEquals("King's Cross and St Pancras", search.state.value.results.first().place.name)
-        assertTrue(search.state.value.results.none { it.place.name == "Trafalgar Square" })
+    }
+
+    /**
+     * A transport that ignores cancellation (as a blocking client can): the replaced request's
+     * answer still comes back, and only the generation check keeps it off the screen.
+     */
+    @Test fun anAnswerForReplacedTextIsDroppedEvenIfItArrives() = runTest {
+        val held = mutableListOf<Pair<String, kotlin.coroutines.Continuation<HttpResponse>>>()
+        val transport = HttpTransport { request ->
+            kotlin.coroutines.suspendCoroutine { continuation -> held += (query(request)["text"] ?: "") to continuation }
+        }
+        val search = PlaceSearch(HTTP(transport, "0.1.0"), backgroundScope)
+        search.type("trafalgar square")
+        settle()
+        search.type("kings cross st pancras")
+        settle()
+        assertEquals(listOf("trafalgar square", "kings cross st pancras"), held.map { it.first })
+        // The first answer arrives after the text changed.
+        held[0].second.resumeWith(Result.success(HttpResponse(200, Fixtures.bytes("transitous-geocode-trafalgar-square.json"))))
+        runCurrent()
+        assertEquals(emptyList(), search.state.value.results, "the stale answer was shown")
+        assertEquals(true, search.state.value.isSearching)
+        held[1].second.resumeWith(Result.success(HttpResponse(200, Fixtures.bytes("transitous-geocode-kings-cross.json"))))
+        runCurrent()
+        assertEquals("King's Cross and St Pancras", search.state.value.results.first().place.name)
     }
 
     @Test fun eachRequestCarriesTheUserAgentAndTheBias() = runTest {

@@ -13,23 +13,45 @@ import kotlinx.serialization.json.put
 
 // Ported from Polaris/Services/AppSettings.swift: the parts the engine needs.
 
+/** What reading a secret found. Unreadable and absent are different answers, as on iOS. */
+sealed interface SecretRead {
+    data class Value(val text: String) : SecretRead {
+        override fun toString() = "Value(redacted)"
+    }
+
+    /** Nothing was ever saved, or it was removed. */
+    data object Absent : SecretRead
+
+    /** Something is saved but can't be read now (the Keystore busy or locked): wait, use nothing else. */
+    data object Unreadable : SecretRead
+
+    /**
+     * Something was saved under a key that is gone for good (the app's data restored onto another
+     * phone, or the Keystore reset). The store has removed it; the person should be told to enter
+     * it again. Reported once: the next read is [Absent].
+     */
+    data object Lost : SecretRead
+}
+
 /**
  * Where entered keys live. On iOS it's the Keychain; on Android `EncryptedSecretStore` over the
  * Android Keystore. `InMemorySecretStore` is for tests and previews.
  */
 interface SecretStore {
-    fun read(account: String): String?
-    /** False when it couldn't be kept: a value that wasn't saved mustn't be used. */
+    fun read(account: String): SecretRead
+    /** False when it couldn't be kept: a value that wasn't saved mustn't be used. Empty removes. */
     fun write(value: String, account: String): Boolean
 }
 
 class InMemorySecretStore : SecretStore {
     private val values = mutableMapOf<String, String>()
-    override fun read(account: String): String? = synchronized(values) { values[account] }
+    override fun read(account: String): SecretRead =
+        synchronized(values) { values[account]?.let { SecretRead.Value(it) } ?: SecretRead.Absent }
     override fun write(value: String, account: String): Boolean {
         synchronized(values) { if (value.isEmpty()) values.remove(account) else values[account] = value }
         return true
     }
+    override fun toString() = "InMemorySecretStore(${synchronized(values) { values.size }} values)"
 }
 
 /**
@@ -43,7 +65,13 @@ data class BuildDefaults(
     val contact: String? = null,
     val alertsUrl: String? = null,
     val alertsToken: String? = null,
-)
+) {
+    /** Keys and tokens never reach a log through `toString`; only whether each is set. */
+    override fun toString() = "BuildDefaults(googleKey=${set(googleKey)}, tflKey=${set(tflKey)}, contact=$contact, " +
+        "alertsUrl=$alertsUrl, alertsToken=${set(alertsToken)})"
+
+    private fun set(value: String?) = if (value.isNullOrBlank()) "none" else "set"
+}
 
 /** Light, dark, or whatever the phone is set to. */
 @Suppress("EnumEntryName")
@@ -52,9 +80,15 @@ enum class Appearance(val label: String) { system("System"), light("Light"), dar
 /**
  * The app's settings. Ordinary choices (sources switched off, deep search, sort, filters,
  * appearance) are kept in [preferences] under the names iOS keeps them under in UserDefaults;
- * keys, the contact and the alerts server go to [secrets]. Keys entered in settings beat the
- * build-time ones, exactly as on iOS: the entered value if it isn't blank, else the build's,
- * else none. A stored value this version can't read falls back to the default.
+ * keys, the contact and the alerts server go to [secrets]. A stored choice this version can't
+ * read falls back to the default.
+ *
+ * Keys entered in settings beat the build-time ones, exactly as on iOS: the entered value if it
+ * isn't blank, else the build's, else none. One difference, on purpose: while an entered key is
+ * saved but unreadable, that key is treated as missing rather than replaced by the build's
+ * ([keysUnreadable] says so), and the alerts server is off rather than the built-in one used,
+ * so nothing goes out with a value the person didn't choose. A key that was lost for good is
+ * reported once in [lostSecrets] so a screen can ask for it again.
  */
 class AppSettings(
     private val secrets: SecretStore = InMemorySecretStore(),
@@ -94,45 +128,94 @@ class AppSettings(
             preferences.putString(APPEARANCE, value.name)
         }
 
-    var googleKeyOverride: String
-        get() = secrets.read("google") ?: ""
-        set(value) { secrets.write(value, "google") }
-    var tflKeyOverride: String
-        get() = secrets.read("tfl") ?: ""
-        set(value) { secrets.write(value, "tfl") }
-    /** Who Transitous can reach about this install's requests (User-Agent); blank is the build's. */
-    var contactOverride: String
-        get() = secrets.read("contact") ?: ""
-        set(value) { secrets.write(value, "contact") }
+    private val lost = mutableSetOf<String>()
 
-    /** The alerts server entered in settings: an address and its own token, kept as a pair. */
-    val enteredAlertsUrl: String get() = secrets.read(AlertServer.URL_ACCOUNT) ?: ""
-    val enteredAlertsToken: String get() = secrets.read(AlertServer.TOKEN_ACCOUNT) ?: ""
+    /** Accounts whose saved value was lost for good since the last [acknowledgeLost], for a screen to mention. */
+    val lostSecrets: Set<String> get() = synchronized(lost) { lost.toSet() }
 
-    /**
-     * Saves an entered server, or with both blank goes back to the built-in one. Nothing is saved
-     * unless the address passes and has a token; false if the secure store couldn't keep it.
-     */
-    fun useAlertsServer(url: String, token: String): Boolean {
-        if (url.isBlank() && token.isBlank()) {
-            return secrets.write("", AlertServer.URL_ACCOUNT) and secrets.write("", AlertServer.TOKEN_ACCOUNT)
+    fun acknowledgeLost() = synchronized(lost) { lost.clear() }
+
+    /** The entered value, "" when none, or null while it is saved but can't be read. */
+    private fun entered(account: String): String? = when (val read = secrets.read(account)) {
+        is SecretRead.Value -> read.text
+        SecretRead.Absent -> ""
+        SecretRead.Lost -> {
+            synchronized(lost) { lost += account }
+            ""
         }
-        val server = AlertServer.resolve(url, token, null, null) ?: return false
-        // The token first: an address saved without its token would read as no server at all.
-        return secrets.write(server.token, AlertServer.TOKEN_ACCOUNT) && secrets.write(server.url, AlertServer.URL_ACCOUNT)
+        SecretRead.Unreadable -> null
     }
 
-    /** The server alerts would use, or null when alerts are off. */
-    val alertServer: AlertServer?
-        get() = AlertServer.resolve(enteredAlertsUrl, enteredAlertsToken, build.alertsUrl, build.alertsToken)
+    /** For a settings field: what was entered, or "" (also while unreadable; see [keysUnreadable]). */
+    val googleKeyOverride: String get() = entered(GOOGLE) ?: ""
+    val tflKeyOverride: String get() = entered(TFL) ?: ""
+    /** Who Transitous can reach about this install's requests (User-Agent); blank is the build's. */
+    val contactOverride: String get() = entered(CONTACT) ?: ""
 
-    val googleKey: String? get() = firstNonEmpty(googleKeyOverride, build.googleKey)
-    val tflKey: String? get() = firstNonEmpty(tflKeyOverride, build.tflKey)
+    /** Saves an entered value ("" removes it). False if it wasn't kept, for the screen to say "not saved". */
+    fun setGoogleKeyOverride(value: String): Boolean = secrets.write(value, GOOGLE)
+    fun setTflKeyOverride(value: String): Boolean = secrets.write(value, TFL)
+    fun setContactOverride(value: String): Boolean = secrets.write(value, CONTACT)
+
+    /** An entered key is saved but can't be read right now. */
+    val keysUnreadable: Boolean get() = listOf(GOOGLE, TFL).any { secrets.read(it) == SecretRead.Unreadable }
+
+    val googleKey: String? get() = entered(GOOGLE)?.let { firstNonEmpty(it, build.googleKey) }
+    val tflKey: String? get() = entered(TFL)?.let { firstNonEmpty(it, build.tflKey) }
     val hasBuiltInGoogleKey: Boolean get() = firstNonEmpty(build.googleKey) != null
     val hasBuiltInTfLKey: Boolean get() = firstNonEmpty(build.tflKey) != null
 
-    /** The entered contact if it's a valid one, else the build's, else the project's page, as on iOS. */
-    val contact: String get() = Contact.valid(contactOverride) ?: Contact.valid(build.contact) ?: Contact.PROJECT
+    /**
+     * The entered contact if it's a valid one, else the build's, else the project's page, as on
+     * iOS. The contact only names who runs the client, so while the entered one can't be read the
+     * build's stands in.
+     */
+    val contact: String get() = Contact.valid(entered(CONTACT)) ?: Contact.valid(build.contact) ?: Contact.PROJECT
+
+    /**
+     * The alerts server entered in settings, kept as one sealed record holding the address and
+     * its token together, so a token can never be stored next to another server's address, even
+     * if a save fails halfway: a save is one write, and a failed write leaves the old pair whole.
+     */
+    sealed interface EnteredServer {
+        data object None : EnteredServer
+        data object Unreadable : EnteredServer
+        data class Saved(val url: String, val token: String) : EnteredServer {
+            override fun toString() = "Saved(url=$url, token=redacted)"
+        }
+    }
+
+    val enteredAlertsServer: EnteredServer
+        get() = when (val read = secrets.read(AlertServer.ACCOUNT)) {
+            is SecretRead.Value -> AlertServer.decodeRecord(read.text)?.let { (url, token) -> EnteredServer.Saved(url, token) } ?: EnteredServer.None
+            SecretRead.Absent -> EnteredServer.None
+            SecretRead.Lost -> {
+                synchronized(lost) { lost += AlertServer.ACCOUNT }
+                EnteredServer.None
+            }
+            SecretRead.Unreadable -> EnteredServer.Unreadable
+        }
+
+    /**
+     * Saves an entered server, or with both blank goes back to the built-in one. Nothing is saved
+     * unless the address passes and has a token; false if it wasn't saved.
+     */
+    fun useAlertsServer(url: String, token: String): Boolean {
+        if (url.isBlank() && token.isBlank()) return secrets.write("", AlertServer.ACCOUNT)
+        val server = AlertServer.resolve(url, token, null, null) ?: return false
+        return secrets.write(AlertServer.encodeRecord(server.url, server.token), AlertServer.ACCOUNT)
+    }
+
+    /**
+     * The server alerts would use, or null when alerts are off: also while the entered server is
+     * saved but unreadable, which means wait, never fall back to the built-in one (as iOS does).
+     */
+    val alertServer: AlertServer?
+        get() = when (val entered = enteredAlertsServer) {
+            EnteredServer.Unreadable -> null
+            is EnteredServer.Saved -> AlertServer.resolve(entered.url, entered.token, build.alertsUrl, build.alertsToken)
+            EnteredServer.None -> AlertServer.resolve("", "", build.alertsUrl, build.alertsToken)
+        }
 
     fun isEnabled(provider: ProviderID): Boolean = provider !in disabledProviders
 
@@ -140,13 +223,18 @@ class AppSettings(
         disabledProviders = if (enabled) disabledProviders - provider else disabledProviders + provider
     }
 
+    override fun toString() = "AppSettings(redacted)"
+
     companion object {
-        // The names iOS uses in UserDefaults.
+        // The names iOS uses in UserDefaults and the Keychain.
         const val DISABLED = "disabledProviders"
         const val DEEP = "deepSearch"
         const val SORT = "sortOrder"
         const val FILTER = "routeFilter"
         const val APPEARANCE = "appearance"
+        const val GOOGLE = "google"
+        const val TFL = "tfl"
+        const val CONTACT = "contact"
 
         private fun firstNonEmpty(vararg values: String?): String? = values.asSequence().mapNotNull { it?.trim() }.firstOrNull { it.isNotEmpty() }
 

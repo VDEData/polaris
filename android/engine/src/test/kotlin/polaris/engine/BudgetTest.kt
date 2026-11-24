@@ -291,7 +291,7 @@ class BudgetTest {
         val project = "Polaris/0.1.0 (Android transit app; https://github.com/VDEData/polaris)"
         fun agent(entered: String?, built: String?): String {
             val settings = AppSettings(build = BuildDefaults(contact = built))
-            if (entered != null) settings.contactOverride = entered
+            if (entered != null) settings.setContactOverride(entered)
             return HTTP(transport = { HttpResponse(200, ByteArray(0)) }, appVersion = "0.1.0") { settings.contact }.userAgent
         }
         assertEquals(project, agent(null, null), "none configured")
@@ -309,14 +309,14 @@ class BudgetTest {
         assertEquals("built-in", settings.googleKey)
         assertEquals(null, settings.tflKey, "blank is no key")
         assertTrue(settings.hasBuiltInGoogleKey)
-        settings.googleKeyOverride = "entered"
+        settings.setGoogleKeyOverride("entered")
         assertEquals("entered", settings.googleKey)
-        settings.googleKeyOverride = "  "
+        settings.setGoogleKeyOverride("  ")
         assertEquals("built-in", settings.googleKey)
         assertEquals("build@example.org", settings.contact)
-        settings.contactOverride = "me@example.org"
+        settings.setContactOverride("me@example.org")
         assertEquals("me@example.org", settings.contact)
-        settings.contactOverride = "not a contact"
+        settings.setContactOverride("not a contact")
         assertEquals("build@example.org", settings.contact)
     }
 
