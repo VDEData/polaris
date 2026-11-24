@@ -18,3 +18,12 @@
 # free monthly allowance the app counts.
 # polaris.googleKey=
 # polaris.tflKey=
+
+# An alerts server of your own (worker/), as on iOS. Alerts come to Android in a later phase.
+# polaris.alertsUrl=
+# polaris.alertsToken=
+
+# The map uses OpenFreeMap's public tiles unless you point it at your own OpenMapTiles-compatible
+# server: a TileJSON address and a glyphs (fonts) URL template.
+# polaris.mapTiles=https://tiles.openfreemap.org/planet
+# polaris.mapGlyphs=https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf

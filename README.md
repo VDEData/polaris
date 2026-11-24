@@ -175,14 +175,29 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 | `POLARIS_ALERTS_URL`, `POLARIS_ALERTS_TOKEN` | Your own alerts server, below | Alerts are off |
 | `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | The User-Agent names this project's page |
 
-## Android (early: engine only)
+## Android (early: engine and plumbing)
 
 `android/` is a Kotlin port in progress. So far it holds the engine: the models, the TfL,
 Transitous and Google providers, merging, ranking, TfL's network status and Google's monthly
-count, with the same names and behaviour as the Swift, and the same request budgets. The app
-around it is one plain screen that runs a single search (King's Cross to Canary Wharf) to prove
-the engine works on a device: TfL and Transitous, plus Google only if you built it with a Google
-key. There is no map, search box, Go or alerts on Android yet.
+count, with the same names and behaviour as the Swift, and the same request budgets. Around it is
+the plumbing the screens will need, with no real screens yet:
+
+- **Map:** MapLibre Native over OpenFreeMap's vector tiles, keyless, in Polaris's own day and
+  night style (`MapStyle`), drawing a journey's legs in their line colours, its stops, the gold
+  star at the end and your location dot (asked for only when a screen needs it). OpenFreeMap's
+  credit is always shown on the map. Tiles are fetched only for what is on screen and kept in
+  MapLibre's default cache: no offline packs, no prefetching.
+- **Place search** (`PlaceSearch`): Transitous's own geocoder, as you type, debounced (below).
+  Searching for a chain or a kind of place, which Apple's search does on iOS, will hand off to a
+  maps app instead.
+- **Settings storage:** keys, the contact and the alerts server's token sealed with an Android
+  Keystore key; ordinary preferences in DataStore; the same precedence as iOS (entered, else
+  built in, else none). Nothing is backed up or moved to a new phone.
+
+The app itself is still one plain screen that runs a single search (King's Cross to Canary Wharf)
+to prove the engine works on a device: TfL and Transitous, plus Google only if you built it with a
+Google key. Debug builds add a second launcher entry, "Polaris map check", that shows the map with
+a recorded journey and a place search box; it is not in release builds.
 
 The engine needs only JDK 17; the app also needs the Android SDK (platform 36), from Android
 Studio or the command-line tools. Without an SDK, Gradle builds and tests the engine alone.
@@ -197,8 +212,13 @@ Per-builder values go in `android/local.properties` (git-ignored; copy
 `local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
 (default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS, and like it defaulting to this
 project's page: set your own if you distribute the build),
-and the optional `polaris.googleKey` and `polaris.tflKey`. With none of them set the build works as
-the iOS one does with no keys.
+the optional `polaris.googleKey`, `polaris.tflKey`, `polaris.alertsUrl` and `polaris.alertsToken`,
+and `polaris.mapTiles` and `polaris.mapGlyphs` to use your own OpenMapTiles-compatible tile server
+instead of OpenFreeMap. With none of them set the build works as the iOS one does with no keys.
+
+`./gradlew :app:connectedDebugAndroidTest` runs the few checks only a device can do (the Keystore,
+DataStore) on a running emulator. Gradle installs on every connected device, so set `ANDROID_SERIAL`
+when a phone is plugged in too.
 
 Build-time keys are compiled into the app (`BuildConfig`), where anyone with the `.apk` can read
 them, just as on iOS. A Google key for Android is restricted to your application ID and the SHA-1
@@ -280,7 +300,12 @@ keeps to these limits, and changes should too:
 - **Transitous** (volunteer-run): one request per search, never fanned out into variants.
   Departure boards are one stop-times request per board as it is shown, kept a minute;
   during Go only the next ride's board refreshes, once a minute. A descriptive User-Agent
-  with `POLARIS_CONTACT`.
+  with `POLARIS_CONTACT`. Android's place search asks its geocoder only once the text is 3
+  characters or more and typing has paused for 300 ms; a newer keystroke cancels the request
+  in flight, and the last 20 answers are reused rather than asked again.
+- **OpenFreeMap** (Android's map tiles, run by one person, free with attribution): tiles only
+  for what is on screen, MapLibre's default cache, no offline downloads or prefetching, and
+  the app's User-Agent on every request. Its credit is always visible on the map.
 - **TfL**: network status is two requests per search, kept three minutes. Live buses are one
   arrivals request every 30 seconds while a bus line is on the map, and each line's route
   once per launch. The alerts server asks TfL only while someone is inside their travel
@@ -337,7 +362,7 @@ MIT. See `LICENSE`.
 - `Polaris/Shared` and `PolarisWidgets`: the trip's Live Activity (the attributes are compiled into both targets).
 - `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `apns.ts`.
 - `PolarisTests`: parsers against recorded Google/TfL/Transitous responses, boards, walking progress and leg-by-leg tracking, and the merge and ranking rules.
-- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM) and `app/` (one Compose screen).
+- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM: also `PlaceSearch`, `MapStyle`, `JourneyMap` and the settings storage rules) and `app/` (one Compose screen; `map/PolarisMap` and `storage/` for the screens to come; the debug-only map check in `src/debug`).
 - `Polaris/Design/Theme.swift`: the star-atlas palette, light and dark (System, Light or Dark in Settings).
 
 Launch flags for checking screens without tapping (Debug only): `-setup` shows the first-run setup step; `-demo -demoReplan
