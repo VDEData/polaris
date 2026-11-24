@@ -43,6 +43,7 @@ struct GoogleRoutesProvider: JourneyProvider {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "X-Goog-Api-Key")
+        request.followsRedirects = false   // the key goes to Google's address only
         request.setValue(bundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         request.setValue(Self.fieldMask, forHTTPHeaderField: "X-Goog-FieldMask")
 

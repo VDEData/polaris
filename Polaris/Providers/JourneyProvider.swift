@@ -69,11 +69,14 @@ enum HTTP {
     /// The shared session's settings (cache, cookies, cellular), with `SameOriginRedirects` deciding redirects.
     static let session = URLSession(configuration: .default, delegate: SameOriginRedirects.shared, delegateQueue: nil)
 
+    /// Sends `request` once. A request that mustn't be redirected (`followsRedirects` false, or one
+    /// carrying a key header) is given `NoRedirects` for its task, which takes the session's place.
     static func data(for request: URLRequest) async throws -> Data {
         var request = request
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 20
-        let (data, response) = try await session.data(for: request)
+        let noRedirects = !request.followsRedirects || SameOriginRedirects.carriesKeyHeader(request)
+        let (data, response) = try await session.data(for: request, delegate: noRedirects ? NoRedirects.shared : nil)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else { throw ProviderError.http(status) }
         return data
@@ -86,26 +89,43 @@ enum HTTP {
     }
 }
 
-/// A provider request follows a redirect only to the same scheme, host and port, and one that
-/// carries a key (Google's header, TfL's `app_key` query item) none at all: URLSession would
-/// otherwise take every header, the key's included, to wherever the redirect points. Android's
-/// `OkHttpTransport` keeps to the same places. A refused redirect reaches the caller as its 3xx.
+extension URLRequest {
+    private static let noRedirectsProperty = "Polaris.noRedirects"
+
+    /// Whether a redirect to the same scheme, host and port may be followed; never to another host
+    /// (`SameOriginRedirects`). The provider building a request that carries a key in a header
+    /// (Google's) sets it false, as `HttpRequest.followRedirects` on Android.
+    var followsRedirects: Bool {
+        get { URLProtocol.property(forKey: Self.noRedirectsProperty, in: self) == nil }
+        set {
+            guard let copy = (self as NSURLRequest).mutableCopy() as? NSMutableURLRequest else { return }
+            if newValue { URLProtocol.removeProperty(forKey: Self.noRedirectsProperty, in: copy) }
+            else { URLProtocol.setProperty(true, forKey: Self.noRedirectsProperty, in: copy) }
+            self = copy as URLRequest
+        }
+    }
+}
+
+/// A provider request follows a redirect only to the same scheme, host and port (so an https
+/// request never drops to http): URLSession would otherwise take every header and the query to
+/// wherever the redirect points. A key in the query (TfL's `app_key`) may follow a redirect on
+/// TfL's own host; requests not to be redirected at all (`followsRedirects`, Google's) get
+/// `NoRedirects` from `HTTP.data`, and this refuses them too should a key header slip through.
+/// The same rule as Android's `OkHttpTransport`. A refused redirect reaches the caller as its 3xx.
 final class SameOriginRedirects: NSObject, URLSessionTaskDelegate, Sendable {
     static let shared = SameOriginRedirects()
+    /// Headers that carry a key: a request with one is never redirected, whatever it says.
     static let keyHeaders = ["X-Goog-Api-Key"]
-    static let keyQueryItems = ["app_key"]
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest) async -> URLRequest? {
         guard let from = task.currentRequest ?? task.originalRequest else { return nil }
-        let carriesKey = [task.originalRequest, from, request].contains { $0.map(Self.carriesKey) ?? false }
+        let carriesKey = [task.originalRequest, from, request].contains { $0.map(Self.carriesKeyHeader) ?? false }
         return !carriesKey && Self.samePlace(from.url, request.url) ? request : nil
     }
 
-    static func carriesKey(_ request: URLRequest) -> Bool {
-        if keyHeaders.contains(where: { request.value(forHTTPHeaderField: $0) != nil }) { return true }
-        guard let url = request.url, let items = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems else { return false }
-        return items.contains { item in keyQueryItems.contains { $0.caseInsensitiveCompare(item.name) == .orderedSame } }
+    static func carriesKeyHeader(_ request: URLRequest) -> Bool {
+        keyHeaders.contains { request.value(forHTTPHeaderField: $0) != nil }
     }
 
     static func samePlace(_ a: URL?, _ b: URL?) -> Bool {
