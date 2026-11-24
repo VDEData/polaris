@@ -77,7 +77,11 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
-                    Text("Route data from Google, Transport for London (Powered by TfL Open Data), and Transitous (transitous.org/sources) with © OpenStreetMap contributors. Apple Maps provides estimates and place search.")
+                    // The credits each source's terms ask for. Markdown, so the links can be tapped.
+                    Text("Route data from Google, Transport for London and Transitous ([transitous.org/sources](https://transitous.org/sources/)) with [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Apple Maps provides estimates and place search.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights [2019].")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
