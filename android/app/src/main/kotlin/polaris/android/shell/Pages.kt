@@ -37,7 +37,8 @@ sealed interface SearchFor {
     @Serializable data object Home : SearchFor { override val title get() = "Set Home" }
     @Serializable data object Work : SearchFor { override val title get() = "Set Work" }
     /** A results page's start or end. */
-    @Serializable data class ResultsEnd(val page: String, val isOrigin: Boolean) : SearchFor {
+    /** [near] is the trip's other end as "lat,lon" when the search opened, to bias the answers. */
+    @Serializable data class ResultsEnd(val page: String, val isOrigin: Boolean, val near: String? = null) : SearchFor {
         override val title get() = if (isOrigin) "From" else "To"
         override val allowsCurrentLocation get() = true
     }

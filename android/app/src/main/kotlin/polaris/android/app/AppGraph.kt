@@ -47,6 +47,9 @@ class AppGraph(
     companion object {
         @Volatile private var loaded: AppGraph? = null
 
+        /** The graph if this process has built it already. */
+        fun cached(): AppGraph? = loaded
+
         /** Reads storage off the main thread the first time; later calls return the same graph. */
         suspend fun load(context: Context, transport: HttpTransport? = null): AppGraph {
             loaded?.let { return it }
@@ -128,10 +131,11 @@ class FileSearchArchive(private val dir: File) : SearchArchive {
         }
     }
 
-    override fun load(id: String): Snapshot.Search? = if (!safe(id)) null else
+    @Synchronized override fun load(id: String): Snapshot.Search? = if (!safe(id)) null else
         memory.load(id) ?: runCatching { File(dir, "$id.json").readText() }.getOrNull()?.let(Snapshot::decodeSearch)?.also { memory.save(id, it) }
 
-    override fun keepOnly(ids: Set<String>) {
+    // One lock for writing, reading and pruning, so a prune never deletes a file being written.
+    @Synchronized override fun keepOnly(ids: Set<String>) {
         memory.keepOnly(ids)
         dir.listFiles()?.forEach { if (it.nameWithoutExtension !in ids) it.delete() }
     }

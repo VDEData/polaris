@@ -95,19 +95,21 @@ class SearchModel(
         // Google within its free monthly allowance: every deep-search way under 700 this month,
         // one under 900, none past that. Planned and counted in one step.
         val now = clock.instant()
-        // Read once: the plan and the provider must agree on whether there is a key.
-        val googleKey = settings.googleKey
+        // Each key read once: the plan, the count, the status and the request all follow one read.
+        val keys = settings.readKeys()
+        val googleKey = (keys.google as? AppSettings.Key.Use)?.value
+        val tflKey = (keys.tfl as? AppSettings.Key.Use)?.value
         val google = googlePlan(settings.isEnabled(ProviderID.google), googleKey != null, settings.deepSearch, usage.allowance, now)
         val googleRequests = if (google is GooglePlan.Ask) usage.reserve(settings.deepSearch, GoogleRoutesProvider.variants.size, now) else 0
         val providers: List<JourneyProvider> = listOf(
             GoogleRoutesProvider(http, googleKey, app.packageName, app.certificateSha1, googleRequests),
-            TfLProvider(http, settings.tflKey),
+            TfLProvider(http, tflKey),
             TransitousProvider(http),
         )
         // A key that is saved but can't be read right now: that source waits this search out rather
         // than going without the key or with another one (AppSettings never hands over the build's).
-        val tflUnreadable = settings.tflKeyField == AppSettings.SecretField.Unreadable
-        val googleUnreadable = settings.googleKeyField == AppSettings.SecretField.Unreadable
+        val tflUnreadable = keys.tfl == AppSettings.Key.Unreadable
+        val googleUnreadable = keys.google == AppSettings.Key.Unreadable
         val statuses = mutableMapOf<ProviderID, ProviderStatus>()
         for (provider in providers) {
             statuses[provider.id] = when {
@@ -126,7 +128,6 @@ class SearchModel(
         val deep = settings.deepSearch
         // TfL's status is TfL's too: skipped with TfL, or while its saved key can't be read.
         val checksNetwork = settings.isEnabled(ProviderID.tfl) && !tflUnreadable
-        val tflKey = settings.tflKey
         val active = providers.filter { statuses[it.id] == ProviderStatus.Loading }
         coroutineScope {
             for (provider in active) {

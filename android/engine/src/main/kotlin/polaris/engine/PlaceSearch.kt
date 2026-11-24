@@ -125,6 +125,11 @@ class PlaceSearch(
             ),
         )
 
+        /**
+         * The geocoder can list one place twice (a station as a stop and as a named place, or the
+         * same id twice): each id once, and each name in the same area once, keeping the first,
+         * which is the stop when there is one (it carries the modes).
+         */
         fun parse(data: ByteArray): List<PlaceMatch> = HTTP.decode<List<Match>>(data).mapNotNull { m ->
             val kind = when (m.type) {
                 "STOP" -> PlaceMatch.Kind.stop
@@ -144,6 +149,21 @@ class PlaceSearch(
                 kind = kind,
                 modes = m.modes ?: emptyList(),
             )
+        }.let(::dedupe)
+
+        /** Each id once; each name in the same area once, in the geocoder's order, the stop's copy preferred. */
+        fun dedupe(all: List<PlaceMatch>): List<PlaceMatch> {
+            val ids = mutableSetOf<String>()
+            val kept = mutableListOf<PlaceMatch>()
+            for (match in all) {
+                if (!ids.add(match.place.id)) continue
+                val same = kept.indexOfFirst { normalised(it.place.name) == normalised(match.place.name) && it.place.subtitle == match.place.subtitle }
+                when {
+                    same < 0 -> kept += match
+                    kept[same].kind != PlaceMatch.Kind.stop && match.kind == PlaceMatch.Kind.stop -> kept[same] = match
+                }
+            }
+            return kept
         }
 
         @Serializable

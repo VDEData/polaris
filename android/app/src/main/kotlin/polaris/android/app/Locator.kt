@@ -8,6 +8,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.CancellationSignal
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,8 +26,9 @@ interface Locator {
 }
 
 /**
- * Android's own location provider (no Google Play services): a single fresh fix from the best
- * enabled provider, falling back to the last known one, within 10 seconds.
+ * Android's own location provider (no Google Play services). As iOS's `LocationService`: a fix
+ * under 20 seconds old is used as it is; otherwise one fresh fix from the best enabled provider,
+ * waited for up to 10 seconds, and never an older fix in its place.
  */
 class AndroidLocator(private val context: Context) : Locator {
     private val manager get() = context.getSystemService(LocationManager::class.java)
@@ -50,24 +52,43 @@ class AndroidLocator(private val context: Context) : Locator {
             .maxByOrNull { it.time }?.let { Coordinate(it.latitude, it.longitude) }
     }
 
+    /** The newest last-known fix if it is under [FRESH_FOR_NANOS] old. */
+    @SuppressLint("MissingPermission")
+    private fun recent(): Location? {
+        val m = manager ?: return null
+        val now = SystemClock.elapsedRealtimeNanos()
+        return providers().mapNotNull { runCatching { m.getLastKnownLocation(it) }.getOrNull() }
+            .filter { now - it.elapsedRealtimeNanos in 0 until FRESH_FOR_NANOS }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+    }
+
     @SuppressLint("MissingPermission")
     override suspend fun current(): Coordinate? {
         if (!hasPermission) return null
         val m = manager ?: return null
-        val provider = providers().firstOrNull { it != LocationManager.PASSIVE_PROVIDER } ?: return last()
+        recent()?.let { return Coordinate(it.latitude, it.longitude) }
+        val provider = providers().firstOrNull { it != LocationManager.PASSIVE_PROVIDER } ?: return null
         val fresh = withTimeoutOrNull(10_000) {
             suspendCancellableCoroutine<Location?> { done ->
-                val signal = CancellationSignal()
-                done.invokeOnCancellation { signal.cancel() }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val signal = CancellationSignal()
+                    done.invokeOnCancellation { signal.cancel() }
                     m.getCurrentLocation(provider, signal, executor) { done.resume(it) }
                 } else {
-                    // Android 9 and 10 have no single-fix call that takes a cancellation signal.
+                    // Android 9 and 10 have no single-fix call that takes a cancellation signal: the
+                    // listener is removed by hand when the wait is cancelled or times out.
+                    val listener = android.location.LocationListener { done.resume(it) }
+                    done.invokeOnCancellation { m.removeUpdates(listener) }
                     @Suppress("DEPRECATION")
-                    m.requestSingleUpdate(provider, { done.resume(it) }, android.os.Looper.getMainLooper())
+                    m.requestSingleUpdate(provider, listener, android.os.Looper.getMainLooper())
                 }
             }
         }
-        return fresh?.let { Coordinate(it.latitude, it.longitude) } ?: last()
+        return fresh?.let { Coordinate(it.latitude, it.longitude) }
+    }
+
+    companion object {
+        /** iOS reuses a fix under 20 seconds old (LocationService.swift). */
+        const val FRESH_FOR_NANOS = 20_000_000_000L
     }
 }

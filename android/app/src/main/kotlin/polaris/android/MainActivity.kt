@@ -39,7 +39,8 @@ class MainActivity : ComponentActivity() {
             val night = isSystemInDarkTheme()
             PolarisTheme(night) {
                 val context = LocalContext.current
-                var graph by remember { mutableStateOf<AppGraph?>(null) }
+                // Already built after a rotation or a fold: no blank first frame then.
+                var graph by remember { mutableStateOf(AppGraph.cached()) }
                 LaunchedEffect(Unit) { graph = AppGraph.load(context, demo) }
                 Box(Modifier.fillMaxSize().background(polaris.paper)) {
                     graph?.let { PolarisApp(it, night, startTrip) }

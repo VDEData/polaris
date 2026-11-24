@@ -206,7 +206,7 @@ fun PlaceSearchScreen(
                             }
                             if (hasMapsApp) item {
                                 HorizontalDivider(Modifier.padding(start = 56.dp), color = c.hairline)
-                                PlaceRow(R.drawable.sym_travel_explore, c.tint, "Search ‘${ui.text.trim()}’ in your maps app", "For shops, chains and kinds of place") {
+                                PlaceRow(R.drawable.sym_travel_explore, c.tint, "Search “${ui.text.trim()}” in your maps app", "For shops, chains and kinds of place") {
                                     runCatching { context.startActivity(mapsIntent) }
                                 }
                             }
@@ -237,9 +237,8 @@ private fun iconFor(match: PlaceMatch): Int = when (match.kind) {
 
 private fun biasFor(kind: SearchFor, pages: List<NavKey>, graph: AppGraph): Coordinate? {
     if (kind is SearchFor.ResultsEnd) {
-        val query = pages.filterIsInstance<ResultsPage>().firstOrNull { it.id == kind.page }?.journeyQuery
-        val other = if (kind.isOrigin) query?.destination else query?.origin
-        if (other != null && !other.isCurrentLocation) return other.coordinate
+        // The trip as it is now on the page (after any swap or edit), carried by the request.
+        kind.near?.split(",")?.mapNotNull { it.toDoubleOrNull() }?.takeIf { it.size == 2 }?.let { return Coordinate(it[0], it[1]) }
     }
     if (kind is SearchFor.Origin) Snapshot.decodePlace(kind.destination)?.let { return it.coordinate }
     return graph.locator.last()
@@ -298,7 +297,7 @@ private fun ErrorRow(reason: String, retry: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text("Couldn't search places", style = MaterialTheme.typography.bodyLarge, color = c.ink)
             // "HTTP 503" alone means little: say who didn't answer, with the code for anyone who reports it.
-            Text(if (reason.startsWith("HTTP")) "Transitous isn't answering ($reason). Try again in a moment." else reason, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            Text(if (reason.startsWith("HTTP")) "Transitous isn't answering right now. Try again in a moment." else reason, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         }
         TextButton(onClick = retry) { Text("Try again") }
     }

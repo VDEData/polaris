@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -155,9 +156,13 @@ class ScreensTest {
         model.setDestination(Place(name = "Bank", coordinate = Coordinate(51.513, -0.089))); advanceUntilIdle()
         model.searchAgain(); advanceUntilIdle()
         assertEquals(5, rig.transport.to("api.transitous.org"))
+        // TfL: three ways (deep search) a search, plus its status once (kept 3 minutes); Google: none, no key.
+        assertEquals(5 * 3 + 2, rig.transport.to("api.tfl.gov.uk"))
+        assertEquals(0, rig.transport.to("routes.googleapis.com"))
+        val total = rig.transport.total
         // The same trip again is no edit and no search.
         model.setTime(model.ui.value.query.time); advanceUntilIdle()
-        assertEquals(5, rig.transport.to("api.transitous.org"))
+        assertEquals(total, rig.transport.total)
     }
 
     @Test fun tflStatusIsKeptThreeMinutesAcrossSearches() = runTest(dispatcher) {
@@ -199,7 +204,8 @@ class ScreensTest {
         val final = model.ui.value.journeys.map { it.id }
         assertEquals(final, archive.held!!.journeys.map { it.id })
         assertEquals(final, archive.saves.last().journeys.map { it.id })
-        assertTrue(archive.saves.size <= archive.saves.map { it.savedAt }.size)
+        // Every write that lands carries the latest state at that moment: none is older than the one before it.
+        assertEquals(archive.saves.map { it.journeys.size }, archive.saves.map { it.journeys.size }.sorted())
     }
 
     @Test fun aRecreatedPageWhoseCopyIsGoneOffersSearchAgainAndSendsNothing() = runTest(dispatcher) {
@@ -336,12 +342,111 @@ class ScreensTest {
         assertEquals(0, rig.transport.total)
     }
 
+    @Test fun twoTapsOnAPlaceOpenOnePageAndOneSearch() = runTest(dispatcher) {
+        val rig = Rig()
+        val shell = ShellViewModel(rig.graph)
+        shell.planTo(wharf)
+        shell.planTo(wharf)
+        advanceUntilIdle()
+        val pages = mutableListOf<androidx.navigation3.runtime.NavKey>()
+        val collecting = launch { shell.navigation.collect { pages += it } }
+        advanceUntilIdle()
+        collecting.cancel()
+        assertEquals(1, pages.size)
+        assertEquals(1, rig.locator.asked)
+    }
+
+    @Test fun aRestoredPageNeverShowsAnotherTripsRoutes() = runTest(dispatcher) {
+        val dir = kotlin.io.path.createTempDirectory("polaris-archive").toFile()
+        val rig = Rig()
+        val graph = AppGraph(rig.settings, GoogleUsage(rig.kv), PlaceStore(rig.kv), rig.transport,
+            polaris.android.app.FileSearchArchive(dir), FakeLocator(here = null), networkCache = NetworkStatusCache())
+        val handle = SavedStateHandle()
+        val page = ResultsViewModel(handle, graph, "page-a", trip, io = dispatcher).also { advanceUntilIdle() }
+        assertTrue(page.ui.value.journeys.isNotEmpty())
+        // The start becomes Current Location and no fix comes: nothing new is searched or archived.
+        page.setOrigin(ShellViewModel.currentLocation(Coordinate(0.0, 0.0)))
+        advanceUntilIdle()
+        assertTrue(page.ui.value.noFix)
+        // Android stops the app; a fresh archive object reads the file.
+        val graph2 = AppGraph(rig.settings, GoogleUsage(rig.kv), PlaceStore(rig.kv), rig.transport,
+            polaris.android.app.FileSearchArchive(dir), FakeLocator(here = null), networkCache = NetworkStatusCache())
+        val again = ResultsViewModel(SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }), graph2, "page-a", trip, io = dispatcher)
+        advanceUntilIdle()
+        assertTrue(again.ui.value.query.origin.isCurrentLocation)
+        assertTrue(again.ui.value.journeys.isEmpty(), "the old trip's routes must not show under the new trip")
+        assertTrue(again.ui.value.stale)
+    }
+
+    @Test fun aPromptCancelledUnderARecreatedScreenStrandsNothingAndIsNotAskedTwice() = runTest(dispatcher) {
+        val rig = Rig(locator = FakeLocator(hasPermission = false))
+        val shell = ShellViewModel(rig.graph)
+        shell.planTo(wharf)
+        assertEquals(true, shell.need.value?.ask)
+        shell.asking()
+        // The recreated screen sees the same need, now marked as asked: it doesn't prompt again.
+        assertEquals(false, shell.need.value?.ask)
+        shell.permissionResult(granted = false, answered = false)
+        assertEquals(null, shell.need.value, "a cancelled prompt is not a refusal")
+        shell.planTo(wharf)
+        assertIs<ShellViewModel.Need.Trip>(shell.need.value)
+    }
+
+    @Test fun routesBroughtBackLongAfterAreMarkedOld() = runTest(dispatcher) {
+        var clock = java.time.Instant.parse("2026-11-24T09:00:00Z")
+        val rig = Rig()
+        val handle = SavedStateHandle()
+        ResultsViewModel(handle, rig.graph, "page", trip.copy(time = TimeMode.LeaveNow), io = dispatcher, now = { clock }).also { advanceUntilIdle() }
+        val copy = { SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }) }
+        clock = clock.plusSeconds(5 * 60)
+        val soon = ResultsViewModel(copy(), rig.graph, "page", trip.copy(time = TimeMode.LeaveNow), io = dispatcher, now = { clock }).also { advanceUntilIdle() }
+        assertTrue(soon.ui.value.journeys.isNotEmpty())
+        assertTrue(!soon.isOld(soon.ui.value))
+        clock = clock.plusSeconds(60 * 60)
+        assertTrue(soon.isOld(soon.ui.value), "a Leave now trip an hour later is old")
+    }
+
+    @Test fun theFileArchiveReadsBackPrunesAndIgnoresAnUnreadableFile() {
+        val dir = kotlin.io.path.createTempDirectory("polaris-archive").toFile()
+        val search = polaris.engine.Snapshot.Search(trip, mapOf(ProviderID.tfl to ProviderStatus.Done(1)),
+            polaris.engine.TransitousProvider.parse(javaClass.classLoader!!.getResourceAsStream("transitous-plan.json")!!.readBytes()), true, java.time.Instant.parse("2026-11-24T09:00:00Z"))
+        polaris.android.app.FileSearchArchive(dir).apply {
+            save("a", search)
+            save("b", search)
+        }
+        // A new object (a new process) reads the files.
+        val again = polaris.android.app.FileSearchArchive(dir)
+        assertEquals(search.journeys.map { it.id }, again.load("a")!!.journeys.map { it.id })
+        again.keepOnly(setOf("a"))
+        assertEquals(null, polaris.android.app.FileSearchArchive(dir).load("b"))
+        assertEquals(listOf("a.json"), dir.list()!!.sorted())
+        java.io.File(dir, "a.json").writeText("{not json")
+        assertEquals(null, polaris.android.app.FileSearchArchive(dir).load("a"))
+        assertEquals(null, polaris.android.app.FileSearchArchive(dir).load("../escape"), "names are ours only")
+    }
+
+    @Test fun otherAppLinksLeaveAnUnresolvedCurrentLocationToThatApp() {
+        val here = ShellViewModel.currentLocation(Coordinate(0.0, 0.0))
+        val swapped = JourneyQuery(kingsCross, here, TimeMode.LeaveNow)
+        for (app in polaris.android.results.OpenIn.entries) {
+            val url = app.url(swapped)
+            assertTrue("0.0" !in url, "${app.label}: the placeholder must not go out: $url")
+            assertTrue("51.5308" in url)
+        }
+        val resolved = swapped.copy(destination = here.copy(coordinate = Coordinate(51.53, -0.12)))
+        assertTrue("51.53" in polaris.android.results.OpenIn.GoogleMaps.url(swapped, resolved).substringAfter("destination="))
+    }
+
     @Test fun planningFromHerePushesOneResultsPage() = runTest(dispatcher) {
         val rig = Rig()
         val shell = ShellViewModel(rig.graph)
         shell.planTo(wharf)
         advanceUntilIdle()
-        val page = assertIs<ResultsPage>(shell.navigation.first())
+        val pages = mutableListOf<androidx.navigation3.runtime.NavKey>()
+        val collecting = launch { shell.navigation.collect { pages += it } }
+        advanceUntilIdle()
+        collecting.cancel()
+        val page = assertIs<ResultsPage>(pages.single())
         assertTrue(page.journeyQuery!!.origin.isCurrentLocation)
         assertEquals(0, rig.transport.total, "the shell only opens the page; the page searches")
     }

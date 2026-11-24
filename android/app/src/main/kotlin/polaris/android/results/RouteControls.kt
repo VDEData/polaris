@@ -62,8 +62,10 @@ import polaris.android.shell.JourneyPage
 import polaris.android.shell.LocalSheet
 import polaris.android.shell.MapScene
 import polaris.android.shell.MeasuredBar
+import polaris.android.shell.SheetPage
 import polaris.android.shell.SceneEffect
 import polaris.android.shell.factory
+import polaris.android.ui.HalfDialog
 import polaris.android.ui.Clock
 import polaris.android.ui.LegStrip
 import polaris.android.ui.Symbol
@@ -200,7 +202,7 @@ fun SortAndFilterCard(sort: SortOrder, filter: RouteFilter, hidden: Int, setSort
                 HorizontalDivider(color = c.hairline)
                 AvoidRow(filter, setFilter)
             }
-            if (hidden > 0) Text("$hidden route${if (hidden == 1) "" else "s"} hidden by filters", style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            if (hidden > 0) Text("$hidden route${if (hidden == 1) "" else "s"} hidden by your filters", style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         }
     }
 }
@@ -263,8 +265,8 @@ private fun AvoidRow(filter: RouteFilter, setFilter: (RouteFilter) -> Unit) {
 private fun shortSort(order: SortOrder) = when (order) {
     SortOrder.best -> "Best"
     SortOrder.fastest -> "Fastest"
-    SortOrder.fewestChanges -> "Changes"
-    SortOrder.leastWalking -> "Walking"
+    SortOrder.fewestChanges -> "Fewest changes"
+    SortOrder.leastWalking -> "Least walking"
 }
 
 /**
@@ -282,11 +284,18 @@ fun TimeDialog(kind: TimeKind, current: TimeMode, onDismiss: () -> Unit, onDone:
     var pickingDay by rememberSaveable { mutableStateOf(false) }
     val date = LocalDate.ofEpochDay(day)
     val c = polaris
-    AlertDialog(
+    HalfDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (kind == TimeKind.Depart) "Depart at" else "Arrive by") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        title = if (kind == TimeKind.Depart) "Depart at" else "Arrive by",
+        confirmButton = {
+            TextButton(onClick = {
+                val at = date.atTime(LocalTime.of(time.hour, time.minute)).atZone(zone).toInstant()
+                onDone(if (kind == TimeKind.Depart) TimeMode.DepartAt(at) else TimeMode.ArriveBy(at))
+            }) { Text("Done") }
+        },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    ) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(
                     Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Change the day") { pickingDay = true }.heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -297,19 +306,13 @@ fun TimeDialog(kind: TimeKind, current: TimeMode, onDismiss: () -> Unit, onDone:
                 // The dial's numbers crowd at large text sizes: typed hours and minutes there.
                 if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f) androidx.compose.material3.TimeInput(time) else TimePicker(time)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val at = date.atTime(LocalTime.of(time.hour, time.minute)).atZone(zone).toInstant()
-                onDone(if (kind == TimeKind.Depart) TimeMode.DepartAt(at) else TimeMode.ArriveBy(at))
-            }) { Text("Done") }
-        },
-        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
-    )
+    }
     if (pickingDay) {
         val picker = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-        DatePickerDialog(
+        HalfDialog(
             onDismissRequest = { pickingDay = false },
+            title = null,
+            contentPadding = 0.dp,
             confirmButton = {
                 TextButton(onClick = {
                     picker.selectedDateMillis?.let { day = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay() }
@@ -317,7 +320,7 @@ fun TimeDialog(kind: TimeKind, current: TimeMode, onDismiss: () -> Unit, onDone:
                 }) { Text("Done") }
             },
             dismissButton = { TextButton({ pickingDay = false }) { Text("Cancel") } },
-        ) { DatePicker(picker) }
+        ) { DatePicker(picker, colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)) }
     }
 }
 
@@ -338,11 +341,17 @@ private fun dayLabel(date: LocalDate): String {
 fun JourneyPlaceholder(key: JourneyPage, graph: AppGraph, onBack: () -> Unit) {
     val c = polaris
     val sheet = LocalSheet.current
-    val journey = remember(key) { graph.archive.load(key.searchId)?.journeys?.firstOrNull { it.id == key.journeyId } }
-    val search = remember(key) { graph.archive.load(key.searchId) }
+    // Read off the main thread (from memory at once, or from the file after a restart).
+    val search by androidx.compose.runtime.produceState<polaris.engine.Snapshot.Search?>(null, key) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.archive.load(key.searchId) }
+    }
+    val journey = search?.journeys?.firstOrNull { it.id == key.journeyId }
     val night = c.isNight
     val drawing = remember(journey, night) {
-        journey?.let { JourneyMap.drawing(it, night, search?.query?.origin?.coordinate?.takeUnless { search.query.origin.isCurrentLocation }, search?.query?.destination?.coordinate) }
+        journey?.let { j ->
+            val q = search?.query
+            JourneyMap.drawing(j, night, q?.origin?.takeUnless { it.isCurrentLocation }?.coordinate, q?.destination?.takeUnless { it.isCurrentLocation }?.coordinate)
+        }
     }
     SceneEffect(key, MapScene.Content(drawing))
     val title = journey?.let { "${Clock.of(it.departure)} – ${Clock.of(it.arrival)} · ${minutesText(it.duration)}" } ?: "Route"
@@ -352,12 +361,7 @@ fun JourneyPlaceholder(key: JourneyPage, graph: AppGraph, onBack: () -> Unit) {
             Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        MeasuredBar({ sheet.reportBar(key, it) }) { bar() }
-        if (sheet.atLowRest) {
-            bar()
-            return@Box
-        }
+    SheetPage(key, bar = bar) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(PaddingValues(start = 0.dp, end = 0.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())),

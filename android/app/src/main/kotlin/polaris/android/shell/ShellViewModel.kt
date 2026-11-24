@@ -46,6 +46,11 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     private val _need = MutableStateFlow<Need?>(null)
     val need: StateFlow<Need?> = _need.asStateFlow()
 
+    /** Finding where the person is for a trip; further taps wait for it rather than starting another. */
+    private var locating: kotlinx.coroutines.Job? = null
+    private val _finding = MutableStateFlow(false)
+    val finding: StateFlow<Boolean> = _finding.asStateFlow()
+
     /** A place picked for a results page's start or end, until that page takes it. */
     data class EndPick(val page: String, val isOrigin: Boolean, val place: Place)
     private val _endPick = MutableStateFlow<EndPick?>(null)
@@ -79,6 +84,8 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Plan to a place, from [origin] or from where the person is now (as iOS's `go(to:)`). */
     fun planTo(destination: Place, origin: Place? = null) {
+        // A second tap while the first is finding the person's position (or asking for it) is the same wish.
+        if (locating?.isActive == true || _need.value is Need.Trip) return
         graph.places.remember(destination)
         if (origin != null) {
             push(JourneyQuery(origin, destination, TimeMode.LeaveNow))
@@ -98,10 +105,28 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
         if (graph.locator.hasPermission) pickHere(kind) else _need.value = Need.Pick(kind)
     }
 
-    /** Android's answer to the permission request the screen made for [need]. */
-    fun permissionResult(granted: Boolean) {
+    /**
+     * The screen is about to show Android's prompt for [need]: marked first, so an activity
+     * recreated while the prompt is up (a rotation) doesn't ask a second time.
+     */
+    fun asking() {
+        _need.value = when (val n = _need.value) {
+            is Need.Trip -> n.copy(ask = false)
+            is Need.Map -> n.copy(ask = false)
+            is Need.Pick -> n.copy(ask = false)
+            else -> n
+        }
+    }
+
+    /**
+     * Android's answer to the prompt shown for [need]. An empty answer means the prompt was
+     * cancelled rather than refused (Android does this when the screen is recreated under it):
+     * then nothing is concluded, and the person can tap again.
+     */
+    fun permissionResult(granted: Boolean, answered: Boolean = true) {
         val waiting = _need.value ?: return
         _need.value = null
+        if (!answered && !granted) return
         if (granted) _showsLocation.value = true
         when (waiting) {
             is Need.Trip -> if (granted) locate(waiting.destination) else _need.value = Need.Stranded(waiting.destination, locationOff = true)
@@ -136,10 +161,16 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     fun forget(place: Place) = graph.places.forget(place)
 
     private fun locate(destination: Place) {
-        viewModelScope.launch {
-            val here = graph.locator.current()
-            if (here == null) _need.value = Need.Stranded(destination, locationOff = !graph.locator.hasPermission)
-            else push(JourneyQuery(currentLocation(here), destination, TimeMode.LeaveNow))
+        if (locating?.isActive == true) return
+        _finding.value = true
+        locating = viewModelScope.launch {
+            try {
+                val here = graph.locator.current()
+                if (here == null) _need.value = Need.Stranded(destination, locationOff = !graph.locator.hasPermission)
+                else push(JourneyQuery(currentLocation(here), destination, TimeMode.LeaveNow))
+            } finally {
+                _finding.value = false
+            }
         }
     }
 

@@ -9,6 +9,12 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.navigation3.runtime.NavKey
 import polaris.engine.JourneyMap
 import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /**
@@ -55,7 +61,8 @@ class SheetHost(
     private val restoreRest: () -> Unit,
     private val onBar: (NavKey, Int) -> Unit,
 ) {
-    val atLowRest: Boolean get() = !wide && state?.rest == Rest.Low
+    /** 0 at half or above, 1 at the low rest; always 0 when wide (no sheet). */
+    val lowness: Float get() = if (wide) 0f else state?.lowness ?: 0f
     fun request(rest: Rest) = requestRest(rest)
     fun restore() = restoreRest()
     fun reportBar(key: NavKey, height: Int) = onBar(key, height)
@@ -91,6 +98,42 @@ fun MeasuredBar(onHeight: (Int) -> Unit, content: @Composable () -> Unit) {
  * leading half, stopping 48 dp short of a fold, else 400 dp), short (under 480 dp tall: the sheet
  * has its low and half rests only), or the phone layout.
  */
-data class WindowLayout(val wide: Boolean = false, val short: Boolean = false, val cardWidth: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified)
+data class WindowLayout(
+    val wide: Boolean = false,
+    val short: Boolean = false,
+    val cardWidth: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    /** Wide: where the visible map half starts (past the fold when there is one), from the leading edge. */
+    val mapStart: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+)
 
 val LocalWindowLayout = compositionLocalOf { WindowLayout() }
+
+/**
+ * A page in the sheet: its content, and its one-row bar for the low rest. The content stays
+ * composed at every rest (its scroll position and open notices kept); the bar fades in over it as
+ * the sheet nears the low rest, by where the sheet is, and takes the taps there.
+ */
+@Composable
+fun SheetPage(key: NavKey, bar: @Composable () -> Unit, content: @Composable () -> Unit) {
+    val sheet = LocalSheet.current
+    val paper = polaris.android.ui.LocalPolaris.current.paper
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+        MeasuredBar({ sheet.reportBar(key, it) }) { bar() }
+        val low = sheet.lowness >= 0.5f
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize()
+                .graphicsLayer { alpha = 1f - sheet.lowness }
+                .then(if (low) androidx.compose.ui.Modifier.clearAndSetSemantics {} else androidx.compose.ui.Modifier),
+        ) { content() }
+        if (sheet.lowness > 0f) {
+            androidx.compose.foundation.layout.Box(
+                androidx.compose.ui.Modifier.fillMaxWidth()
+                    .graphicsLayer { alpha = sheet.lowness }
+                    .background(paper)
+                    // Taps here are the bar's, never the faded list's beneath; drags still move the sheet.
+                    .pointerInput(Unit) { detectTapGestures { } }
+                    .then(if (!low) androidx.compose.ui.Modifier.clearAndSetSemantics {} else androidx.compose.ui.Modifier),
+            ) { bar() }
+        }
+    }
+}

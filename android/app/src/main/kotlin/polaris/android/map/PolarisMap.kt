@@ -146,7 +146,8 @@ fun PolarisMap(
     // is applied (below), so a composition that is abandoned leaves nothing created behind.
     val mapView = remember(owner) {
         MapSetup.ensure(context)
-        MapView(context)
+        // Paper while the style loads, so a night map doesn't flash light first.
+        MapView(context, org.maplibre.android.maps.MapLibreMapOptions.createFromAttributes(context).foregroundLoadColor(colors.paper.toArgb()))
     }
     var map by remember(mapView) { mutableStateOf<MapLibreMap?>(null) }
     var style by remember(mapView) { mutableStateOf<Style?>(null) }

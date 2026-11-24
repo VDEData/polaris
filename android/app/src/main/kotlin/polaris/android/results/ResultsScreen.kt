@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -69,11 +70,13 @@ import polaris.android.shell.LocalScene
 import polaris.android.shell.LocalSheet
 import polaris.android.shell.MapScene
 import polaris.android.shell.MeasuredBar
+import polaris.android.shell.SheetPage
 import polaris.android.shell.ResultsPage
 import polaris.android.shell.SceneEffect
 import polaris.android.shell.SearchFor
 import polaris.android.shell.ShellViewModel
 import polaris.android.shell.factory
+import polaris.android.ui.HalfDialog
 import polaris.android.ui.Clock
 import polaris.android.ui.FractalStar
 import polaris.android.ui.LegStrip
@@ -151,12 +154,7 @@ fun ResultsScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        MeasuredBar({ h -> sheet.reportBar(key, h) }) { Bar(ui.query, onBack) }
-        if (sheet.atLowRest) {
-            Bar(ui.query, onBack)
-            return@Box
-        }
+    SheetPage(key, bar = { Bar(ui.query, onBack) }) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -167,8 +165,8 @@ fun ResultsScreen(
         ) {
             item(key = "trip") {
                 TripHeader(
-                    ui.query, onBack,
-                    edit = { isOrigin -> openSearch(SearchFor.ResultsEnd(key.id, isOrigin)) },
+                    ui.query, ui.resolved, onBack,
+                    edit = { isOrigin -> openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin))) },
                     swap = model::swap,
                     searchAgain = model::searchAgain,
                 )
@@ -191,11 +189,15 @@ fun ResultsScreen(
             when {
                 ui.noFix -> item(key = "nofix") {
                     Message("Can't find where you are", "Location is off or no fix came. Pick a start instead.", "Choose a start") {
-                        openSearch(SearchFor.ResultsEnd(key.id, isOrigin = ui.query.origin.isCurrentLocation))
+                        val isOrigin = ui.query.origin.isCurrentLocation
+                        openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin)))
                     }
                 }
                 ui.stale -> item(key = "stale") {
                     Message("These routes weren't kept", "Android closed Polaris while it was in the background.", "Search again", model::searchAgain)
+                }
+                ui.restoredFrom != null && model.isOld(ui) -> item(key = "old") {
+                    Message("These routes are from ${ui.restoredFrom?.let { Clock.of(it) }}", "Times may have changed since. Search again for the latest.", "Search again", model::searchAgain)
                 }
             }
             val notices = ui.notices
@@ -206,7 +208,7 @@ fun ResultsScreen(
 
     if (showFilters && !sheet.wide) FilterSheet(ui.filter, onChange = model::setFilter, onDismiss = { showFilters = false })
     timeKind?.let { kind -> TimeDialog(kind, ui.query.time, onDismiss = { timeKind = null }) { model.setTime(it); timeKind = null } }
-    if (showSources) SourcesDialog(ui.statuses) { showSources = false }
+    if (showSources) SourcesDialog(ui.statuses, ui.ranked.top.size + ui.ranked.more.size) { showSources = false }
 }
 
 private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsViewModel, onOpen: (String) -> Unit) {
@@ -224,7 +226,7 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
         item(key = "more") {
             TextButton(onClick = model::toggleMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Text(if (ui.showMore) "Show fewer" else moreLabel(ranked.more), fontWeight = FontWeight.SemiBold)
-                Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(20.dp).then(if (ui.showMore) Modifier.semantics { } else Modifier))
+                Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(20.dp).graphicsLayer { rotationZ = if (ui.showMore) 180f else 0f })
             }
         }
         if (ui.showMore) items(ranked.more, key = { "more-" + it.id }) { option ->
@@ -234,7 +236,14 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
     if (ranked.hidden > 0) item(key = "hidden") {
         HiddenNote(ranked.hidden, all = ranked.top.isEmpty() && ranked.more.isEmpty()) { model.setFilter(RouteFilter()) }
     }
-    if (ranked.top.isEmpty() && ranked.more.isEmpty() && ranked.hidden == 0 && !ui.isSearching && !ui.stale && !ui.noFix) {
+    if (ranked.top.isEmpty() && ranked.more.isEmpty() && (ui.isSearching || ui.restoring)) item(key = "waiting") {
+        Text(
+            if (ui.restoring) "Bringing back your routes…" else "Routes appear here as each source answers.",
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft,
+        )
+    }
+    if (ranked.top.isEmpty() && ranked.more.isEmpty() && ranked.hidden == 0 && !ui.isSearching && !ui.stale && !ui.noFix && !ui.restoring) {
         item(key = "empty") { EmptyState() }
     }
 }
@@ -256,8 +265,10 @@ private fun moreLabel(more: List<RouteOption>): String {
 /** The map for this page: every top route framed, the shown one drawn in its colours, the others faint. */
 private fun sceneFor(ui: ResultsViewModel.Ui, night: Boolean): MapScene.Content {
     val shown = ui.shown ?: return MapScene.Content()
-    val q = ui.query
-    val drawingOf = { j: Journey -> JourneyMap.drawing(j, night, q.origin.coordinate.takeUnless { q.origin.isCurrentLocation && it.latitude == 0.0 }, q.destination.coordinate) }
+    // Current Location's saved coordinate is a placeholder: only a resolved fix is drawn.
+    val q = ui.resolved ?: ui.query
+    val known = { p: Place -> if (!p.isCurrentLocation || ui.resolved != null) p.coordinate else null }
+    val drawingOf = { j: Journey -> JourneyMap.drawing(j, night, known(q.origin), known(q.destination)) }
     val main = drawingOf(shown.journey)
     val others = ui.ranked.top.take(4).filter { it.id != shown.id }.map { drawingOf(it.journey) }
     val boxes = (others + main).mapNotNull { it.bounds }
@@ -266,6 +277,9 @@ private fun sceneFor(ui: ResultsViewModel.Ui, night: Boolean): MapScene.Content 
 }
 
 private fun placeName(p: Place) = p.name
+
+/** The other end of the trip as "lat,lon", to bias a search for this end; nothing for Current Location. */
+private fun otherEnd(q: JourneyQuery, isOrigin: Boolean): String? = (if (isOrigin) q.destination else q.origin).takeUnless { it.isCurrentLocation }?.coordinate?.pair
 
 @Composable
 private fun Bar(query: JourneyQuery, onBack: () -> Unit) {
@@ -285,7 +299,7 @@ private fun Bar(query: JourneyQuery, onBack: () -> Unit) {
  * way to change it.
  */
 @Composable
-private fun TripHeader(query: JourneyQuery, onBack: () -> Unit, edit: (Boolean) -> Unit, swap: () -> Unit, searchAgain: () -> Unit) {
+private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, onBack: () -> Unit, edit: (Boolean) -> Unit, swap: () -> Unit, searchAgain: () -> Unit) {
     val c = polaris
     val context = LocalContext.current
     var menu by rememberSaveable { mutableStateOf(false) }
@@ -308,7 +322,7 @@ private fun TripHeader(query: JourneyQuery, onBack: () -> Unit, edit: (Boolean) 
                 OpenIn.entries.forEach { app ->
                     DropdownMenuItem(text = { Text(app.label) }, leadingIcon = { Symbol(R.drawable.sym_open_in_new, null) }, onClick = {
                         menu = false
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(app.url(query)))) }
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(app.url(query, resolved)))) }
                     })
                 }
             }
@@ -353,7 +367,8 @@ private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind
     val c = polaris
     var timeMenu by rememberSaveable { mutableStateOf(false) }
     var sortMenu by rememberSaveable { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps onto a second line rather than hiding a control off the edge (long sort names, large text).
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box {
             OutlinedButton(onClick = { timeMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(timeLabel(ui.query.time), maxLines = 1)
@@ -368,7 +383,7 @@ private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind
         if (!wide) {
             Box {
                 OutlinedButton(onClick = { sortMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Sort: ${ui.sort.label}" }) {
-                    Text(if (ui.sort == SortOrder.best) "Sort: Best" else ui.sort.label, maxLines = 1)
+                    Text("Sort: ${ui.sort.label}", maxLines = 1)
                     Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(18.dp))
                 }
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
@@ -439,7 +454,7 @@ fun summary(ui: ResultsViewModel.Ui): String {
     val found = "$routes route${if (routes == 1) "" else "s"}"
     val order = ProviderID.entries
     val asking = order.filter { ui.statuses[it] == ProviderStatus.Loading }.map { it.displayName }
-    if (asking.isNotEmpty()) return (if (routes > 0) "$found so far · " else "") + "asking ${spokenList(asking)}"
+    if (asking.isNotEmpty()) return if (routes > 0) "$found so far · asking ${spokenList(asking)}" else "Asking ${spokenList(asking)}"
     val answered = order.filter { it != ProviderID.apple && ui.statuses[it] is ProviderStatus.Done }.map { it.displayName }
     val failed = order.filter { ui.statuses[it] is ProviderStatus.Failed }.map { it.displayName }
     if (ui.statuses.isEmpty()) return "Not searched"
@@ -450,13 +465,13 @@ fun summary(ui: ResultsViewModel.Ui): String {
 
 /** Who answered, who didn't, and why: iOS's sources panel. */
 @Composable
-private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, onDismiss: () -> Unit) {
+private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, routes: Int, onDismiss: () -> Unit) {
     val c = polaris
-    AlertDialog(
+    HalfDialog(
         onDismissRequest = onDismiss,
+        title = "Sources",
         confirmButton = { TextButton(onDismiss) { Text("Done") } },
-        title = { Text("Sources") },
-        text = {
+    ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ProviderID.entries.filter { it != ProviderID.apple }.forEach { id ->
                     val status = statuses[id] ?: return@forEach
@@ -465,8 +480,8 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, onDismiss: 
                         Text(
                             when (status) {
                                 ProviderStatus.Loading -> "Searching…"
-                                is ProviderStatus.Done -> "${status.count} found"
-                                is ProviderStatus.Failed -> status.reason
+                                is ProviderStatus.Done -> "${status.count} journey${if (status.count == 1) "" else "s"}"
+                                is ProviderStatus.Failed -> plainFailure(status.reason)
                                 is ProviderStatus.Off -> status.reason
                             },
                             Modifier.weight(1.4f),
@@ -480,12 +495,20 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, onDismiss: 
                     }
                 }
                 Text(
-                    "A route several sources found shows once, with each one's badge. The star's points fill in as Google, TfL and Transitous answer.",
+                    "Each source's journeys are counted as it sent them. The list shows $routes route${if (routes == 1) "" else "s"}: " +
+                        "departures on the same lines are one route (\"Or leave at\"), and a route several sources found shows once, " +
+                        "with each one's badge. The star's points fill in as Google, TfL and Transitous answer.",
                     style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
                 )
             }
-        },
-    )
+    }
+}
+
+/** "HTTP 503" means little to anyone: say it plainly. Offline and timed out already read well. */
+fun plainFailure(reason: String): String = when {
+    reason.startsWith("HTTP") -> "Didn't answer"
+    reason == "Interrupted" -> "Interrupted"
+    else -> reason
 }
 
 @Composable
@@ -538,6 +561,8 @@ private fun NoticeList(notices: List<ServiceNotice>) {
                     }
                     if (notice.detail.isNotEmpty()) {
                         Text(notice.detail, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+                        // A visible cue that TfL's full words are a tap away.
+                        Text(if (expanded) "Show less" else "Read TfL's notice", style = MaterialTheme.typography.labelMedium, color = c.tint)
                     }
                 }
             }
@@ -588,11 +613,14 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (isBest) FractalStar(18.dp)
-            Text("${Clock.of(j.departure)} – ${Clock.of(j.arrival)}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = c.ink)
+        // The times stay whole; at large text the duration moves under them rather than splitting them.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isBest) FractalStar(18.dp)
+                Text("${Clock.of(j.departure)}\u00A0–\u00A0${Clock.of(j.arrival)}", style = MaterialTheme.typography.titleMedium, color = c.ink, softWrap = false)
+            }
             Column(horizontalAlignment = Alignment.End) {
-                Text(minutesText(j.duration), style = MaterialTheme.typography.titleMedium, color = c.ink)
+                Text(minutesText(j.duration).replace(' ', '\u00A0'), style = MaterialTheme.typography.titleMedium, color = c.ink, softWrap = false)
                 delta?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft) }
             }
         }
@@ -611,7 +639,11 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
         boarding?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Text(details, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
-            if (j.hasDisruption && j.notices.isEmpty()) Symbol(R.drawable.sym_warning, null, Modifier.size(14.dp), tint = c.warning)
+            if (j.hasDisruption && j.notices.isEmpty()) {
+                // The source said something is wrong on this route without saying what.
+                Symbol(R.drawable.sym_warning, null, Modifier.size(14.dp), tint = c.warning)
+                Text("Disruption reported", style = MaterialTheme.typography.bodySmall, color = c.warning)
+            }
             option.providers.forEach { SourceBadge(it) }
         }
         if (option.otherDepartures.isNotEmpty()) {
@@ -660,19 +692,28 @@ private fun EmptyState() {
 enum class OpenIn(val label: String) {
     Citymapper("Citymapper"), GoogleMaps("Google Maps");
 
-    fun url(q: JourneyQuery): String {
+    /**
+     * Current Location is left for the other app to work out where it has no fix of ours (its
+     * saved coordinate is a placeholder); either end is treated the same way.
+     */
+    fun url(q: JourneyQuery, resolved: JourneyQuery? = null): String {
         fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
-        val from = q.origin
-        val to = q.destination
+        fun at(p: Place, r: Place?): Place? = if (!p.isCurrentLocation) p else r?.takeIf { resolved != null }
+        val from = at(q.origin, resolved?.origin)
+        val to = at(q.destination, resolved?.destination)
         return when (this) {
             Citymapper -> buildString {
-                append("https://citymapper.com/directions?endcoord=").append(enc(to.coordinate.pair)).append("&endname=").append(enc(to.name))
-                if (!from.isCurrentLocation) append("&startcoord=").append(enc(from.coordinate.pair)).append("&startname=").append(enc(from.name))
-                (q.time as? TimeMode.ArriveBy)?.let { append("&arrival_time=").append(enc(Time.isoString(it.at))) }
+                append("https://citymapper.com/directions?")
+                val parts = mutableListOf<String>()
+                to?.let { parts += "endcoord=${enc(it.coordinate.pair)}"; parts += "endname=${enc(it.name)}" }
+                from?.let { parts += "startcoord=${enc(it.coordinate.pair)}"; parts += "startname=${enc(it.name)}" }
+                (q.time as? TimeMode.ArriveBy)?.let { parts += "arrival_time=${enc(Time.isoString(it.at))}" }
+                append(parts.joinToString("&"))
             }
             GoogleMaps -> buildString {
-                append("https://www.google.com/maps/dir/?api=1&destination=").append(enc(to.coordinate.pair)).append("&travelmode=transit")
-                if (!from.isCurrentLocation) append("&origin=").append(enc(from.coordinate.pair))
+                append("https://www.google.com/maps/dir/?api=1&travelmode=transit")
+                to?.let { append("&destination=").append(enc(it.coordinate.pair)) }
+                from?.let { append("&origin=").append(enc(it.coordinate.pair)) }
             }
         }
     }

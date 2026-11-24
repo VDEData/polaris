@@ -48,6 +48,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +57,7 @@ import androidx.navigation3.runtime.NavKey
 import polaris.android.R
 import polaris.android.shell.LocalSheet
 import polaris.android.shell.MeasuredBar
+import polaris.android.shell.SheetPage
 import polaris.android.shell.SearchFor
 import polaris.android.shell.ShellViewModel
 import polaris.android.ui.FractalStar
@@ -76,16 +79,12 @@ import polaris.engine.Place
 @Composable
 fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Unit) {
     val places by shell.places.collectAsStateWithLifecycle()
+    val finding by shell.finding.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
     val c = polaris
 
-    Box(Modifier.fillMaxSize()) {
-        // The one-row bar the sheet shows at its low rest, measured (not drawn) so the rest fits it.
-        MeasuredBar({ h -> sheet.reportBar(key, h) }) { Bar {} }
-        if (sheet.atLowRest) {
-            Bar(openSearch)
-            return@Box
-        }
+    // The one-row bar shows at the sheet's low rest, over the list, which stays as it was.
+    SheetPage(key, bar = { Bar(openSearch) }) {
         val list = rememberLazyListState()
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -103,6 +102,16 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
                 }
             }
             item { WhereTo(Modifier.fillMaxWidth()) { openSearch(SearchFor.Destination) } }
+            if (finding) item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("Finding where you are…", style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+                }
+            }
             item {
                 val home: @Composable (Modifier) -> Unit = { m ->
                     SavedTile("Home", R.drawable.sym_home, places.home, m,
@@ -205,7 +214,7 @@ private fun SavedTile(
             }
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(place?.name ?: "Add", style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(place?.name ?: "Add", style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (place != null) {
                 IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More for $title" }) {
@@ -237,8 +246,8 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
         ) {
             Symbol(R.drawable.sym_history, null, Modifier.width(28.dp), tint = c.inkSoft)
             Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                Text(place.name, style = MaterialTheme.typography.bodyLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                place.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Text(place.name, style = MaterialTheme.typography.bodyLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                place.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
             IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More for ${place.name}" }) {
                 Symbol(R.drawable.sym_more_vert, null, tint = c.inkSoft)

@@ -127,13 +127,17 @@ fun shortLineName(line: String): String {
 @Composable
 fun LinePill(leg: Leg, modifier: Modifier = Modifier) {
     val c = polaris
-    val fill = lineColor(leg.lineColor, c.isNight)
-    val ink = onLineColor(leg.lineColor, c.isNight)
-    val pale = (leg.lineColor?.luminance ?: 0.4) > 0.7
+    // A pill keeps its line's own colour in both appearances, as iOS's `LinePill` does; only lines
+    // drawn on the map and down the itinerary lift near-black at night. A dark pill at night, or a
+    // pale one by day, gets a hairline edge instead.
+    val own = leg.lineColor ?: JourneyMap.unknownLine
+    val fill = own.toColor()
+    val ink = if (own.luminance < 0.6) Color.White else PolarisColors.Navy
+    val pale = if (c.isNight) own.luminance < 0.2 else own.luminance > 0.7
     Row(
         modifier
             .background(fill, RoundedCornerShape(6.dp))
-            .then(if (pale && !c.isNight) Modifier.border(0.5.dp, c.hairline, RoundedCornerShape(6.dp)) else Modifier)
+            .then(if (pale) Modifier.border(if (c.isNight) 1.dp else 0.5.dp, if (c.isNight) Color.White.copy(alpha = 0.35f) else c.hairline, RoundedCornerShape(6.dp)) else Modifier)
             .heightIn(min = 24.dp)
             .padding(horizontal = 7.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,

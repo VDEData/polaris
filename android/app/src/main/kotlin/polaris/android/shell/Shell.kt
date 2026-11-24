@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -81,6 +82,7 @@ import polaris.android.map.PolarisMap
 import polaris.android.results.JourneyPlaceholder
 import polaris.android.results.ResultsScreen
 import polaris.android.search.PlaceSearchScreen
+import polaris.android.ui.HalfDialog
 import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
 import polaris.engine.Snapshot
@@ -121,21 +123,26 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     }
     // Pages' archived searches that are no longer on the stack are deleted.
     LaunchedEffect(pages.toList()) {
-        graph.archive.keepOnly(pages.filterIsInstance<ResultsPage>().map { it.id }.toSet())
+        val keep = pages.filterIsInstance<ResultsPage>().map { it.id }.toSet()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.archive.keepOnly(keep) }
     }
 
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        shell.permissionResult(result.values.any { it })
+        shell.permissionResult(granted = result.values.any { it } || graph.locator.hasPermission, answered = result.isNotEmpty())
     }
     val need by shell.need.collectAsStateLifecycle()
     LaunchedEffect(need) {
-        if (need?.ask == true) ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        if (need?.ask == true) {
+            shell.asking()
+            ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
     }
 
     val openSearch: (SearchFor) -> Unit = { kind -> if (window.lastOrNull() !is SearchWindow) window.add(SearchWindow(kind)) }
 
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
+    var windowLayout by remember { mutableStateOf(WindowLayout()) }
     val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList
     // A flat fold reports isSeparating false; the card still stops short of it.
     val hinge = hinges.firstOrNull { it.isVertical }
@@ -143,14 +150,20 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // layout with more room, as the proposal decides for tall-open, not a card above the fold.
     val foldAcross = hinges.any { !it.isVertical }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    val wide = maxWidth >= 840.dp && maxHeight >= 480.dp && !foldAcross
+    // Wide: an unfolded phone held wide, a tablet in landscape, and a phone in landscape (under
+    // 480 dp tall a sheet leaves no room for a route card; a card beside the map does).
+    val wide = !foldAcross && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
     val widthPx = constraints.maxWidth.toFloat()
-    // Up to the fold, 48 dp short of it; with no fold, 400 dp. The card starts 16 dp in.
+    // Up to the fold, 48 dp short of it; with no fold, 400 dp (less on a short landscape phone). The card starts 16 dp in.
+    val foldStart = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.left else widthPx - it.right }
+    val foldEnd = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.right else widthPx - it.left }
     val cardWidth: Dp = if (!wide) Dp.Unspecified else with(density) {
-        val foldStart = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.left else widthPx - it.right }
-        if (foldStart != null) (foldStart.toDp() - 48.dp - 16.dp).coerceIn(320.dp, 560.dp) else 400.dp
+        if (foldStart != null) (foldStart.toDp() - 48.dp - 16.dp).coerceIn(320.dp, 560.dp) else minOf(400.dp, maxWidth * 0.45f)
     }
-    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth)
+    // The map's own half starts past the fold, so its credit and framed routes never straddle it.
+    val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
+    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart)
+    androidx.compose.runtime.SideEffect { windowLayout = layout }
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -179,19 +192,20 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     }
 
     when (val n = need) {
-        is ShellViewModel.Need.Stranded -> AlertDialog(
-            onDismissRequest = shell::dismissNeed,
-            title = { Text("Can't find where you are") },
-            text = { Text(if (n.locationOff) "Location is off for Polaris. Pick where you're starting from instead." else "Pick where you're starting from instead.") },
-            confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text("Choose a start") } },
-            dismissButton = { TextButton(shell::dismissNeed) { Text("Cancel") } },
-        )
+        is ShellViewModel.Need.Stranded -> CompositionLocalProvider(LocalWindowLayout provides windowLayout) {
+            HalfDialog(
+                onDismissRequest = shell::dismissNeed,
+                title = "Can't find where you are",
+                confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text("Choose a start") } },
+                dismissButton = { TextButton(shell::dismissNeed) { Text("Cancel") } },
+            ) { Text(if (n.locationOff) "Location is off for Polaris. Pick where you're starting from instead." else "Pick where you're starting from instead.") }
+        }
         ShellViewModel.Need.LocationOff -> {
             val context = androidx.compose.ui.platform.LocalContext.current
-            AlertDialog(
+            CompositionLocalProvider(LocalWindowLayout provides windowLayout) {
+            HalfDialog(
                 onDismissRequest = shell::dismissNeed,
-                title = { Text("Location is off for Polaris") },
-                text = { Text("Allow location in Settings to use where you are, or pick a place instead.") },
+                title = "Location is off for Polaris",
                 confirmButton = {
                     TextButton({
                         shell.dismissNeed()
@@ -203,7 +217,8 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
                     }) { Text("Open settings") }
                 },
                 dismissButton = { TextButton(shell::dismissNeed) { Text("Not now") } },
-            )
+            ) { Text("Allow location in Settings to use where you are, or pick a place instead.") }
+            }
         }
         else -> Unit
     }
@@ -275,7 +290,7 @@ private fun MapAndSheet(
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
-            LaunchedEffect(anchors) { sheet.updateAnchors(anchors) }
+            LaunchedEffect(anchors) { sheet.updateAnchors(scope, anchors) }
         }
 
         val host = remember(wide, sheet) {
@@ -290,7 +305,7 @@ private fun MapAndSheet(
 
         // What covers the map, for its credit and for fitting routes into the part left showing.
         val covered = if (wide) {
-            PaddingValues(start = cardStart + cardWidth + 16.dp, top = statusTop + 16.dp, end = 72.dp, bottom = navBottom)
+            PaddingValues(start = layout.mapStart, top = statusTop + 16.dp, end = 72.dp, bottom = navBottom)
         } else {
             val sheetTop = if (sheet.top.isNaN()) heightPx else sheet.top
             PaddingValues(top = statusTop + 8.dp, end = 64.dp, bottom = with(density) { (heightPx - sheetTop).coerceAtLeast(0f).toDp() })
@@ -312,6 +327,11 @@ private fun MapAndSheet(
             showLocation = showsLocation,
             recentre = recentre,
             overlay = {
+                // The status bar's clock and icons sit on a soft band of paper, not straight on map labels.
+                Box(
+                    Modifier.align(Alignment.TopCenter).fillMaxWidth().height(statusTop + 20.dp)
+                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(polaris.paper.copy(alpha = 0.92f), polaris.paper.copy(alpha = 0f)))),
+                )
                 LocationButton(
                     Modifier.align(Alignment.TopEnd)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
@@ -367,14 +387,16 @@ private fun SheetPages(
     // Pages slide in from the end; going back, the page on top slides away over the one under it
     // (and follows the finger during predictive back). Each page is opaque, so they never overlap.
     val paper = polaris.paper
+    val end = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
     val page: @Composable (@Composable () -> Unit) -> Unit = { content -> Box(Modifier.fillMaxSize().background(paper)) { content() } }
     NavDisplay(
         backStack = pages,
         onBack = { if (pages.size > 1) pages.removeLastOrNull() },
         entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
-        transitionSpec = { slideInHorizontally { it } togetherWith ExitTransition.KeepUntilTransitionsFinished },
-        popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it }).apply { targetContentZIndex = -1f } },
-        predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it }).apply { targetContentZIndex = -1f } },
+        // From the end edge: the right, or the left in a right-to-left language.
+        transitionSpec = { slideInHorizontally { it * end } togetherWith ExitTransition.KeepUntilTransitionsFinished },
+        popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
+        predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
             entry<HomePage> { key -> page { HomeScreen(key, shell, openSearch) } }
             entry<ResultsPage> { key ->

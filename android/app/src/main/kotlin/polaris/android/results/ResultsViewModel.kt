@@ -64,6 +64,12 @@ class ResultsViewModel(
         val noFix: Boolean = false,
         /** Android recreated the page and its copy of the routes is gone: offer "Search again" rather than asking unprompted. */
         val stale: Boolean = false,
+        /** Reading the page's kept routes back (off the main thread) after Android recreated it. */
+        val restoring: Boolean = false,
+        /** When the routes shown were found, if they came back from the kept copy. */
+        val restoredFrom: Instant? = null,
+        /** The trip as searched, with Current Location given its fix; null until a search has resolved it. */
+        val resolved: JourneyQuery? = null,
     ) {
         val isSearching: Boolean get() = locating || statuses.values.any { it == ProviderStatus.Loading }
         val ranked: JourneyRanker.Ranked by lazy { JourneyRanker.rank(journeys, query.time.isArriveBy, sort, filter) }
@@ -88,20 +94,45 @@ class ResultsViewModel(
 
     init {
         // A page that has never searched is a trip the person just asked for: search it once.
-        // One that has (Android recreated it) shows its archived copy, or offers Search again.
-        if (handle.get<Boolean>(STARTED) != true) search()
+        // One that has (Android recreated it) shows its kept copy, or offers Search again.
+        if (handle.get<Boolean>(STARTED) != true) search() else readBack()
     }
 
     private fun restore(initial: JourneyQuery): Ui {
         val settings = graph.settings
         val query = handle.get<String>(QUERY)?.let(Snapshot::decodeQuery) ?: initial
-        val base = Ui(
+        return Ui(
             query = query, sort = settings.sortOrder, filter = settings.routeFilter,
             selectedId = handle.get<String>(SELECTED), showMore = handle.get<Boolean>(MORE) ?: false,
+            restoring = handle.get<Boolean>(STARTED) == true,
         )
-        if (handle.get<Boolean>(STARTED) != true) return base
-        val copy = graph.archive.load(id) ?: return base.copy(stale = true)
-        return base.copy(statuses = copy.statuses, journeys = copy.journeys, networkChecked = copy.networkChecked)
+    }
+
+    /**
+     * The kept copy, read off the main thread, and used only if it is this trip: a copy of the
+     * trip before an edit (a new start whose fix never came, say) is not shown under the new one.
+     */
+    private fun readBack() {
+        viewModelScope.launch {
+            val copy = withContext(io) { graph.archive.load(id) }
+            val ui = _ui.value
+            if (!ui.restoring) return@launch
+            _ui.value = if (copy == null || Snapshot.encode(copy.query) != Snapshot.encode(ui.query)) {
+                ui.copy(restoring = false, stale = true)
+            } else {
+                ui.copy(restoring = false, statuses = copy.statuses, journeys = copy.journeys, networkChecked = copy.networkChecked, restoredFrom = copy.savedAt)
+            }
+        }
+    }
+
+    /**
+     * Routes brought back from the kept copy that are old enough to have changed: past 10 minutes
+     * for Leave now, an hour for a set time. iOS keeps no copy, so these figures are Android's own.
+     */
+    fun isOld(ui: Ui, at: Instant = now()): Boolean {
+        val from = ui.restoredFrom ?: return false
+        val age = java.time.Duration.between(from, at)
+        return age > (if (ui.query.time == TimeMode.LeaveNow) OLD_LEAVE_NOW else OLD_SET_TIME)
     }
 
     // The person's actions.
@@ -157,7 +188,7 @@ class ResultsViewModel(
         searching?.cancel()
         val query = _ui.value.query
         _ui.value = _ui.value.copy(stale = false, noFix = false, selectedId = null, locating = query.usesHere,
-            statuses = emptyMap(), journeys = emptyList(), networkChecked = false)
+            statuses = emptyMap(), journeys = emptyList(), networkChecked = false, restoring = false, restoredFrom = null, resolved = null)
         val model = model ?: graph.searchModel().also { model = it }
         searching = viewModelScope.launch {
             var resolved = query
@@ -172,7 +203,7 @@ class ResultsViewModel(
                     destination = if (query.destination.isCurrentLocation) query.destination.copy(coordinate = here) else query.destination,
                 )
             }
-            _ui.value = _ui.value.copy(locating = false)
+            _ui.value = _ui.value.copy(locating = false, resolved = resolved)
             val follow = launch {
                 model.state.collect { s ->
                     if (s.query != resolved) return@collect
@@ -200,6 +231,8 @@ class ResultsViewModel(
         const val STARTED = "started"
         const val SELECTED = "selected"
         const val MORE = "more"
+        val OLD_LEAVE_NOW: java.time.Duration = java.time.Duration.ofMinutes(10)
+        val OLD_SET_TIME: java.time.Duration = java.time.Duration.ofHours(1)
 
         private val JourneyQuery.usesHere get() = origin.isCurrentLocation || destination.isCurrentLocation
 

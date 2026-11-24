@@ -203,6 +203,29 @@ class AppSettings(
     /** An entered key is saved but can't be read right now. */
     val keysUnreadable: Boolean get() = field(GOOGLE) == SecretField.Unreadable || field(TFL) == SecretField.Unreadable
 
+    /** One key as one search uses it: the value to send (null for none), or saved but unreadable. */
+    sealed interface Key {
+        data class Use(val value: String?) : Key {
+            override fun toString() = "Use(${if (value == null) "none" else "redacted"})"
+        }
+        data object Unreadable : Key
+    }
+
+    data class Keys(val google: Key, val tfl: Key)
+
+    /**
+     * Google's and TfL's keys, each read from the store once, so everything one search decides
+     * (whether to ask, what to count, what to send) comes from the same read.
+     */
+    fun readKeys(): Keys {
+        fun key(account: String, built: String?): Key = when (val f = field(account)) {
+            is SecretField.Entered -> Key.Use(firstNonEmpty(f.text, built))
+            SecretField.Empty -> Key.Use(firstNonEmpty(built))
+            SecretField.Unreadable -> Key.Unreadable
+        }
+        return Keys(key(GOOGLE, build.googleKey), key(TFL, build.tflKey))
+    }
+
     val googleKey: String? get() = entered(GOOGLE)?.let { firstNonEmpty(it, build.googleKey) }
     val tflKey: String? get() = entered(TFL)?.let { firstNonEmpty(it, build.tflKey) }
     val hasBuiltInGoogleKey: Boolean get() = firstNonEmpty(build.googleKey) != null

@@ -91,4 +91,64 @@ class ScreensEngineTest {
         assertEquals(ProviderStatus.Off(SearchModel.UNREADABLE_KEY), model.state.value.statuses[ProviderID.tfl])
         assertEquals(1, transport.to("api.transitous.org").size)
     }
+
+    /** Counts reads per account, so a test can see each key is read once a search. */
+    private class CountingStore(private val values: Map<String, String>) : SecretStore {
+        val reads = mutableMapOf<String, Int>()
+        override fun read(account: String): SecretRead {
+            reads[account] = (reads[account] ?: 0) + 1
+            return values[account]?.let { SecretRead.Value(it) } ?: SecretRead.Absent
+        }
+        override fun write(value: String, account: String) = false
+    }
+
+    @Test fun eachKeyIsReadOnceASearch() = runTest {
+        val store = CountingStore(mapOf(AppSettings.GOOGLE to "g-key", AppSettings.TFL to "t-key"))
+        val settings = AppSettings(store, BuildDefaults())
+        val model = SearchModel.create(settings, GoogleUsage(InMemoryKeyValueStore()), "0.1.0", AppIdentity(), RecordingTransport(), NetworkStatusCache())
+        model.search(JourneyQuery(kingsCross, wharf, TimeMode.LeaveNow), settings)
+        // A value changing between reads could otherwise send TfL without its key, or count Google requests never sent.
+        assertEquals(1, store.reads[AppSettings.GOOGLE])
+        assertEquals(1, store.reads[AppSettings.TFL])
+    }
+
+    @Test fun theSamePlaceListedTwiceShowsOnce() {
+        val matches = PlaceSearch.parse(Fixtures.bytes("transitous-geocode-kings-cross.json"))
+        assertEquals(4, matches.size)
+        assertEquals(matches.size, matches.map { it.place.id }.toSet().size)
+        assertEquals(matches.size, matches.map { it.place.name.lowercase() to it.place.subtitle }.toSet().size)
+        assertEquals(1, matches.count { it.place.name == "King's Cross St. Pancras Underground Station" })
+        // The stop is kept over the bare place, so it carries its modes.
+        assertEquals(PlaceMatch.Kind.stop, matches.first { it.place.name == "King's Cross St. Pancras Underground Station" }.kind)
+    }
+
+    @Test fun aSnapshotKeepsEveryDetailACardShows() {
+        val ride = Leg(
+            id = "l1", mode = LegMode.tube, line = "Northern", lineColor = RGB.hex("2B2B2B"), headsign = "Edgware",
+            fromName = "King's Cross", toName = "Bank", departure = Instant.parse("2026-11-24T09:01:00Z"), arrival = Instant.parse("2026-11-24T09:09:00Z"),
+            stopCount = 4, distanceMeters = 3200.0, path = listOf(Coordinate(51.53, -0.12), Coordinate(51.51, -0.09)),
+            isRealtime = true, platform = "2", intermediateStops = listOf("Angel", "Old Street"),
+        )
+        val journey = Journey(
+            id = "j1", departure = ride.departure, arrival = ride.arrival, legs = listOf(ride),
+            sources = listOf(SourceTag(ProviderID.tfl, "Fewer changes"), SourceTag(ProviderID.transitous, "")), fare = "£2.80", hasDisruption = true,
+        )
+        for (time in listOf(TimeMode.LeaveNow, TimeMode.DepartAt(Instant.parse("2026-11-24T09:00:00Z")), TimeMode.ArriveBy(Instant.parse("2026-11-24T10:00:00Z")))) {
+            val query = JourneyQuery(kingsCross, wharf, time)
+            val back = Snapshot.decodeSearch(Snapshot.encode(Snapshot.Search(query, emptyMap(), listOf(journey), false, Instant.parse("2026-11-24T09:00:00Z"))))!!
+            assertEquals(time, back.query.time)
+            val j = back.journeys.single()
+            assertEquals("£2.80", j.fare)
+            assertEquals(true, j.hasDisruption)
+            assertEquals(journey.sources, j.sources)
+            val l = j.legs.single()
+            assertEquals(ride.lineColor, l.lineColor)
+            assertEquals("2", l.platform)
+            assertEquals(4, l.stopCount)
+            assertEquals(true, l.isRealtime)
+            assertEquals("Edgware", l.headsign)
+            assertEquals(ride.intermediateStops, l.intermediateStops)
+            assertEquals(ride.path, l.path)
+        }
+    }
 }

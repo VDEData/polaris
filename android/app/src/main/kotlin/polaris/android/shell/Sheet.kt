@@ -1,8 +1,10 @@
 package polaris.android.shell
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlinx.coroutines.Job
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -51,42 +53,71 @@ import kotlin.math.roundToInt
 /** The sheet's rests, as on iOS: a one-row bar, half the window, and full height. */
 enum class Rest(val spoken: String) { Low("Collapsed"), Half("Half open"), Full("Expanded") }
 
+/** Moves the sheet between two offsets; a spring on a device, instant in tests. */
+fun interface SheetAnimator {
+    suspend fun animate(from: Float, to: Float, onValue: (Float) -> Unit)
+
+    companion object {
+        val Spring = SheetAnimator { from, to, onValue ->
+            if (from.isNaN()) onValue(to)
+            else androidx.compose.animation.core.animate(from, to, animationSpec = spring(dampingRatio = 0.9f, stiffness = 500f)) { v, _ -> onValue(v) }
+        }
+    }
+}
+
 /**
  * Where the sheet rests and is. A rest the person drags to is remembered ([remembered]); one a
  * page asks for is not (iOS's rule), so going back to Home returns to the person's own rest.
- * Offsets are the sheet's top edge in pixels from the window's top.
+ * Offsets are the sheet's top edge in pixels from the window's top. A drag moves the sheet at
+ * once (the offset is plain state, not an animation), and a new shape (a rotation, a fold)
+ * retargets a running animation rather than jumping over it.
  */
 @Stable
-class SheetState(initial: Rest, remembered: Rest) {
+class SheetState(initial: Rest, remembered: Rest, private val animator: SheetAnimator = SheetAnimator.Spring) {
     /** Where it is going or rests. Saved. */
     var rest by mutableStateOf(initial)
         private set
     var remembered by mutableStateOf(remembered)
         private set
 
-    internal val offset = Animatable(Float.NaN)
+    private var offset by mutableFloatStateOf(Float.NaN)
     internal var anchors by mutableStateOf<Map<Rest, Float>>(emptyMap())
+    private var animation: Job? = null
 
     /** The sheet's top edge, for the map's padding and its credit. */
-    val top: Float get() = offset.value
+    val top: Float get() = offset
 
     val rests: List<Rest> get() = Rest.entries.filter { it in anchors }
 
+    /**
+     * How far the sheet is toward its low rest: 0 at half or above, 1 at the bar. Pages fade
+     * their bar in by this, from where the sheet is rather than where it is going.
+     */
+    val lowness: Float
+        get() {
+            val low = anchors[Rest.Low]
+            val half = anchors[Rest.Half]
+            if (low == null || half == null || offset.isNaN() || low <= half) return if (rest == Rest.Low) 1f else 0f
+            return ((offset - half) / (low - half)).coerceIn(0f, 1f)
+        }
+
     /** A page's own wish: not remembered. */
-    fun request(scope: CoroutineScope, target: Rest) {
-        val to = nearestAvailable(target)
-        rest = to
-        scope.launch { animateTo(to) }
-    }
+    fun request(scope: CoroutineScope, target: Rest) = moveTo(scope, nearestAvailable(target))
 
     /** Back to the rest the person last chose. */
     fun restore(scope: CoroutineScope) = request(scope, remembered)
 
-    internal fun personChose(scope: CoroutineScope, target: Rest) {
+    fun personChose(scope: CoroutineScope, target: Rest) {
         val to = nearestAvailable(target)
-        rest = to
         remembered = to
-        scope.launch { animateTo(to) }
+        moveTo(scope, to)
+    }
+
+    private fun moveTo(scope: CoroutineScope, to: Rest) {
+        rest = to
+        val y = anchors[to] ?: return
+        animation?.cancel()
+        animation = scope.launch { animator.animate(offset, y) { offset = it } }
     }
 
     private fun nearestAvailable(target: Rest): Rest = when {
@@ -95,39 +126,40 @@ class SheetState(initial: Rest, remembered: Rest) {
         else -> rests.firstOrNull() ?: target
     }
 
-    internal suspend fun animateTo(target: Rest) {
-        val y = anchors[target] ?: return
-        offset.animateTo(y, spring(dampingRatio = 0.9f, stiffness = 500f))
-    }
-
-    internal suspend fun updateAnchors(new: Map<Rest, Float>) {
+    /** New rests for a new window shape: the sheet keeps its rest, retargeting any animation under way. */
+    fun updateAnchors(scope: CoroutineScope, new: Map<Rest, Float>) {
         anchors = new
         val target = nearestAvailable(rest)
-        rest = target
-        // Snap on a change of shape (a rotation, a fold): the sheet stays at its rest.
-        new[target]?.let { offset.snapTo(it) }
+        val y = new[target] ?: return
+        if (animation?.isActive == true) moveTo(scope, target) else {
+            rest = target
+            offset = y
+        }
     }
 
-    internal fun dragBy(scope: CoroutineScope, delta: Float): Float {
-        if (anchors.isEmpty()) return 0f
-        val min = anchors.values.min()
-        val max = anchors.values.max()
-        val now = offset.value
-        val to = (now + delta).coerceIn(min, max)
-        scope.launch { offset.snapTo(to) }
+    /** Moves the sheet by [delta] at once, within its rests; returns what it used. */
+    fun dragBy(delta: Float): Float {
+        if (anchors.isEmpty() || offset.isNaN()) return 0f
+        animation?.cancel()
+        val now = offset
+        val to = (now + delta).coerceIn(anchors.values.min(), anchors.values.max())
+        offset = to
         return to - now
     }
 
     /** Where a drag ends up: the nearest rest, or the next one along on a quick flick. */
-    internal fun settle(scope: CoroutineScope, velocity: Float) {
-        val now = offset.value
+    fun targetFor(velocity: Float): Rest? {
         val ordered = anchors.entries.sortedBy { it.value }
-        if (ordered.isEmpty()) return
-        val target = if (abs(velocity) > 1200f) {
+        if (ordered.isEmpty() || offset.isNaN()) return null
+        val now = offset
+        return if (abs(velocity) > 1200f) {
             if (velocity < 0) ordered.lastOrNull { it.value < now - 1 }?.key ?: ordered.first().key
             else ordered.firstOrNull { it.value > now + 1 }?.key ?: ordered.last().key
         } else ordered.minBy { abs(it.value - now) }.key
-        personChose(scope, target)
+    }
+
+    fun settle(scope: CoroutineScope, velocity: Float) {
+        targetFor(velocity)?.let { personChose(scope, it) }
     }
 
     companion object {
@@ -147,13 +179,13 @@ fun sheetNestedScroll(state: SheetState, scope: CoroutineScope) = object : Neste
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         val dy = available.y
         // Up: grow the sheet before scrolling the list.
-        return if (dy < 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(scope, dy)) else Offset.Zero
+        return if (dy < 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy)) else Offset.Zero
     }
 
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
         val dy = available.y
         // Down, with the list at its top: shrink the sheet.
-        return if (dy > 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(scope, dy)) else Offset.Zero
+        return if (dy > 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy)) else Offset.Zero
     }
 
     override suspend fun onPreFling(available: Velocity): Velocity {
@@ -186,8 +218,12 @@ fun DragHandle(state: SheetState, modifier: Modifier = Modifier) {
         modifier
             .fillMaxWidth()
             .height(28.dp)
+            // A tap moves up a rest (from full, back to half), as Material's own handle does.
+            .clickable(role = Role.Button, onClickLabel = if (index == rests.lastIndex) "Collapse" else "Expand") {
+                val next = if (index in 0 until rests.lastIndex) rests[index + 1] else rests.getOrNull(rests.lastIndex - 1)
+                next?.let { state.personChose(scope, it) }
+            }
             .semantics {
-                role = Role.Button
                 contentDescription = "Drag handle"
                 stateDescription = state.rest.spoken
                 customActions = buildList {
@@ -213,7 +249,7 @@ fun BottomSheet(
 ) {
     val scope = rememberCoroutineScope()
     val c = polaris
-    val drag = rememberDraggableState { delta -> state.dragBy(scope, delta) }
+    val drag = rememberDraggableState { delta -> state.dragBy(delta) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val statusTop = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
     val corner = (28f * ((if (state.top.isNaN()) 1f else state.top / statusTop.coerceAtLeast(1)).coerceIn(0f, 1f))).dp
