@@ -21,8 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,16 +31,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import polaris.engine.AppSettings
-import polaris.engine.BuildDefaults
+import polaris.android.storage.Storage
+import polaris.android.ui.PolarisColors
 import polaris.engine.Coordinate
-import polaris.engine.GoogleUsage
 import polaris.engine.AppIdentity
-import polaris.engine.InMemorySecretStore
 import polaris.engine.JourneyQuery
 import polaris.engine.JourneyRanker
-import polaris.engine.KeyValueStore
 import polaris.engine.Place
 import polaris.engine.ProviderID
 import polaris.engine.ProviderStatus
@@ -62,30 +60,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+            MaterialTheme(colorScheme = PolarisColors.scheme(isSystemInDarkTheme())) {
                 Surface(Modifier.fillMaxSize()) { SearchScreen() }
             }
         }
     }
 }
 
-/** Google's monthly count, kept on the phone across launches. */
-private class PreferencesStore(context: Context) : KeyValueStore {
-    private val prefs = context.getSharedPreferences("polaris", Context.MODE_PRIVATE)
-    override fun getString(key: String): String? = prefs.getString(key, null)
-    override fun putString(key: String, value: String?) = prefs.edit().putString(key, value).apply()
-}
-
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
-    // Entered keys will live in Keystore-backed storage (a later phase); for now only the build's.
-    private val settings = AppSettings(
-        InMemorySecretStore(),
-        BuildDefaults(BuildConfig.GOOGLE_ROUTES_API_KEY, BuildConfig.TFL_APP_KEY, BuildConfig.POLARIS_CONTACT),
-    )
-    private val model = SearchModel.create(
-        settings, GoogleUsage(PreferencesStore(application)), BuildConfig.VERSION_NAME, appIdentity(application),
-    )
-    val state = model.state
+    private val _state = MutableStateFlow(SearchState())
+    val state: StateFlow<SearchState> = _state.asStateFlow()
 
     val query = JourneyQuery(
         Place(name = "King's Cross", coordinate = Coordinate(51.5308, -0.1238)),
@@ -95,8 +79,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         // Started here, not from composition, so a rotation or recomposition never repeats it:
-        // one search per launch.
-        viewModelScope.launch { model.search(query, settings) }
+        // one search per launch. Settings are read from storage first, off the main thread.
+        viewModelScope.launch {
+            val (settings, usage) = Storage.settings(application)
+            val model = SearchModel.create(settings, usage, BuildConfig.VERSION_NAME, appIdentity(application))
+            launch { model.state.collect { _state.value = it } }
+            model.search(query, settings)
+        }
     }
 }
 

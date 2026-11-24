@@ -95,10 +95,12 @@ class SearchModel(
         // Google within its free monthly allowance: every deep-search way under 700 this month,
         // one under 900, none past that. Planned and counted in one step.
         val now = clock.instant()
-        val google = googlePlan(settings.isEnabled(ProviderID.google), settings.googleKey != null, settings.deepSearch, usage.allowance, now)
+        // Read once: the plan and the provider must agree on whether there is a key.
+        val googleKey = settings.googleKey
+        val google = googlePlan(settings.isEnabled(ProviderID.google), googleKey != null, settings.deepSearch, usage.allowance, now)
         val googleRequests = if (google is GooglePlan.Ask) usage.reserve(settings.deepSearch, GoogleRoutesProvider.variants.size, now) else 0
         val providers: List<JourneyProvider> = listOf(
-            GoogleRoutesProvider(http, settings.googleKey, app.packageName, app.certificateSha1, googleRequests),
+            GoogleRoutesProvider(http, googleKey, app.packageName, app.certificateSha1, googleRequests),
             TfLProvider(http, settings.tflKey),
             TransitousProvider(http),
         )

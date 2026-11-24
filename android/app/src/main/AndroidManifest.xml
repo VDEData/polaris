@@ -5,6 +5,7 @@
 
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Polaris"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
