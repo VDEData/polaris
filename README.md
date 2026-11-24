@@ -168,6 +168,35 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 | `POLARIS_ALERTS_URL`, `POLARIS_ALERTS_TOKEN` | Your own alerts server, below | Alerts are off |
 | `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | No contact in the User-Agent |
 
+## Android (early: engine only)
+
+`android/` is a Kotlin port in progress. So far it holds the engine: the models, the TfL,
+Transitous and Google providers, merging, ranking, TfL's network status and Google's monthly
+count, with the same names and behaviour as the Swift, and the same request budgets. The app
+around it is one plain screen that runs a single search (King's Cross to Canary Wharf, TfL and
+Transitous, no keys) to prove the engine works on a device. There is no map, search box, Go or
+alerts on Android yet.
+
+You need JDK 17 and the Android SDK (platform 36), from Android Studio or the command-line tools.
+
+```sh
+cd android
+./gradlew test               # the engine's tests, offline, on the JVM
+./gradlew :app:installDebug  # onto a running emulator or a connected phone
+```
+
+Per-builder values go in `android/local.properties` (git-ignored; copy
+`local.properties.example`) or as Gradle properties (`-Ppolaris.contact=…`): `polaris.applicationId`
+(default `com.example.polaris`), `polaris.contact` (for the User-Agent, as `POLARIS_CONTACT` on iOS),
+and the optional `polaris.googleKey` and `polaris.tflKey`. A Google key for Android is restricted to
+your application ID and signing certificate rather than a bundle ID. With none of them set the build
+works as the iOS one does with no keys.
+
+The engine's tests read the recordings in `PolarisTests/Fixtures` in place, and both platforms'
+tests assert against `PolarisTests/Fixtures/journey-expectations.json` (each source's route
+signatures, the merged groups and the ranking under every sort), so a change to one side's
+parsing, merging or ranking that the other doesn't make fails a test.
+
 ## Run your own alerts server
 
 Alerts need a server that watches TfL while the app is closed and sends pushes. There is no
@@ -274,6 +303,7 @@ tests share the TfL recordings.
 ```sh
 xcodebuild test -project Polaris.xcodeproj -scheme Polaris -destination 'platform=iOS Simulator,name=iPhone 17'
 cd worker && pnpm test && pnpm exec tsc --noEmit
+(cd android && ./gradlew test)
 ```
 
 If a recording is ever replaced, check it holds no key, token or personal location before committing it.
@@ -290,6 +320,7 @@ MIT. See `LICENSE`.
 - `Polaris/Shared` and `PolarisWidgets`: the trip's Live Activity (the attributes are compiled into both targets).
 - `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `apns.ts`.
 - `PolarisTests`: parsers against recorded Google/TfL/Transitous responses, boards, walking progress and leg-by-leg tracking, and the merge and ranking rules.
+- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM) and `app/` (one Compose screen).
 - `Polaris/Design/Theme.swift`: the star-atlas palette, light and dark (System, Light or Dark in Settings).
 
 Launch flags for checking screens without tapping (Debug only): `-setup` shows the first-run setup step; `-demo -demoReplan

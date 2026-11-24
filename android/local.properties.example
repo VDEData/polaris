@@ -1,0 +1,13 @@
+# Copy to local.properties (git-ignored) and fill in what you have. All optional.
+# Android Studio also writes sdk.dir here; or set ANDROID_HOME instead.
+# sdk.dir=/path/to/Android/sdk
+
+# An application ID of your own, for installing next to someone else's build.
+# polaris.applicationId=com.yourname.polaris
+
+# A URL or address where you can be reached: TfL and Transitous ask clients to identify themselves.
+# polaris.contact=https://github.com/yourname
+
+# Optional keys. Keys entered in the app's settings (a later phase) win over these.
+# polaris.googleKey=
+# polaris.tflKey=

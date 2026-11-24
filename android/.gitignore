@@ -1,0 +1,15 @@
+# --- per-builder values and signing: never commit ---
+local.properties
+*.jks
+*.keystore
+google-services.json
+
+# --- generated / build ---
+.gradle/
+.kotlin/
+build/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
