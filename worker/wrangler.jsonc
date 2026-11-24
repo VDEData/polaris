@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "polaris-alerts",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  // Your own deployment's values (a custom-domain "routes" entry, the D1 database_id, the
+  // APNs team and topic) go in wrangler.local.jsonc, git-ignored, which `pnpm run deploy`,
+  // `pnpm run migrate` and `pnpm run dev` lay over this file (scripts/wrangler.mjs).
+  // Copy wrangler.local.example.jsonc to start. Without a "routes" entry the Worker is
+  // served on its workers.dev address.
+  // Every two minutes. A run with nobody inside their travel times reads D1 and stops:
+  // TfL is only asked while someone is travelling, and the evening before for planned works.
+  "triggers": { "crons": ["*/2 * * * *"] },
+  // APNS_TEAM_ID (your Apple team ID) and APNS_TOPIC (the app's bundle ID, POLARIS_BUNDLE_ID)
+  // are vars in wrangler.local.jsonc, or secrets. Secrets (wrangler secret put): APP_TOKEN,
+  // shared with the app; APNS_KEY and APNS_KEY_ID, the .p8 push key. TFL_APP_KEY is optional.
+  // MAX_DEVICES (a var, default 100) caps how many phones can register.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "polaris-alerts",
+      // `wrangler d1 create polaris-alerts` prints the real one: put it in wrangler.local.jsonc.
+      // Deploying with this placeholder is refused.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

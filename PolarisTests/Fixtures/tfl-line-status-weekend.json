@@ -1,0 +1,241 @@
+[
+ {
+  "id": "district",
+  "name": "District",
+  "lineStatuses": [
+   {
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "DISTRICT LINE: Saturday 28 and Sunday 29 November, no service between High Street Kensington and Edgware Road. There will also be no CIRCLE LINE service on this section.",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-28T04:30:00Z",
+      "toDate": "2026-11-30T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "940GZZLUBWT",
+       "commonName": "Bayswater Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUERC",
+       "commonName": "Edgware Road (Circle Line) Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUHSK",
+       "commonName": "High Street Kensington Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUNHG",
+       "commonName": "Notting Hill Gate Underground Station"
+      },
+      {
+       "stationNaptan": "940GZZLUPAC",
+       "commonName": "Paddington Underground Station"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "elizabeth",
+  "name": "Elizabeth line",
+  "lineStatuses": [
+   {
+    "statusSeverity": 5,
+    "statusSeverityDescription": "Part Closure",
+    "reason": "ELIZABETH LINE: Saturday 28 and Sunday 29 November, no service between Maidenhead / Heathrow (all terminals) and Abbey Wood / Shenfield. Use PICCADILLY LINE services between Heathrow and Central London. LONDON PADDINGTON STATION will be closed on this day, with no HEATHROW EXPRESS services. GWR services will not run between Maidenhead / Greenford and Paddington, with limited long distance services to/from Euston. There will also be no GREATER ANGLIA services on these days between Shenfield / Southend Victoria / Southminster and Liverpool Street, use CENTRAL LINE connections between Ealing Broadway, West Acton (for Acton Main Line), Central London, Liverpool Street, Stratford and Newbury Park. Replacement bus services operate, not serving Iver, please use Langley instead.",
+    "validityPeriods": [
+     {
+      "fromDate": "2026-11-28T04:30:00Z",
+      "toDate": "2026-11-30T01:29:00Z"
+     }
+    ],
+    "disruption": {
+     "category": "PlannedWork",
+     "affectedStops": [
+      {
+       "stationNaptan": "910GACTONML",
+       "commonName": "Acton Main Line Rail Station"
+      },
+      {
+       "stationNaptan": "910GBONDST",
+       "commonName": "Bond Street"
+      },
+      {
+       "stationNaptan": "910GBRTWOOD",
+       "commonName": "Brentwood Rail Station"
+      },
+      {
+       "stationNaptan": "910GCHDWLHT",
+       "commonName": "Chadwell Heath Rail Station"
+      },
+      {
+       "stationNaptan": "910GEALINGB",
+       "commonName": "Ealing Broadway Rail Station"
+      },
+      {
+       "stationNaptan": "910GFRNDXR",
+       "commonName": "Farringdon"
+      },
+      {
+       "stationNaptan": "910GFRSTGT",
+       "commonName": "Forest Gate Rail Station"
+      },
+      {
+       "stationNaptan": "910GGIDEAPK",
+       "commonName": "Gidea Park Rail Station"
+      },
+      {
+       "stationNaptan": "910GGODMAYS",
+       "commonName": "Goodmayes Rail Station"
+      },
+      {
+       "stationNaptan": "910GHANWELL",
+       "commonName": "Hanwell Rail Station"
+      },
+      {
+       "stationNaptan": "910GHAYESAH",
+       "commonName": "Hayes & Harlington Rail Station"
+      },
+      {
+       "stationNaptan": "910GHRLDWOD",
+       "commonName": "Harold Wood Rail Station"
+      },
+      {
+       "stationNaptan": "910GHTRWAPT",
+       "commonName": "Heathrow Terminals 2 & 3 Rail Station"
+      },
+      {
+       "stationNaptan": "910GHTRWTM4",
+       "commonName": "Heathrow Terminal 4 Rail Station"
+      },
+      {
+       "stationNaptan": "910GILFORD",
+       "commonName": "Ilford Rail Station"
+      },
+      {
+       "stationNaptan": "910GLIVSTLL",
+       "commonName": "Liverpool Street"
+      },
+      {
+       "stationNaptan": "910GMANRPK",
+       "commonName": "Manor Park Rail Station"
+      },
+      {
+       "stationNaptan": "910GMRYLAND",
+       "commonName": "Maryland Rail Station"
+      },
+      {
+       "stationNaptan": "910GPADTLL",
+       "commonName": "Paddington"
+      },
+      {
+       "stationNaptan": "910GROMFORD",
+       "commonName": "Romford Rail Station"
+      },
+      {
+       "stationNaptan": "910GSHENFLD",
+       "commonName": "Shenfield Rail Station"
+      },
+      {
+       "stationNaptan": "910GSTFD",
+       "commonName": "Stratford (London) Rail Station"
+      },
+      {
+       "stationNaptan": "910GSTHALL",
+       "commonName": "Southall Rail Station"
+      },
+      {
+       "stationNaptan": "910GSVNKNGS",
+       "commonName": "Seven Kings Rail Station"
+      },
+      {
+       "stationNaptan": "910GTOTCTRD",
+       "commonName": "Tottenham Court Road"
+      },
+      {
+       "stationNaptan": "910GWCHAPXR",
+       "commonName": "Whitechapel"
+      },
+      {
+       "stationNaptan": "910GWEALING",
+       "commonName": "West Ealing Rail Station"
+      },
+      {
+       "stationNaptan": "910GHTRWTM5",
+       "commonName": "Heathrow Terminal 5 Rail Station"
+      },
+      {
+       "stationNaptan": "910GABWDXR",
+       "commonName": "Abbey Wood"
+      },
+      {
+       "stationNaptan": "910GBNHAM",
+       "commonName": "Burnham (Berks) Rail Station"
+      },
+      {
+       "stationNaptan": "910GCANWHRF",
+       "commonName": "Canary Wharf"
+      },
+      {
+       "stationNaptan": "910GCUSTMHS",
+       "commonName": "Custom House Rail Station"
+      },
+      {
+       "stationNaptan": "910GIVER",
+       "commonName": "Iver Rail Station"
+      },
+      {
+       "stationNaptan": "910GLANGLEY",
+       "commonName": "Langley (Berks) Rail Station"
+      },
+      {
+       "stationNaptan": "910GMDNHEAD",
+       "commonName": "Maidenhead Rail Station"
+      },
+      {
+       "stationNaptan": "910GSLOUGH",
+       "commonName": "Slough Rail Station"
+      },
+      {
+       "stationNaptan": "910GTAPLOW",
+       "commonName": "Taplow Rail Station"
+      },
+      {
+       "stationNaptan": "910GWDRYTON",
+       "commonName": "West Drayton Rail Station"
+      },
+      {
+       "stationNaptan": "910GWOLWXR",
+       "commonName": "Woolwich"
+      },
+      {
+       "stationNaptan": "910GPADTON",
+       "commonName": "London Paddington Rail Station"
+      },
+      {
+       "stationNaptan": "910GLIVST",
+       "commonName": "London Liverpool Street Rail Station"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "northern",
+  "name": "Northern",
+  "lineStatuses": [
+   {
+    "statusSeverity": 10,
+    "statusSeverityDescription": "Good Service",
+    "validityPeriods": []
+   }
+  ]
+ }
+]

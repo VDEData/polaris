@@ -1,0 +1,391 @@
+[
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "940GZZLUBSC",
+  "fromDate": "2026-07-06T03:30:00Z",
+  "toDate": "2026-11-30T01:29:00Z",
+  "description": "BARONS COURT STATION: From Monday 6 July until November, westbound trains will not call at Barons Court. If travelling westbound from the station, please use eastbound District or Piccadilly line trains and change to westbound services at West Kensington (on the District line) or Earls Court (on the Piccadilly line) and change to westbound services. If travelling westbound to the station, please continue to Hammersmith and change for eastbound District or Piccadilly line trains.",
+  "commonName": "Barons Court Underground Station",
+  "type": "Part Closure",
+  "mode": "tube",
+  "stationAtcoCode": "940GZZLUBSC",
+  "appearance": "PlannedWork",
+  "concernedLines": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.ConcernedLine, Tfl.Api.Presentation.Entities",
+    "id": "circle",
+    "direction": "inbound"
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.ConcernedLine, Tfl.Api.Presentation.Entities",
+    "id": "district",
+    "direction": "inbound"
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.ConcernedLine, Tfl.Api.Presentation.Entities",
+    "id": "piccadilly",
+    "direction": "inbound"
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "940GZZLUBTK",
+  "fromDate": "2026-10-26T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "BURNT OAK STATION: From Monday 26 October to Sunday 8 November, the station is closed. Please use local London Buses services.",
+  "commonName": "Burnt Oak Underground Station",
+  "type": "Closure",
+  "mode": "tube",
+  "stationAtcoCode": "940GZZLUBTK",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "940GZZLUBNK",
+  "fromDate": "2025-10-20T03:30:00Z",
+  "toDate": "2027-01-16T01:29:00Z",
+  "description": "BANK AND MONUMENT STATIONS: From Monday 20 October 2025 until early 2027. Replacement of escalators 4 and 5. These connect the Northern line platforms with the District and Circle line platforms. While this work takes place, the walking route between these platforms will be closed. Please allow a little longer for your journey and follow the signs, which will direct you via an alternative walking route. Depending on your journey, this route may be via street level. To pay the correct fare, just touch out as you exit and touch back in again, as you re-enter.",
+  "commonName": "Bank Underground Station",
+  "type": "Information",
+  "mode": "tube",
+  "stationAtcoCode": "940GZZLUBNK",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJ1",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GCLPHMJ1",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJ1",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GCLPHMJ1",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHHS",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Clapham High Street Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GCLPHHS",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GDENMRKH",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Denmark Hill Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GDENMRKH",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GDENMRKH",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Denmark Hill Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GDENMRKH",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GPCKHMQD",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Queens Road Peckham Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GPCKHMQD",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GPCKHMQD",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Queens Road Peckham Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GPCKHMQD",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GPCKHMRY",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Peckham Rye Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GPCKHMRY",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GPCKHMRY",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Peckham Rye Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GPCKHMRY",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GSURREYQ",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Surrey Quays Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GSURREYQ",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GWNDSWRD",
+  "fromDate": "2026-11-08T00:01:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "WINDRUSH LINE: Sunday 8 November, no service between Surrey Quays and Clapham Junction / Battersea Park. Replacement bus service M operates between Canada Water and Clapham Junction via Surrey Quays, Queens Road Peckham, Peckham Rye, Denmark Hill, Clapham High Street and Wandsworth Road. The 0025 last Sunday morning train from Surrey Quays to Clapham Junction will not run. Please use the previous 0008 train.",
+  "commonName": "Wandsworth Road Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GWNDSWRD",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJ1",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GCLPHMJ1",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJ1",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GCLPHMJ1",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJC",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GCLPHMJC",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCLPHMJC",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Clapham Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GCLPHMJC",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCSEAH",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Imperial Wharf Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GCSEAH",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCSEAH",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Imperial Wharf Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GCSEAH",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GKENOLYM",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Kensington (Olympia) Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GKENOLYM",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GKENOLYM",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Kensington (Olympia) Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GKENOLYM",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GSHPDSB",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Shepherds Bush Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GSHPDSB",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GSHPDSB",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Shepherds Bush Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GSHPDSB",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GWBRMPTN",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "West Brompton Rail Station",
+  "type": "Part Closure",
+  "mode": "national-rail",
+  "stationAtcoCode": "910GWBRMPTN",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GWBRMPTN",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "West Brompton Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GWBRMPTN",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GWLSDJHL",
+  "fromDate": "2026-11-07T04:30:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "MILDMAY LINE: Saturday 7 and Sunday 8 November, no service between Willesden Junction and Clapham Junction. There will also be no SOUTHERN services between Watford Junction and Clapham Junction at these times. Please use local London Buses connections.",
+  "commonName": "Willesden Junction Rail Station",
+  "type": "Part Closure",
+  "mode": "overground",
+  "stationAtcoCode": "910GWLSDJHL",
+  "appearance": "PlannedWork"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "940GZZLUCYF",
+  "fromDate": "2026-10-13T23:21:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "Canary Wharf: No Step Free Access - Step free access is not available to the Jubilee line due to a faulty lift. Call us on 0343 222 1234 if you need help planning your journey.",
+  "commonName": "Canary Wharf Underground Station",
+  "type": "Interchange Message",
+  "mode": "tube",
+  "stationAtcoCode": "940GZZLUCYF",
+  "appearance": "RealTime"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCANWHRF",
+  "fromDate": "2026-11-08T01:43:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "Canary Wharf: No Step Free Access - Step free access is not available to the Jubilee line due to a faulty lift. Call us on 0343 222 1234 if you need help planning your journey.",
+  "commonName": "Canary Wharf",
+  "type": "Information",
+  "mode": "elizabeth-line",
+  "stationAtcoCode": "910GCANWHRF",
+  "appearance": "RealTime"
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.DisruptedPoint, Tfl.Api.Presentation.Entities",
+  "atcoCode": "910GCANWHRF",
+  "fromDate": "2026-11-08T13:32:00Z",
+  "toDate": "2026-11-09T01:29:00Z",
+  "description": "Canary Wharf: Part Closed - Elizabeth line trains are not stopping at this station until the end of the day due to faulty station equipment. Tickets are being accepted on London Underground and DLR. ",
+  "commonName": "Canary Wharf",
+  "type": "Part Closure",
+  "mode": "elizabeth-line",
+  "stationAtcoCode": "910GCANWHRF",
+  "appearance": "RealTime",
+  "concernedLines": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.ConcernedLine, Tfl.Api.Presentation.Entities",
+    "id": "elizabeth",
+    "direction": "inbound"
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.ConcernedLine, Tfl.Api.Presentation.Entities",
+    "id": "elizabeth",
+    "direction": "outbound"
+   }
+  ]
+ }
+]

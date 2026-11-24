@@ -1,0 +1,227 @@
+[
+ {
+  "id": "avanti-west-coast",
+  "name": "Avanti West Coast",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "bakerloo",
+  "name": "Bakerloo",
+  "modeName": "tube"
+ },
+ {
+  "id": "c2c",
+  "name": "c2c",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "central",
+  "name": "Central",
+  "modeName": "tube"
+ },
+ {
+  "id": "chiltern-railways",
+  "name": "Chiltern Railways",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "circle",
+  "name": "Circle",
+  "modeName": "tube"
+ },
+ {
+  "id": "crosscountry",
+  "name": "CrossCountry",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "district",
+  "name": "District",
+  "modeName": "tube"
+ },
+ {
+  "id": "dlr",
+  "name": "DLR",
+  "modeName": "dlr"
+ },
+ {
+  "id": "east-midlands-railway",
+  "name": "East Midlands Railway",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "elizabeth",
+  "name": "Elizabeth line",
+  "modeName": "elizabeth-line"
+ },
+ {
+  "id": "gatwick-express",
+  "name": "Gatwick Express",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "grand-central",
+  "name": "Grand Central",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "greater-anglia",
+  "name": "Greater Anglia",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "great-northern",
+  "name": "Great Northern",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "great-western-railway",
+  "name": "Great Western Railway",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "hammersmith-city",
+  "name": "Hammersmith & City",
+  "modeName": "tube"
+ },
+ {
+  "id": "heathrow-express",
+  "name": "Heathrow Express",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "hull-trains",
+  "name": "Hull Trains",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "island-line",
+  "name": "Island Line",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "jubilee",
+  "name": "Jubilee",
+  "modeName": "tube"
+ },
+ {
+  "id": "liberty",
+  "name": "Liberty",
+  "modeName": "overground"
+ },
+ {
+  "id": "lioness",
+  "name": "Lioness",
+  "modeName": "overground"
+ },
+ {
+  "id": "london-north-eastern-railway",
+  "name": "London North Eastern Railway",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "lumo",
+  "name": "Lumo",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "merseyrail",
+  "name": "Merseyrail",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "metropolitan",
+  "name": "Metropolitan",
+  "modeName": "tube"
+ },
+ {
+  "id": "mildmay",
+  "name": "Mildmay",
+  "modeName": "overground"
+ },
+ {
+  "id": "northern",
+  "name": "Northern",
+  "modeName": "tube"
+ },
+ {
+  "id": "northern-rail",
+  "name": "Northern Rail",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "piccadilly",
+  "name": "Piccadilly",
+  "modeName": "tube"
+ },
+ {
+  "id": "scotrail",
+  "name": "ScotRail",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "southeastern",
+  "name": "Southeastern",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "southern",
+  "name": "Southern",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "south-western-railway",
+  "name": "South Western Railway",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "suffragette",
+  "name": "Suffragette",
+  "modeName": "overground"
+ },
+ {
+  "id": "thameslink",
+  "name": "Thameslink",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "tram",
+  "name": "Tram",
+  "modeName": "tram"
+ },
+ {
+  "id": "transpennine-express",
+  "name": "TransPennine Express",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "transport-for-wales",
+  "name": "Transport for Wales",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "victoria",
+  "name": "Victoria",
+  "modeName": "tube"
+ },
+ {
+  "id": "waterloo-city",
+  "name": "Waterloo & City",
+  "modeName": "tube"
+ },
+ {
+  "id": "weaver",
+  "name": "Weaver",
+  "modeName": "overground"
+ },
+ {
+  "id": "west-midlands-trains",
+  "name": "West Midlands Trains",
+  "modeName": "national-rail"
+ },
+ {
+  "id": "windrush",
+  "name": "Windrush",
+  "modeName": "overground"
+ }
+]

@@ -1,0 +1,1100 @@
+{
+ "routes": [
+  {
+   "duration": "2010s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 190,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 4128,
+       "staticDuration": "540s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWwGooBzc@srBbo@bGb`@nA"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Bank Station",
+          "location": {
+           "latLng": {
+            "latitude": 51.5133,
+            "longitude": -0.089
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:13:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:04:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:13 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:04 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Morden via Bank",
+        "transitLine": {
+         "name": "Northern Line",
+         "nameShort": "Northern",
+         "color": "#000000",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 4,
+        "headway": "120s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 120,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "celyHfkP??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 5124,
+       "staticDuration": "720s",
+       "polyline": {
+        "encodedPolyline": "celyHfkP~H{hEwBgiBfOoqAzOwe@vLvB"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5048,
+            "longitude": -0.0209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:30:00Z",
+         "departureStop": {
+          "name": "Bank Station",
+          "location": {
+           "latLng": {
+            "latitude": 51.5133,
+            "longitude": -0.089
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:18:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:30 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:18 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Lewisham",
+        "transitLine": {
+         "nameShort": "DLR",
+         "color": "#00a4a7",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Light rail"
+          },
+          "type": "TRAM"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 110,
+       "staticDuration": "90s",
+       "polyline": {
+        "encodedPolyline": "_pjyHraCgEoP"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 150,
+       "staticDuration": "120s",
+       "polyline": {
+        "encodedPolyline": "gvjyHbpBrDvG"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  },
+  {
+   "duration": "2010s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 190,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 4128,
+       "staticDuration": "540s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWwGooBzc@srBbo@bGb`@nA"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Bank Station",
+          "location": {
+           "latLng": {
+            "latitude": 51.5133,
+            "longitude": -0.089
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:18:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:09:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:18 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:09 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Morden via Bank",
+        "transitLine": {
+         "name": "Northern Line",
+         "nameShort": "Northern",
+         "color": "#000000",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 4,
+        "headway": "120s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 120,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "celyHfkP??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 5124,
+       "staticDuration": "720s",
+       "polyline": {
+        "encodedPolyline": "celyHfkP~H{hEwBgiBfOoqAzOwe@vLvB"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5048,
+            "longitude": -0.0209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:35:00Z",
+         "departureStop": {
+          "name": "Bank Station",
+          "location": {
+           "latLng": {
+            "latitude": 51.5133,
+            "longitude": -0.089
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:23:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:35 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:23 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Lewisham",
+        "transitLine": {
+         "nameShort": "DLR",
+         "color": "#00a4a7",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Light rail"
+          },
+          "type": "TRAM"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 110,
+       "staticDuration": "90s",
+       "polyline": {
+        "encodedPolyline": "_pjyHraCgEoP"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 150,
+       "staticDuration": "120s",
+       "polyline": {
+        "encodedPolyline": "gvjyHbpBrDvG"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  },
+  {
+   "duration": "1600s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 160,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 1726,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWr`AsrB"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Farringdon",
+          "location": {
+           "latLng": {
+            "latitude": 51.5203,
+            "longitude": -0.1053
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:08:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:05:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:08 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:05 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Barking via Liverpool St",
+        "transitLine": {
+         "name": "Hammersmith & City Line",
+         "nameShort": "Hammersmith & City",
+         "color": "#f3a9bb",
+         "textColor": "#000000",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 1,
+        "headway": "180s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 300,
+       "staticDuration": "150s",
+       "polyline": {
+        "encodedPolyline": "{pmyHbqS??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 6413,
+       "staticDuration": "660s",
+       "polyline": {
+        "encodedPolyline": "{pmyHbqSrNwnCsI_kCrtAgdG"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5058,
+            "longitude": -0.0181
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:25:00Z",
+         "departureStop": {
+          "name": "Farringdon",
+          "location": {
+           "latLng": {
+            "latitude": 51.5203,
+            "longitude": -0.1053
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:14:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:25 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:14 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Abbey Wood",
+        "transitLine": {
+         "nameShort": "Elizabeth line",
+         "color": "#6950a1",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Elizabeth line",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Train"
+          },
+          "type": "HEAVY_RAIL"
+         }
+        },
+        "stopCount": 3
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 140,
+       "staticDuration": "120s",
+       "polyline": {
+        "encodedPolyline": "gvjyHbpB??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 120,
+       "staticDuration": "100s",
+       "polyline": {
+        "encodedPolyline": "gvjyHbpBrDvG"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  },
+  {
+   "duration": "2220s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 190,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 3269,
+       "staticDuration": "480s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWfOz|@zTj\\jz@jRbt@bG"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Green Park",
+          "location": {
+           "latLng": {
+            "latitude": 51.5067,
+            "longitude": -0.1428
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:14:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:06:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:14 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:06 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Brixton",
+        "transitLine": {
+         "name": "Victoria Line",
+         "nameShort": "Victoria",
+         "color": "#0098d4",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 4,
+        "headway": "120s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 250,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "{{jyHn{Z??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 9034,
+       "staticDuration": "960s",
+       "polyline": {
+        "encodedPolyline": "{{jyHn{Zrb@wkBgOkdAcB{w@{EotBrl@{lC{@ksAc`@{cE"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5035,
+            "longitude": -0.0187
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:35:00Z",
+         "departureStop": {
+          "name": "Green Park",
+          "location": {
+           "latLng": {
+            "latitude": 51.5067,
+            "longitude": -0.1428
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:19:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:35 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:19 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Stratford",
+        "transitLine": {
+         "name": "Jubilee line",
+         "nameShort": "Jubilee",
+         "color": "#a0a5a9",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 7,
+        "headway": "120s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 300,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "{gjyHzsBwG~C"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  },
+  {
+   "duration": "1800s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 190,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 5045,
+       "staticDuration": "660s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWwGooBzc@srBbo@bGb`@nArq@gO"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "London Bridge",
+          "location": {
+           "latLng": {
+            "latitude": 51.5052,
+            "longitude": -0.0864
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:20:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:09:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:20 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:09 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Morden via Bank",
+        "transitLine": {
+         "name": "Northern Line",
+         "nameShort": "Northern",
+         "color": "#000000",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 5,
+        "headway": "60s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 60,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "orjyH~zO??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 4935,
+       "staticDuration": "360s",
+       "polyline": {
+        "encodedPolyline": "orjyH~zOrl@{lC{@ksAc`@{cE"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5035,
+            "longitude": -0.0187
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:31:00Z",
+         "departureStop": {
+          "name": "London Bridge",
+          "location": {
+           "latLng": {
+            "latitude": 51.5052,
+            "longitude": -0.0864
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:25:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:31 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:25 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Stratford",
+        "transitLine": {
+         "name": "Jubilee line",
+         "nameShort": "Jubilee",
+         "color": "#a0a5a9",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 3,
+        "headway": "120s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 300,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "{gjyHzsBwG~C"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  },
+  {
+   "duration": "1600s",
+   "legs": [
+    {
+     "steps": [
+      {
+       "distanceMeters": 10,
+       "staticDuration": "0s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 160,
+       "staticDuration": "180s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdW??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 3347,
+       "staticDuration": "420s",
+       "polyline": {
+        "encodedPolyline": "oroyHvdWr`AsrBSgm@fOo`B"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Liverpool Street",
+          "location": {
+           "latLng": {
+            "latitude": 51.5178,
+            "longitude": -0.0823
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:18:00Z",
+         "departureStop": {
+          "name": "King's Cross St. Pancras",
+          "location": {
+           "latLng": {
+            "latitude": 51.5308,
+            "longitude": -0.1238
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:11:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:18 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:11 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Barking via Liverpool St",
+        "transitLine": {
+         "name": "Hammersmith & City Line",
+         "nameShort": "Hammersmith & City",
+         "color": "#f3a9bb",
+         "textColor": "#000000",
+         "agencies": [
+          {
+           "name": "Transport for London",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Subway"
+          },
+          "type": "SUBWAY"
+         }
+        },
+        "stopCount": 3,
+        "headway": "180s"
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 350,
+       "staticDuration": "240s",
+       "polyline": {
+        "encodedPolyline": "gamyHjaO??"
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "distanceMeters": 4806,
+       "staticDuration": "420s",
+       "polyline": {
+        "encodedPolyline": "gamyHjaOsI_kCrtAgdG"
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Canary Wharf",
+          "location": {
+           "latLng": {
+            "latitude": 51.5058,
+            "longitude": -0.0181
+           }
+          }
+         },
+         "arrivalTime": "2026-10-28T12:31:00Z",
+         "departureStop": {
+          "name": "Liverpool Street",
+          "location": {
+           "latLng": {
+            "latitude": 51.5178,
+            "longitude": -0.0823
+           }
+          }
+         },
+         "departureTime": "2026-10-28T12:24:00Z"
+        },
+        "localizedValues": {
+         "arrivalTime": {
+          "time": {
+           "text": "12:31 PM"
+          },
+          "timeZone": "Europe/London"
+         },
+         "departureTime": {
+          "time": {
+           "text": "12:24 PM"
+          },
+          "timeZone": "Europe/London"
+         }
+        },
+        "headsign": "Abbey Wood",
+        "transitLine": {
+         "nameShort": "Elizabeth line",
+         "color": "#6950a1",
+         "textColor": "#ffffff",
+         "agencies": [
+          {
+           "name": "Elizabeth line",
+           "uri": "https://tfl.gov.uk"
+          }
+         ],
+         "vehicle": {
+          "name": {
+           "text": "Train"
+          },
+          "type": "HEAVY_RAIL"
+         }
+        },
+        "stopCount": 2
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "distanceMeters": 260,
+       "staticDuration": "220s",
+       "polyline": {
+        "encodedPolyline": "gvjyHbpBrDvG"
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "localizedValues": {
+    "transitFare": {
+     "text": "£3.10"
+    }
+   }
+  }
+ ]
+}

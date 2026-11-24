@@ -1,0 +1,16 @@
+# pnpm 11 reads these keys ONLY from this file. The same keys in .npmrc are silently ignored.
+
+# Exact versions only: `pnpm add` writes 1.2.3, never ^1.2.3.
+savePrefix: ''
+
+# Supply-chain cooldown: refuse packages published in the last 7 days (10080 minutes).
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: false
+minimumReleaseAgeIgnoreMissingTime: true
+# Reject transitive dependencies that come from git or tarball URLs.
+blockExoticSubdeps: true
+
+allowBuilds:
+  esbuild: true
+  sharp: false
+  workerd: true

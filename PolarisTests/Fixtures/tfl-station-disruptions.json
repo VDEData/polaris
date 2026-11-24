@@ -1,0 +1,231 @@
+[
+ {
+  "atcoCode": "940GZZLUBSC",
+  "stationAtcoCode": "940GZZLUBSC",
+  "commonName": "Barons Court Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-07-06T03:30:00Z",
+  "toDate": "2026-11-30T01:29:00Z",
+  "description": "BARONS COURT STATION: From Monday 6 July until November, westbound trains will not call at Barons Court. If travelling westbound from the station, please use eastbound District or Piccadilly line trains and change to westbound services at West Kensington (on the District line) or Earls Court (on the Piccadilly line) and change to westbound services. If travelling westbound to the station, please continue to Hammersmith and change for eastbound District or Piccadilly line trains.",
+  "concernedLines": [
+   {
+    "id": "circle",
+    "direction": "inbound"
+   },
+   {
+    "id": "district",
+    "direction": "inbound"
+   },
+   {
+    "id": "piccadilly",
+    "direction": "inbound"
+   }
+  ]
+ },
+ {
+  "atcoCode": "940GZZLULVT",
+  "stationAtcoCode": "940GZZLULVT",
+  "commonName": "Liverpool Street Underground Station",
+  "mode": "tube",
+  "type": "Information",
+  "appearance": "Information",
+  "fromDate": "2025-12-12T05:41:00Z",
+  "toDate": "2027-04-24T00:29:00Z",
+  "description": "Step-free routes from Liverpool Street to Kings Cross St Pancras and Euston (via Euston Square): For Kings Cross, take a Metropolitan line eastbound train (platform 1) to Aldgate. Stay on the train. After a few minutes, the train reverses and travels westbound: you can get off at Kings Cross step-free. Eastbound journeys from Kings Cross are step-free direct to Liverpool Street. \r\n\r\nFor Euston, take a Metropolitan line eastbound train (platform 1) to Aldgate. Stay on the train. After a few minutes, the train reverses and travels westbound and you can get off at Euston Square step-free. It is then a 10 minute step-free walk via the street to Euston. Euston Square is step-free westbound only, so you cannot do the same journey in reverse to return to Liverpool Street. \r\n\r\nMini ramps are available at Liverpool Street, Kings Cross and Euston Square. To request a mini ramp speak to a member of staff before you start your journey.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GBARKING",
+  "stationAtcoCode": "910GBARKING",
+  "commonName": "Barking Rail Station",
+  "mode": "national-rail",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GBARKING",
+  "stationAtcoCode": "910GBARKING",
+  "commonName": "Barking Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GBLCHSRD",
+  "stationAtcoCode": "910GBLCHSRD",
+  "commonName": "Blackhorse Road Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GBARKRIV",
+  "stationAtcoCode": "910GBARKRIV",
+  "commonName": "Barking Riverside",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GLEYTNMR",
+  "stationAtcoCode": "910GLEYTNMR",
+  "commonName": "Leyton Midland Road Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GLYTNSHR",
+  "stationAtcoCode": "910GLYTNSHR",
+  "commonName": "Leytonstone High Road Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GSTOTNHM",
+  "stationAtcoCode": "910GSTOTNHM",
+  "commonName": "South Tottenham Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GWDGRNPK",
+  "stationAtcoCode": "910GWDGRNPK",
+  "commonName": "Woodgrange Park Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GWNSTDPK",
+  "stationAtcoCode": "910GWNSTDPK",
+  "commonName": "Wanstead Park Rail Station",
+  "mode": "overground",
+  "type": "Part Closure",
+  "appearance": "PlannedWork",
+  "fromDate": "2026-11-01T09:45:00Z",
+  "toDate": "2026-11-11T01:29:00Z",
+  "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "910GCANWHRF",
+  "stationAtcoCode": "910GCANWHRF",
+  "commonName": "Canary Wharf",
+  "mode": "elizabeth-line",
+  "type": "Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T10:52:00Z",
+  "toDate": "2026-11-10T01:29:00Z",
+  "description": "Canary Wharf: Closed - This station is closed to Elizabeth line services while we fix faulty escalators. DLR and Jubilee line services are stopping normally.",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUPAC",
+  "stationAtcoCode": "940GZZLUPAC",
+  "commonName": "Paddington Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUBWT",
+  "stationAtcoCode": "940GZZLUBWT",
+  "commonName": "Bayswater Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUECT",
+  "stationAtcoCode": "940GZZLUECT",
+  "commonName": "Earl's Court Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUERC",
+  "stationAtcoCode": "940GZZLUERC",
+  "commonName": "Edgware Road (Circle Line) Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUHSK",
+  "stationAtcoCode": "940GZZLUHSK",
+  "commonName": "High Street Kensington Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ },
+ {
+  "atcoCode": "940GZZLUNHG",
+  "stationAtcoCode": "940GZZLUNHG",
+  "commonName": "Notting Hill Gate Underground Station",
+  "mode": "tube",
+  "type": "Part Closure",
+  "appearance": "RealTime",
+  "fromDate": "2026-11-09T11:00:00Z",
+  "toDate": "2026-11-09T14:14:00Z",
+  "description": "District Line: No service between Earl's Court and Edgware Road while we fix a points failure in the High Street Kensington area. MINOR DELAYS on the rest of the line  due to train cancellations. Tickets will be accepted on London Buses via any reasonable route. ",
+  "concernedLines": null
+ }
+]

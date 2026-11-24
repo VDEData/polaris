@@ -1,0 +1,87 @@
+# Generates Polaris.xcodeproj (not committed): `scripts/generate.sh`.
+# Sources are folder globs, so adding a file never needs an edit here.
+name: Polaris
+options:
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+# Defaults in Config/Base.xcconfig, which includes your git-ignored Config/Secrets.xcconfig.
+# Values that differ per builder (bundle ID, team, alerts server) live there, not here:
+# settings in this file would win over both.
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+settings:
+  base:
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  Polaris:
+    type: application
+    platform: iOS
+    sources:
+      - path: Polaris
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(POLARIS_BUNDLE_ID)"
+        PRODUCT_NAME: Polaris
+        # Must be set per target: XcodeGen's iOS target default ("1,2") wins otherwise.
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: Polaris/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Polaris/Resources/Polaris.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: PolarisWidgets
+  # The trip's Live Activity (Lock Screen and Dynamic Island).
+  PolarisWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PolarisWidgets
+      - path: Polaris/Shared
+    info:
+      path: PolarisWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Polaris
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(POLARIS_BUNDLE_ID).widgets"
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+  # Provider parsers against recorded responses, and the merge/rank engine. No network.
+  PolarisTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PolarisTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(POLARIS_BUNDLE_ID).tests"
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: Polaris
+schemes:
+  Polaris:
+    build:
+      targets:
+        Polaris: all
+    test:
+      config: Debug
+      targets: [PolarisTests]
+    run:
+      config: Debug
+    archive:
+      config: Release
