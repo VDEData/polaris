@@ -374,7 +374,7 @@ private fun MapAndSheet(
             Surface(
                 Modifier
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
-                    .padding(start = cardStart, top = 12.dp, bottom = 12.dp)
+                    .padding(start = cardStart, top = if (short) 4.dp else 12.dp, bottom = if (short) 4.dp else 12.dp)
                     .width(cardWidth)
                     .fillMaxHeight()
                     .semantics { isTraversalGroup = true; traversalIndex = 0f },

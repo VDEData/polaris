@@ -169,7 +169,8 @@ fun ResultsScreen(
                 start = 16.dp, end = 16.dp,
                 bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            // Tighter on a short window, so the whole first route fits beside the map.
+            verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 12.dp),
         ) {
             item(key = "trip") {
                 TripHeader(
@@ -666,7 +667,7 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
             .surface(c, highlighted = isBest, selected = isShown)
             .clickable(role = Role.Button, onClickLabel = "Show this route") { onClick() }
             .clearAndSetSemantics { contentDescription = spoken }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = if (LocalWindowLayout.current.short) 10.dp else 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // The times stay whole; at large text the duration moves under them rather than splitting them.
