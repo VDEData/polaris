@@ -74,7 +74,7 @@ import polaris.android.ui.surface
 import polaris.engine.Place
 
 /**
- * Home, the sheet's root (iOS's `HomeSheet`): the wordmark with Settings in its overflow, where
+ * Home, the sheet's root (iOS's `HomeSheet`): the wordmark with the Settings gear, where
  * to, Home and Work, recent places, and "Leaving near you". Location is never asked for here
  * unasked: what's leaving nearby is asked for (one request, kept a minute) only once the person
  * has allowed location, and offers a button to allow it otherwise.
@@ -293,14 +293,8 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
     }
 }
 
-/** Settings, from the overflow beside the wordmark (Android's place for it; no gear icon needed). */
+/** Settings: a gear beside the wordmark (Alex's choice), a 48 dp button. */
 @Composable
 private fun SettingsMenu(openSettings: () -> Unit) {
-    var menu by rememberSaveable { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { menu = true }) { Symbol(R.drawable.sym_more_vert, stringResource(R.string.home_more), tint = polaris.inkSoft) }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text(stringResource(R.string.settings_open)) }, onClick = { menu = false; openSettings() })
-        }
-    }
+    IconButton(onClick = openSettings) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_open), tint = polaris.inkSoft) }
 }

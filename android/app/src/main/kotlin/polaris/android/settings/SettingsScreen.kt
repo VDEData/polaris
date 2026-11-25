@@ -267,7 +267,8 @@ fun LazyListScope.connectionItems(ui: SettingsViewModel.Ui, model: SettingsViewM
     item(key = "key-google") {
         KeyItem(
             SettingsViewModel.Item.google, R.string.item_google_title, R.string.item_google_purpose, R.string.item_google_source, ui, model, showLater,
-            extra = graph.identity.certificateSha1?.let { sha -> stringResource(R.string.item_google_identity, graph.identity.packageName, sha) },
+            // This build's package and certificate, for restricting a key: in Settings, not in first-run setup.
+            extra = if (showLater) null else graph.identity.certificateSha1?.let { sha -> stringResource(R.string.item_google_identity, graph.identity.packageName, sha) },
         )
     }
     item(key = "key-tfl") { KeyItem(SettingsViewModel.Item.tfl, R.string.item_tfl_title, R.string.item_tfl_purpose, R.string.item_tfl_source, ui, model, showLater) }
