@@ -495,12 +495,12 @@ fun summary(ui: ResultsViewModel.Ui, words: SummaryWords = SummaryWords.English)
     val found = words.routes(routes)
     val order = ProviderID.entries
     val asking = order.filter { ui.statuses[it] == ProviderStatus.Loading }.map { it.displayName }
-    if (asking.isNotEmpty()) return if (routes > 0) words.soFarAsking(found, spokenList(asking, words.and)) else words.asking(spokenList(asking, words.and))
+    if (asking.isNotEmpty()) return if (routes > 0) words.soFarAsking(found, spokenList(asking, words.and, words.separator)) else words.asking(spokenList(asking, words.and, words.separator))
     val answered = order.filter { it != ProviderID.apple && ui.statuses[it] is ProviderStatus.Done }.map { it.displayName }
     val failed = order.filter { ui.statuses[it] is ProviderStatus.Failed }.map { it.displayName }
     if (ui.statuses.isEmpty()) return words.notSearched
-    var text = if (answered.isEmpty()) words.noSourceAnswered else words.foundFrom(found, spokenList(answered, words.and))
-    if (failed.isNotEmpty()) text = words.didntAnswer(text, spokenList(failed, words.and))
+    var text = if (answered.isEmpty()) words.noSourceAnswered else words.foundFrom(found, spokenList(answered, words.and, words.separator))
+    if (failed.isNotEmpty()) text = words.didntAnswer(text, spokenList(failed, words.and, words.separator))
     return text
 }
 
@@ -509,6 +509,8 @@ interface SummaryWords {
     val finding: String
     /** The word before a list's last item. */
     val and: String
+    /** Between the items of a list but the last two. */
+    val separator: String get() = ", "
     fun routes(count: Int): String
     fun soFarAsking(found: String, sources: String): String
     fun asking(sources: String): String
@@ -539,6 +541,7 @@ fun rememberSummaryWords(): SummaryWords {
         object : SummaryWords {
             override val finding get() = resources.getString(R.string.common_finding_you)
             override val and get() = resources.getString(R.string.list_and)
+            override val separator get() = resources.getString(R.string.list_separator)
             override fun routes(count: Int) = resources.getQuantityString(R.plurals.summary_routes, count, count.toString())
             override fun soFarAsking(found: String, sources: String) = resources.getString(R.string.summary_so_far_asking, found, sources)
             override fun asking(sources: String) = resources.getString(R.string.summary_asking, sources)
@@ -727,12 +730,12 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
     val details = details(j)
     val and = stringResource(R.string.list_and)
     val or = stringResource(R.string.list_or)
-    val otherTimes = spokenList(option.otherDepartures.take(3).map { Clock.of(it) }, or)
+    val otherTimes = spokenList(option.otherDepartures.take(3).map { Clock.of(it) }, or, stringResource(R.string.list_separator))
     val spoken = listOfNotNull(
         if (isBest) stringResource(R.string.route_best) else null, j.worstNotice?.title, minutesText(j.duration),
         stringResource(R.string.route_leave_arrive, Clock.of(j.departure), Clock.of(j.arrival)),
-        spokenList(j.transitLegs.mapNotNull { it.line }, and), boarding, details,
-        stringResource(R.string.route_found_by, spokenList(option.providers.map { it.displayName }, and)),
+        spokenList(j.transitLegs.mapNotNull { it.line }, and, stringResource(R.string.list_separator)), boarding, details,
+        stringResource(R.string.route_found_by, spokenList(option.providers.map { it.displayName }, and, stringResource(R.string.list_separator))),
         if (option.otherDepartures.isNotEmpty()) stringResource(R.string.route_or_leave_at_spoken, otherTimes) else null,
         if (j.isRealtime) stringResource(R.string.route_live_times) else null,
     ).joinToString(", ")

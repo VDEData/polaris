@@ -44,7 +44,10 @@ class SettingsViewModel(
     /** What a key's field says under it. */
     enum class KeyState { builtIn, notSet, saved, unreadable, notSaved }
 
-    data class Field(val text: String = "", val state: KeyState = KeyState.notSet)
+    data class Field(val text: String = "", val state: KeyState = KeyState.notSet) {
+        /** Never the key itself in a log or a crash report. */
+        override fun toString() = "Field(${if (text.isEmpty()) "empty" else "redacted"}, $state)"
+    }
 
     data class Ui(
         val loaded: Boolean = false,
@@ -55,7 +58,11 @@ class SettingsViewModel(
         val fields: Map<Item, Field> = emptyMap(),
         /** Accounts whose saved value was lost for good, until the person has seen the notice. */
         val lost: Set<String> = emptySet(),
+        /** Google can be asked: a key is entered or built in (its switch means nothing without one). */
+        val googleUsable: Boolean = false,
     ) {
+        override fun toString() = "Ui(loaded=$loaded, appearance=$appearance, fields=$fields)"
+
         fun field(item: Item) = fields[item] ?: Field()
         /** The typed contact is used only if it's an email or web address. */
         val contactInvalid: Boolean get() = field(Item.contact).text.isNotBlank() && Contact.valid(field(Item.contact).text) == null
@@ -81,6 +88,7 @@ class SettingsViewModel(
                     googleUsed = graph.usage.allowance.usedThisMonth(Instant.now()),
                     fields = Item.entries.associateWith { item -> fieldFor(item) },
                     lost = settings.lostSecrets,
+                    googleUsable = googleUsable(),
                 )
             }
             // The contact as typed before a rotation wins over what was read (keys are read back from the store).
@@ -108,31 +116,62 @@ class SettingsViewModel(
         Item.contact -> false
     }
 
+    private fun googleUsable() = (settings.readKeys().google as? AppSettings.Key.Use)?.value != null
+
+    // Choices are written off the main thread; the screen shows them at once. Their controls are
+    // enabled only once the stores have been read, so a tap is never overwritten by that read.
     fun setAppearance(appearance: Appearance) {
-        settings.appearance = appearance
         graph.appearance.value = appearance
-        _ui.value = _ui.value.copy(appearance = appearance)
+        _ui.update { it.copy(appearance = appearance) }
+        saves.launch(io) { settings.appearance = appearance }
     }
 
     fun setEnabled(provider: ProviderID, enabled: Boolean) {
-        settings.setEnabled(provider, enabled)
-        _ui.value = _ui.value.copy(enabled = _ui.value.enabled + (provider to enabled))
+        _ui.update { it.copy(enabled = it.enabled + (provider to enabled)) }
+        saves.launch(io) { settings.setEnabled(provider, enabled) }
     }
 
     fun setDeepSearch(on: Boolean) {
-        settings.deepSearch = on
-        _ui.value = _ui.value.copy(deepSearch = on)
+        _ui.update { it.copy(deepSearch = on) }
+        saves.launch(io) { settings.deepSearch = on }
     }
 
-    /** A key or the contact typed: shown at once, saved in order off the main thread. */
+    /**
+     * Over a value that is saved but can't be read now, typing only drafts: nothing is written
+     * until [replace], so a stray keystroke (or a backspace after it) never touches the sealed
+     * value. Elsewhere a key is saved as it is typed, as on iOS.
+     */
     fun type(item: Item, text: String) {
+        if (_ui.value.field(item).state == KeyState.unreadable) {
+            if (item == Item.contact) handle[item.name] = text
+            _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
+            return
+        }
+        typeAndSave(item, text)
+    }
+
+    /** Replaces an unreadable value with the text drafted over it: the person's explicit act. */
+    fun replace(item: Item) {
+        val draft = _ui.value.field(item).text.trim()
+        if (draft.isEmpty()) return
+        typeAndSave(item, draft)
+    }
+
+    /** Removes a saved key or contact on purpose (one that can be read; an unreadable one is only ever replaced). */
+    fun remove(item: Item) {
+        if (_ui.value.field(item).state == KeyState.unreadable) return
+        typeAndSave(item, "")
+    }
+
+    /** A key or the contact typed: shown at once, saved in order off the main thread (trimmed). */
+    private fun typeAndSave(item: Item, text: String) {
         if (item == Item.contact) handle[item.name] = text
         // Atomic: a save landing on the IO thread mid-keystroke changes only the state, never the text.
         _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
         pending[item] = text
         val job = saves.launch(io) {
             writes.withLock {
-                val latest = pending.remove(item) ?: return@withLock
+                val latest = pending.remove(item)?.trim() ?: return@withLock
                 val result = when (item) {
                     Item.google -> settings.setGoogleKeyOverride(latest)
                     Item.tfl -> settings.setTflKeyOverride(latest)
@@ -143,7 +182,8 @@ class SettingsViewModel(
                     AppSettings.Save.notSaved -> KeyState.notSaved
                     AppSettings.Save.keptUnreadable -> KeyState.unreadable
                 }
-                _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(state = state))) }
+                val usable = if (item == Item.google) googleUsable() else null
+                _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(state = state)), googleUsable = usable ?: ui.googleUsable) }
             }
         }
         synchronized(jobs) {
@@ -156,8 +196,8 @@ class SettingsViewModel(
 
     /** The person has read the notice about values lost for good. */
     fun acknowledgeLost() {
-        viewModelScope.launch(io) { settings.acknowledgeLost() }
-        _ui.value = _ui.value.copy(lost = emptySet())
+        saves.launch(io) { settings.acknowledgeLost() }
+        _ui.update { it.copy(lost = emptySet()) }
     }
 
     /** Waits for every key typed so far to be written (tests, and leaving setup). */

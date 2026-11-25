@@ -96,11 +96,11 @@ fun minutesText(seconds: Double): String {
     return if (minutes < 60) stringResource(R.string.duration_minutes, minutes) else stringResource(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
 }
 
-/** A list in words: "a", "a and b", "a, b and c" (or "or"); [joiner] is the word before the last. */
-fun spokenList(items: List<String>, joiner: String): String = when (items.size) {
+/** A list in words: "a", "a and b", "a, b and c" (or "or"); [joiner] is the word before the last, [separator] the one between the others. */
+fun spokenList(items: List<String>, joiner: String, separator: String = ", "): String = when (items.size) {
     0 -> ""
     1 -> items[0]
-    else -> items.dropLast(1).joinToString(", ") + " $joiner " + items.last()
+    else -> items.dropLast(1).joinToString(separator) + " $joiner " + items.last()
 }
 
 fun RGB.toColor() = androidx.compose.ui.graphics.Color(r.toFloat(), g.toFloat(), b.toFloat())

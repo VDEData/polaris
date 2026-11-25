@@ -53,6 +53,10 @@ fun SetupScreen(graph: AppGraph, night: Boolean, onDone: () -> Unit) {
     // Keys are saved as they are typed; leaving waits for the last one to be written.
     val finish: () -> Unit = { scope.launch { model.flush(); onDone() } }
     BackHandler(onBack = finish)
+    // Settled for good once it is on screen, not when the launch decided to show it (FirstRun).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.settings.markSetupSeen() }
+    }
     CoverPage(night) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.setup_title), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink)

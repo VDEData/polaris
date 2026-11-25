@@ -158,7 +158,16 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
             contentPadding = PaddingValues(bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 14.dp),
         ) {
-            item(key = "top") { TopRow(title, journey?.let { summary(it) }, journey, query, onBack) }
+            // A short window (a phone on its side): when to leave joins the subtitle and Share goes
+            // to the overflow, so the first ride and its strip are in the first screenful.
+            item(key = "top") {
+                val sub = journey?.let { summary(it) }
+                if (layout.short && journey != null && query != null) {
+                    val (leave, urgent) = leaveText(journey)
+                    UrgencyAnnouncement(leave, urgent)
+                    TopRow(title, sub?.let { stringResource(R.string.journey_summary, leave, it) }, journey, query, onBack, share = shareAction(journey, query))
+                } else TopRow(title, sub, journey, query, onBack)
+            }
             when {
                 ui.loading -> item(key = "loading") {
                     Text(stringResource(R.string.journey_loading), Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
@@ -171,7 +180,7 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
                     }
                 }
                 else -> {
-                    item(key = "leave") { LeaveAndShare(journey, query, Modifier.padding(horizontal = 16.dp)) }
+                    if (!layout.short) item(key = "leave") { LeaveAndShare(journey, query, Modifier.padding(horizontal = 16.dp)) }
                     item(key = "itinerary") {
                         Itinerary(
                             journey, query, ui,
@@ -201,7 +210,7 @@ private fun summary(j: Journey): String {
 
 /** The page's top row (and its bar at the low rest): up, the times, and the overflow with other apps. */
 @Composable
-private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: JourneyQuery?, onBack: () -> Unit) {
+private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: JourneyQuery?, onBack: () -> Unit, share: (() -> Unit)? = null) {
     val c = polaris
     val context = LocalContext.current
     var menu by rememberSaveable { mutableStateOf(false) }
@@ -215,6 +224,7 @@ private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: J
             Box {
                 IconButton(onClick = { menu = true }) { Symbol(R.drawable.sym_more_vert, stringResource(R.string.journey_more), tint = c.inkSoft) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    share?.let { go -> DropdownMenuItem(text = { Text(stringResource(R.string.journey_share)) }, onClick = { menu = false; go() }) }
                     OpenIn.entries.forEach { app ->
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.journey_open_in, app.label)) },
@@ -228,11 +238,9 @@ private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: J
     }
 }
 
-/** When to leave, ticking, in the warning colour inside two minutes; and Share. Stacked at large text. */
+/** "Leave in 4 min", ticking, and whether it is inside two minutes (the warning colour). */
 @Composable
-private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modifier) {
-    val c = polaris
-    val context = LocalContext.current
+private fun leaveText(journey: Journey): Pair<String, Boolean> {
     val now = ticking()
     val seconds = journey.departure.epochSecond - now.epochSecond
     val minutes = Math.floorDiv(seconds, 60L).toInt()
@@ -242,14 +250,42 @@ private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modif
         minutes >= -1 -> stringResource(R.string.journey_leave_now)
         else -> stringResource(R.string.journey_was_due, Clock.of(journey.departure))
     }
-    val urgent = seconds in -599..119
+    return leave to (seconds in -599..119)
+}
+
+/**
+ * TalkBack hears the countdown once, when it crosses into the last two minutes, not every
+ * minute (the text itself is read when the person reaches it).
+ */
+@Composable
+private fun UrgencyAnnouncement(leave: String, urgent: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    var said by rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(urgent) {
+        if (urgent && !said) {
+            said = true
+            @Suppress("DEPRECATION") view.announceForAccessibility(leave)
+        }
+    }
+}
+
+@Composable
+private fun shareAction(journey: Journey, query: JourneyQuery): () -> Unit {
+    val context = LocalContext.current
     val shareText = shareText(journey, query)
     val chooser = stringResource(R.string.journey_share_with)
-    val share = {
-        launchIntent(context, Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareText), chooser))
-    }
+    return { launchIntent(context, Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareText), chooser)) }
+}
+
+/** When to leave, ticking, in the warning colour inside two minutes; and Share. Stacked at large text. */
+@Composable
+private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modifier) {
+    val c = polaris
+    val (leave, urgent) = leaveText(journey)
+    UrgencyAnnouncement(leave, urgent)
+    val share = shareAction(journey, query)
     val leaveRow: @Composable (Modifier) -> Unit = { m ->
-        Row(m.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(m.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Symbol(R.drawable.sym_schedule, null, Modifier.size(18.dp), tint = if (urgent) c.warning else c.ink)
             Text(leave, style = MaterialTheme.typography.titleSmall, color = if (urgent) c.warning else c.ink)
         }
@@ -427,12 +463,14 @@ private fun RideDetail(leg: Leg, notices: List<ServiceNotice>, board: Loadable<D
     var showStops by rememberSaveable(leg.id) { mutableStateOf(false) }
     val hasStops = leg.intermediateStops.isNotEmpty()
     val stopsLabel = stringResource(if (showStops) R.string.journey_hide_stops else R.string.journey_show_stops)
-    Row(
+    // Wraps at large text rather than splitting "10 min" or losing the chevron; a 48 dp target.
+    androidx.compose.foundation.layout.FlowRow(
         Modifier
             .then(if (hasStops) Modifier.clickable(role = Role.Button, onClickLabel = stopsLabel) { showStops = !showStops } else Modifier)
-            .heightIn(min = 32.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .heightIn(min = 48.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
         // The platform up front, in ink: it decides where you stand.
         leg.platform?.let { p ->
@@ -497,12 +535,20 @@ private fun OtherApps(query: JourneyQuery, modifier: Modifier) {
 fun BoardCard(leg: Leg, state: Loadable<DepartureBoard>?, refreshing: Boolean, refresh: () -> Unit, close: () -> Unit) {
     val c = polaris
     androidx.compose.material3.Surface(shape = RoundedCornerShape(24.dp), color = c.paper, shadowElevation = 6.dp) {
-        BoardContent(leg, state, refreshing, refresh, narrow = true, close = close, modifier = Modifier.heightIn(max = 360.dp))
+        // Rows in their one-line form (the card is wide enough), tall enough for yours and a few around it.
+        BoardContent(leg, state, refreshing, refresh, narrow = false, close = close, modifier = Modifier.heightIn(max = 480.dp), docked = true)
     }
 }
 
 internal fun launch(context: android.content.Context, url: String) = launchIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
+/** Hands off to another app; when none can take it, says so rather than doing nothing. */
 internal fun launchIntent(context: android.content.Context, intent: Intent) {
-    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, context.getString(R.string.journey_no_app), android.widget.Toast.LENGTH_SHORT).show()
+    } catch (e: SecurityException) {
+        android.widget.Toast.makeText(context, context.getString(R.string.journey_no_app), android.widget.Toast.LENGTH_SHORT).show()
+    }
 }

@@ -107,10 +107,10 @@ class JourneyAndSettingsTest {
         assertEquals(rides, rig.transport.boards)
         assertNotNull(board.ui.value.boards[journey.transitLegs.first().id])
 
-        // The board's Refresh asks for that ride only.
+        // The board's Refresh right after it loaded is held by the 15 s floor (the store's own test covers it after).
         board.refresh(journey.transitLegs.first())
         advanceUntilIdle()
-        assertEquals(rides + 1, rig.transport.boards)
+        assertEquals(rides, rig.transport.boards)
     }
 
     @Test fun aBoardPageOnItsOwnAsksForItsOneRide() = runTest(dispatcher) {
@@ -144,7 +144,7 @@ class JourneyAndSettingsTest {
         assertEquals(1, rig.transport.nearby, "kept a minute")
         assertTrue(rig.graph.departures.nearby is Loadable.Loaded)
         shell.refreshNearby(force = true); advanceUntilIdle()
-        assertEquals(2, rig.transport.nearby, "Refresh asks again")
+        assertEquals(1, rig.transport.nearby, "Refresh within the floor sends nothing")
         assertEquals(0, rig.transport.routes.total, "and nothing else")
     }
 
@@ -197,10 +197,63 @@ class JourneyAndSettingsTest {
         model.flush(); advanceUntilIdle()
         assertEquals(SettingsViewModel.KeyState.unreadable, model.ui.value.field(SettingsViewModel.Item.tfl).state)
         assertTrue(store.written.isEmpty(), "nothing deleted")
-        // Typing a new key replaces it.
-        model.type(SettingsViewModel.Item.tfl, "new-key")
+        // A stray keystroke and a backspace over it only draft: the sealed value is never touched.
+        model.type(SettingsViewModel.Item.tfl, "x")
+        model.type(SettingsViewModel.Item.tfl, "")
+        model.flush(); advanceUntilIdle()
+        assertTrue(store.written.isEmpty(), "typing over an unreadable key writes nothing")
+        // Remove is refused over it too; Replace, with a draft, is the one way to change it.
+        model.remove(SettingsViewModel.Item.tfl)
+        model.type(SettingsViewModel.Item.tfl, " new-key ")
+        model.flush(); advanceUntilIdle()
+        assertTrue(store.written.isEmpty())
+        model.replace(SettingsViewModel.Item.tfl)
         model.flush(); advanceUntilIdle()
         assertEquals(listOf(AppSettings.TFL), store.written)
+    }
+
+    @Test fun aSavedKeyIsRemovedOnlyByRemove() = runTest(dispatcher) {
+        val rig = rig()
+        rig.settings.setTflKeyOverride("kept")
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        assertEquals(SettingsViewModel.KeyState.saved, model.ui.value.field(SettingsViewModel.Item.tfl).state)
+        model.remove(SettingsViewModel.Item.tfl)
+        model.flush(); advanceUntilIdle()
+        assertNull(rig.settings.tflKey)
+        assertEquals(SettingsViewModel.KeyState.notSet, model.ui.value.field(SettingsViewModel.Item.tfl).state)
+    }
+
+    @Test fun keysNeverReachALog() = runTest(dispatcher) {
+        val rig = rig()
+        rig.settings.setGoogleKeyOverride("AIzaSECRETVALUE")
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        val printed = model.ui.value.toString() + model.ui.value.field(SettingsViewModel.Item.google).toString()
+        assertFalse("SECRET" in printed, printed)
+        assertTrue("redacted" in printed)
+        // And Google is usable once it has a key; without one its switch says it needs one.
+        assertTrue(model.ui.value.googleUsable)
+        assertFalse(SettingsViewModel(SavedStateHandle(), rig().graph, io = dispatcher).also { advanceUntilIdle() }.ui.value.googleUsable)
+    }
+
+    @Test fun nearbyWithNoFixSaysSoAndTryAgainAsksAgain() = runTest(dispatcher) {
+        val locator = FakeLocator(here = null)
+        val rig = rig(locator = locator)
+        val shell = ShellViewModel(rig.graph)
+        shell.refreshNearby(); advanceUntilIdle()
+        assertTrue(shell.nearbyNoFix.value, "no fix: Home says so instead of spinning")
+        assertEquals(0, rig.transport.nearby)
+        locator.here = Coordinate(51.5308, -0.1238)
+        shell.refreshNearby(force = true); advanceUntilIdle()
+        assertFalse(shell.nearbyNoFix.value)
+        assertEquals(1, rig.transport.nearby)
+        // Home coming back within the minute asks for no fix and sends nothing.
+        val asked = locator.asked
+        shell.refreshNearby(); advanceUntilIdle()
+        assertEquals(asked, locator.asked)
+        assertEquals(1, rig.transport.nearby)
+        // Refresh straight away is held by the floor.
+        shell.refreshNearby(force = true); advanceUntilIdle()
+        assertEquals(1, rig.transport.nearby)
     }
 
     @Test fun aKeyThatCouldNotBeSavedSaysSo() = runTest(dispatcher) {
@@ -216,10 +269,12 @@ class JourneyAndSettingsTest {
         val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
         model.setAppearance(polaris.engine.Appearance.dark)
         assertEquals(polaris.engine.Appearance.dark, rig.graph.appearance.value, "the activity follows it")
+        advanceUntilIdle()
         assertEquals(polaris.engine.Appearance.dark, AppSettings(preferences = rig.kv).appearance, "and it's kept")
         model.setEnabled(polaris.engine.ProviderID.tfl, false)
-        assertFalse(rig.settings.isEnabled(polaris.engine.ProviderID.tfl))
         model.setDeepSearch(false)
+        advanceUntilIdle()
+        assertFalse(rig.settings.isEnabled(polaris.engine.ProviderID.tfl))
         assertFalse(AppSettings(preferences = rig.kv).deepSearch)
     }
 
@@ -232,16 +287,33 @@ class JourneyAndSettingsTest {
 }
 
 class NoticesTest {
-    @Test fun theNoticesFileReadsAsParagraphsWithEveryWordKept() {
-        val file = java.io.File("../THIRD_PARTY_NOTICES.md").takeIf { it.exists() } ?: java.io.File("THIRD_PARTY_NOTICES.md")
-        val lines = file.readLines()
+    private val lines = (java.io.File("../THIRD_PARTY_NOTICES.md").takeIf { it.exists() } ?: java.io.File("THIRD_PARTY_NOTICES.md")).readLines()
+
+    @Test fun theAppsLicencesLeaveOutWhatIsWrittenForTheRepository() {
         val blocks = polaris.android.settings.noticeBlocks(lines)
+        val all = blocks.joinToString("\n") { it.text }
+        for (repoWords in listOf("this folder", "../LICENSE", "app/src", "sym_*", "<!--")) assertFalse(repoWords in all, repoWords)
+        // Markdown's marks are gone from the prose (licence texts are reproduced as they are).
+        val prose = blocks.filter { !it.preformatted }
+        assertTrue(prose.none { "**" in it.text || "`" in it.text }, prose.firstOrNull { "**" in it.text || "`" in it.text }?.text)
         assertTrue(blocks.first().heading)
-        // No Markdown marks left, and every word of the file is still there, in order.
-        assertTrue(blocks.none { "**" in it.text || "`" in it.text })
-        val words = { t: String -> t.replace("**", "").replace("`", "").split(Regex("\\s+")).map { it.trimStart('#', '-') }.filter { it.isNotEmpty() } }
-        assertEquals(words(lines.joinToString(" ")), words(blocks.joinToString(" ") { it.text }))
-        // The MapLibre notice its licence asks for is in it.
+    }
+
+    @Test fun everyWordOutsideTheRepoOnlyPassagesIsKept() {
+        val kept = mutableListOf<String>()
+        var skip = false
+        for (l in lines) {
+            val t = l.trim()
+            if (t == "<!-- repo-only -->") { skip = true; continue }
+            if (t == "<!-- /repo-only -->") { skip = false; continue }
+            if (t.startsWith("<!--")) { if (!t.endsWith("-->")) skip = true; continue }
+            if (!skip && !t.startsWith("```")) kept += l
+        }
+        val words = { t: String -> t.replace("**", "").replace("`", "").replace(Regex("""[\[\]()#-]"""), " ").split(Regex("\\s+")).filter { it.isNotEmpty() } }
+        assertEquals(words(kept.joinToString(" ")), words(polaris.android.settings.noticeBlocks(lines).joinToString(" ") { it.text }))
+        // MapLibre's own notice, which its licence asks for, is there, its licence texts line for line.
+        val blocks = polaris.android.settings.noticeBlocks(lines)
         assertTrue(blocks.any { "MapLibre" in it.text })
+        assertTrue(blocks.any { it.preformatted && "\n" in it.text })
     }
 }

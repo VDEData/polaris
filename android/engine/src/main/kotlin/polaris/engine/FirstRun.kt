@@ -41,13 +41,20 @@ object FirstRun {
     }
 
     /**
-     * Decides at launch, once: shows it, or never will. Either way it isn't asked again, unless a
-     * secret couldn't be read, when nothing is decided or written and a later launch asks.
+     * Decides at launch: shows it, or never will. A launch that will show it asks again until
+     * setup has been on screen; one that couldn't read a secret decides nothing and writes nothing.
      */
     fun takeTurn(preferences: KeyValueStore, secrets: (String) -> SecretRead): Boolean {
         val facts = facts(preferences, secrets)
         if (facts.undecided && !facts.seen && !facts.hasPriorData) return false
-        preferences.putString(SEEN_KEY, "true")
-        return shouldShow(facts)
+        val show = shouldShow(facts)
+        // Decided not to show: settled for good. Decided to show: settled once it is on screen
+        // ([markSeen]), so a launch interrupted before setup appears (the screen recreated while
+        // storage loads, the process stopped) still shows it next time. iOS writes it at once.
+        if (!show) markSeen(preferences)
+        return show
     }
+
+    /** Setup is on screen: never again, finished or skipped. */
+    fun markSeen(preferences: KeyValueStore) = preferences.putString(SEEN_KEY, "true")
 }

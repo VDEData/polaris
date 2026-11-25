@@ -168,6 +168,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // A fold running across the window (an unfolded book-style phone turned tall): the phone
     // layout with more room, as the proposal decides for tall-open, not a card above the fold.
     val foldAcross = hinges.any { !it.isVertical }
+    val foldBottom = hinges.firstOrNull { !it.isVertical }?.bounds?.bottom
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Wide: an unfolded phone held wide, a tablet in landscape, and a phone in landscape (under
     // 480 dp tall a sheet leaves no room for a route card; a card beside the map does).
@@ -183,7 +184,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // The card sits inside the safe area (a camera cutout on the leading side in landscape), so the map half starts past both.
     val safeStart = WindowInsets.safeDrawing.asPaddingValues().calculateStartPadding(direction)
     val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
-    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart)
+    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom)
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -321,7 +322,10 @@ private fun MapAndSheet(
             val anchors = buildMap {
                 put(Rest.Low, heightPx - (barPx + handlePx + with(density) { navBottom.toPx() }))
                 // At the largest text the half rest sits higher, so a route card fits under the page's controls.
-                put(Rest.Half, heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f)
+                // Open tall, the half rest is 48 dp below the fold, so neither the sheet's edge nor the map's
+                // credit sits on it.
+                val foldRest = layout.foldBottomPx?.let { it + with(density) { 48.dp.toPx() } }?.takeIf { it < heightPx * 0.7f }
+                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
@@ -409,6 +413,8 @@ private fun MapAndSheet(
                 shape = RoundedCornerShape(28.dp),
                 color = polaris.paper,
                 shadowElevation = 6.dp,
+                // At night a shadow doesn't show on the dark map: a hairline edge does.
+                border = if (polaris.isNight) androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)) else null,
             ) { sheetContent() }
         } else {
             val fullHeight = with(density) { (heightPx - (sheet.anchors[Rest.Full] ?: sheet.anchors[Rest.Half] ?: 0f)).toDp() }
@@ -442,7 +448,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> pages.add(LinePage(line.id, line.stopName)) } } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) } } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->

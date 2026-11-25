@@ -25,6 +25,7 @@
     <string name="common_label_value">%1$s: %2$s</string>
     <string name="list_and">and</string>
     <string name="list_or">or</string>
+    <string name="list_separator">", "</string>
     <string name="trip_from">From</string>
     <string name="trip_to">To</string>
 

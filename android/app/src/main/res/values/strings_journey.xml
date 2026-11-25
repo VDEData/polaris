@@ -4,13 +4,13 @@
     <!-- Header -->
     <string name="journey_title">%1$s – %2$s · %3$s</string>
     <string name="journey_direct">Direct</string>
-    <string name="journey_duration_minutes">%s min</string>
+    <string name="journey_duration_minutes">%s\u00A0min</string>
     <string name="journey_duration_hours">%1$s h %2$s</string>
     <plurals name="journey_changes">
         <item quantity="one">%s change</item>
         <item quantity="other">%s changes</item>
     </plurals>
-    <string name="journey_walk_minutes">%s min walk</string>
+    <string name="journey_walk_minutes">%s\u00A0min walk</string>
     <string name="journey_summary">%1$s · %2$s</string>
     <string name="journey_summary_fare">%1$s · %2$s · %3$s</string>
     <string name="journey_leave_at">Leave at %s</string>
@@ -28,6 +28,7 @@
     <string name="journey_gone">This route wasn\'t kept</string>
     <string name="journey_gone_body">Android closed Polaris while it was in the background. Go back to the routes and search again.</string>
     <string name="journey_back_to_routes">Back to the routes</string>
+    <string name="journey_no_app">No app on this phone can open that.</string>
     <string name="journey_loading">Bringing back this route…</string>
 
     <!-- Itinerary -->
@@ -84,7 +85,7 @@
     <string name="board_cancelled">Cancelled</string>
     <string name="board_gone">Gone</string>
     <string name="board_now">Now</string>
-    <string name="board_minutes">%s min</string>
+    <string name="board_minutes">%s\u00A0min</string>
     <string name="board_yours">Yours</string>
     <string name="board_arrives">Arrives %s</string>
     <string name="board_reaches">%1$s %2$s</string>
@@ -102,16 +103,21 @@
     <string name="nearby_use_location">Use my location</string>
     <string name="nearby_none">Nothing is leaving from stops within 400 m right now.</string>
     <string name="nearby_finding">Finding departures near you…</string>
+    <string name="nearby_no_fix">Couldn\'t find where you are, so nothing near you could be looked up.</string>
+    <string name="nearby_try_again">Try again</string>
+    <string name="nearby_all_gone">Everything listed here has left. Refresh for what\'s leaving now.</string>
+    <string name="nearby_distance_after">" · %s\u00A0m"</string>
     <string name="nearby_show_more">Show %s more</string>
     <string name="nearby_show_fewer">Show fewer</string>
     <string name="nearby_to">to %s</string>
     <string name="nearby_stop_distance">%1$s · %2$s m</string>
     <string name="nearby_now">Now</string>
-    <string name="nearby_minutes_suffix">%s min</string>
+    <string name="nearby_minutes_suffix">%s\u00A0min</string>
     <string name="nearby_open">Shows the next departures</string>
     <string name="line_leaving">Leaving</string>
     <string name="line_stop_away">%1$s · %2$s m away</string>
     <string name="line_gone">These times weren\'t kept</string>
     <string name="line_gone_body">Android closed Polaris while it was in the background. Refresh to see what\'s leaving now.</string>
+    <string name="line_all_gone">These have all left. Refresh for what\'s leaving now.</string>
     <string name="line_source">Times from Transitous (open timetables), live where marked.</string>
 </resources>

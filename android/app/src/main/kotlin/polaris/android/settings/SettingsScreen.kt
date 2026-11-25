@@ -1,6 +1,7 @@
 package polaris.android.settings
 
 import polaris.engine.AppSettings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -109,9 +111,10 @@ fun CoverPage(night: Boolean, content: @Composable androidx.compose.foundation.l
     Box(Modifier.fillMaxSize()) {
         Surface(
             modifier = if (layout.wide) {
+                // Where the card under it is: the main window's safe inset, not the dialog's own, which can differ.
                 Modifier
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
-                    .padding(start = 16.dp, top = 12.dp, bottom = 12.dp)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
+                    .padding(start = layout.safeStart + 16.dp, top = 12.dp, bottom = 12.dp)
                     .width(layout.cardWidth)
                     .fillMaxHeight()
             } else Modifier.fillMaxSize(),
@@ -171,6 +174,7 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
                     Appearance.entries.forEachIndexed { i, a ->
                         SegmentedButton(
                             selected = ui.appearance == a,
+                            enabled = ui.loaded,
                             onClick = { model.setAppearance(a) },
                             shape = SegmentedButtonDefaults.itemShape(i, Appearance.entries.size),
                         ) { Text(stringResource(labels[i]), maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -183,21 +187,25 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
                 Column(Modifier.fillMaxWidth().surface(c)) {
                     ui.enabled.keys.forEachIndexed { i, provider ->
                         if (i > 0) HorizontalDivider(color = c.hairline)
+                        // Google without a key sends nothing: its switch says so rather than showing on.
+                        val needsKey = provider == ProviderID.google && !ui.googleUsable
                         SwitchRow(
                             title = provider.displayName,
                             detail = stringResource(
-                                when (provider) {
-                                    ProviderID.google -> R.string.settings_source_google
-                                    ProviderID.tfl -> R.string.settings_source_tfl
+                                when {
+                                    needsKey -> R.string.settings_google_needs_key
+                                    provider == ProviderID.google -> R.string.settings_source_google
+                                    provider == ProviderID.tfl -> R.string.settings_source_tfl
                                     else -> R.string.settings_source_transitous
                                 },
                             ),
-                            checked = ui.enabled[provider] == true,
-                            leading = { SourceBadge(provider) },
+                            checked = ui.enabled[provider] == true && !needsKey,
+                            enabled = ui.loaded && !needsKey,
+                            leading = { Badge(provider) },
                         ) { model.setEnabled(provider, it) }
                     }
                     HorizontalDivider(color = c.hairline)
-                    SwitchRow(stringResource(R.string.settings_deep), stringResource(R.string.settings_deep_detail), ui.deepSearch) { model.setDeepSearch(it) }
+                    SwitchRow(stringResource(R.string.settings_deep), stringResource(R.string.settings_deep_detail), ui.deepSearch, enabled = ui.loaded) { model.setDeepSearch(it) }
                 }
             }
             item(key = "google-count") {
@@ -275,11 +283,18 @@ private fun Caption(purpose: Int, source: Int, showLater: Boolean, extra: String
     }
 }
 
-/** A key: a password-style field with a show toggle, saved as it is typed, beating any built into the app. */
+/**
+ * A key: a password-style field with a show toggle, saved as it is typed, beating any built into
+ * the app. The text lives here while it is typed (fast typing never loses a character or moves
+ * the cursor) and goes to the view model, which trims it and saves it. Not saveable: a key is
+ * never put in the saved instance state. Over a key that can't be read, typing only drafts and
+ * "Replace the saved one" commits it; a saved key has Remove.
+ */
 @Composable
 private fun KeyItem(item: SettingsViewModel.Item, title: Int, purpose: Int, source: Int, ui: SettingsViewModel.Ui, model: SettingsViewModel, showLater: Boolean, extra: String? = null) {
     val c = polaris
     val field = ui.field(item)
+    var text by remember(item, ui.loaded) { mutableStateOf(field.text) }
     var shown by rememberSaveable(item) { mutableStateOf(false) }
     val name = stringResource(title)
     val stateText = when (field.state) {
@@ -296,15 +311,15 @@ private fun KeyItem(item: SettingsViewModel.Item, title: Int, purpose: Int, sour
     }
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OutlinedTextField(
-            value = field.text,
-            onValueChange = { model.type(item, it.trim()) },
+            value = text,
+            onValueChange = { text = it; model.type(item, it) },
             modifier = Modifier.fillMaxWidth().semantics { stateDescription = stateText },
             enabled = ui.loaded,
             label = { Text(name) },
             singleLine = true,
             visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-            trailingIcon = if (field.text.isNotEmpty()) ({
+            trailingIcon = if (text.isNotEmpty()) ({
                 val label = stringResource(if (shown) R.string.key_hide_label else R.string.key_show_label, name)
                 TextButton(onClick = { shown = !shown }, modifier = Modifier.semantics { contentDescription = label }) {
                     Text(stringResource(if (shown) R.string.key_hide else R.string.key_show))
@@ -312,7 +327,23 @@ private fun KeyItem(item: SettingsViewModel.Item, title: Int, purpose: Int, sour
             }) else null,
             supportingText = { Text(stateText, color = stateColor) },
         )
+        KeyActions(item, field, text, name, model) { text = it }
         Caption(purpose, source, showLater, extra)
+    }
+}
+
+/** Replace (over an unreadable value, with a draft) or Remove (a saved value), each a deliberate tap. */
+@Composable
+private fun KeyActions(item: SettingsViewModel.Item, field: SettingsViewModel.Field, text: String, name: String, model: SettingsViewModel, setText: (String) -> Unit) {
+    when {
+        field.state == SettingsViewModel.KeyState.unreadable && text.isNotBlank() ->
+            TextButton(onClick = { model.replace(item) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.key_replace)) }
+        field.state == SettingsViewModel.KeyState.saved && text.isNotEmpty() -> {
+            val label = stringResource(R.string.key_remove_label, name)
+            TextButton(onClick = { setText(""); model.remove(item) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = label }) {
+                Text(stringResource(R.string.key_remove))
+            }
+        }
     }
 }
 
@@ -320,13 +351,15 @@ private fun KeyItem(item: SettingsViewModel.Item, title: Int, purpose: Int, sour
 private fun ContactItem(ui: SettingsViewModel.Ui, model: SettingsViewModel, showLater: Boolean) {
     val c = polaris
     val field = ui.field(SettingsViewModel.Item.contact)
+    var text by remember(ui.loaded) { mutableStateOf(field.text) }
+    val name = stringResource(R.string.item_contact_title)
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OutlinedTextField(
-            value = field.text,
-            onValueChange = { model.type(SettingsViewModel.Item.contact, it) },
+            value = text,
+            onValueChange = { text = it; model.type(SettingsViewModel.Item.contact, it) },
             modifier = Modifier.fillMaxWidth(),
             enabled = ui.loaded,
-            label = { Text(stringResource(R.string.item_contact_title)) },
+            label = { Text(name) },
             placeholder = { Text(stringResource(R.string.item_contact_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
@@ -338,22 +371,53 @@ private fun ContactItem(ui: SettingsViewModel.Ui, model: SettingsViewModel, show
                 else -> null
             },
         )
+        KeyActions(SettingsViewModel.Item.contact, field, text, name, model) { text = it }
         Caption(R.string.item_contact_purpose, R.string.item_contact_source, showLater)
     }
 }
 
+/**
+ * A switch row: the badge in a fixed column, centred, so every title starts at the same place;
+ * the whole row toggles.
+ */
 @Composable
-private fun SwitchRow(title: String, detail: String, checked: Boolean, leading: (@Composable () -> Unit)? = null, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, leading: (@Composable () -> Unit)? = null, onChange: (Boolean) -> Unit) {
     val c = polaris
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(detail) },
-        leadingContent = leading,
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
-        colors = ListItemDefaults.colors(containerColor = c.surface),
-        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+    Row(
+        Modifier.fillMaxWidth()
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (leading != null) Box(Modifier.width(40.dp), contentAlignment = Alignment.Center) { leading() }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) c.ink else c.inkSoft)
+            Text(detail, style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+        }
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
+}
+
+/** A source's badge for Settings: the same letters, in ink, readable in both appearances. */
+@Composable
+private fun Badge(provider: ProviderID) {
+    Text(
+        provider.badge,
+        Modifier
+            .badgeBackground()
+            .padding(horizontal = 6.dp, vertical = 1.dp)
+            .semantics { contentDescription = provider.displayName },
+        style = MaterialTheme.typography.labelMedium,
+        color = polaris.ink,
+        maxLines = 1,
     )
 }
+
+@Composable
+private fun Modifier.badgeBackground(): Modifier =
+    this.then(Modifier.background(polaris.ink.copy(alpha = if (polaris.isNight) 0.18f else 0.08f), androidx.compose.foundation.shape.CircleShape))
 
 @Composable
 private fun PlaceRow(title: String, icon: Int, name: String?, set: () -> Unit, clear: () -> Unit) {
@@ -420,30 +484,43 @@ fun DataCreditsFull(modifier: Modifier = Modifier) {
     }
 }
 
-/** One block of the notices: a heading, a list item or a paragraph, with Markdown's marks taken out. */
-data class NoticeBlock(val text: String, val heading: Boolean = false, val bullet: Boolean = false)
+/** One block of the notices: a heading, a list item, a paragraph or a preformatted licence text. */
+data class NoticeBlock(val text: String, val heading: Boolean = false, val bullet: Boolean = false, val preformatted: Boolean = false)
 
 /**
- * The notices file (Markdown, wrapped at 100 columns) as blocks to show: lines joined into
- * paragraphs and list items, headings apart, `**` and backticks dropped. Plain, so it is tested.
+ * The notices file as the app shows it: the passages marked `<!-- repo-only -->` (written for
+ * someone reading the repository: paths, "this folder") left out; lines joined into paragraphs
+ * and list items; headings apart, with a link's address after its words; fenced licence texts
+ * kept line for line; `**` and backticks dropped. One file is kept, so the repository's notices
+ * and the app's can't drift apart. Plain, so it is tested.
  */
 fun noticeBlocks(lines: List<String>): List<NoticeBlock> {
     val blocks = mutableListOf<NoticeBlock>()
     var current: StringBuilder? = null
     var bullet = false
+    var repoOnly = false
+    var fence: StringBuilder? = null
+    fun clean(t: String) = t.replace("**", "").replace("`", "").replace(Regex("""\[([^\]]+)]\(([^)]+)\)"""), "$1 ($2)").trim()
     fun flush() {
-        current?.let { blocks += NoticeBlock(it.toString().replace("**", "").replace("`", "").trim(), bullet = bullet) }
+        current?.let { blocks += NoticeBlock(clean(it.toString()), bullet = bullet) }
         current = null
         bullet = false
     }
     for (raw in lines) {
         val line = raw.trimEnd()
+        val trimmed = line.trim()
         when {
+            fence != null -> if (trimmed.startsWith("```")) { blocks += NoticeBlock(fence.toString().trimEnd(), preformatted = true); fence = null } else fence.append(line).append('\n')
+            trimmed == "<!-- repo-only -->" -> { flush(); repoOnly = true }
+            trimmed == "<!-- /repo-only -->" -> repoOnly = false
+            repoOnly -> Unit
+            trimmed.startsWith("<!--") -> { flush(); if (!trimmed.endsWith("-->")) repoOnly = true }
+            trimmed.startsWith("```") -> { flush(); fence = StringBuilder() }
             line.isBlank() -> flush()
-            line.startsWith("#") -> { flush(); blocks += NoticeBlock(line.trimStart('#', ' '), heading = true) }
-            line.trimStart().startsWith("- ") -> { flush(); current = StringBuilder(line.trimStart().removePrefix("- ")); bullet = true }
-            current == null -> current = StringBuilder(line.trim())
-            else -> current!!.append(' ').append(line.trim())
+            line.startsWith("#") -> { flush(); blocks += NoticeBlock(clean(line.trimStart('#', ' ')), heading = true) }
+            trimmed.startsWith("- ") -> { flush(); current = StringBuilder(trimmed.removePrefix("- ")); bullet = true }
+            current == null -> current = StringBuilder(trimmed)
+            else -> current!!.append(' ').append(trimmed)
         }
     }
     flush()
@@ -457,7 +534,7 @@ fun LicencesScreen(night: Boolean, onClose: () -> Unit) {
     val context = LocalContext.current
     val blocks by androidx.compose.runtime.produceState<List<NoticeBlock>?>(null) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { noticeBlocks(context.assets.open("THIRD_PARTY_NOTICES.md").bufferedReader().readLines()) }.getOrElse { emptyList() }
+            runCatching { noticeBlocks(context.assets.open("THIRD_PARTY_NOTICES.md").bufferedReader().readLines()).drop(1) }.getOrElse { emptyList() }
         }
     }
     CoverPage(night) {
@@ -472,11 +549,13 @@ fun LicencesScreen(night: Boolean, onClose: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (shown != null && shown.isEmpty()) item { Text(stringResource(R.string.licences_missing), color = c.inkSoft) }
+            if (!shown.isNullOrEmpty()) item { Text(stringResource(R.string.licences_intro), style = MaterialTheme.typography.bodyMedium, color = c.ink) }
             shown?.let { all ->
                 items(all.size) { i ->
                     val b = all[i]
                     when {
                         b.heading -> Text(b.text, Modifier.padding(top = 12.dp).semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = c.ink)
+                        b.preformatted -> Text(b.text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = c.inkSoft)
                         b.bullet -> Row {
                             Text("•", Modifier.padding(end = 8.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
                             Text(b.text, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)

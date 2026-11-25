@@ -18,6 +18,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.padding
 
 /**
  * What the map shows, set by each page for itself (iOS's `MapScene`). Every page on the stack
@@ -106,6 +111,10 @@ data class WindowLayout(
     val cardWidth: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
     /** Wide: where the visible map half starts (past the fold when there is one), from the leading edge. */
     val mapStart: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    /** Wide: the leading safe inset the card starts after, so cover pages line up with the card. */
+    val safeStart: androidx.compose.ui.unit.Dp = 0.dp,
+    /** A fold running across the window (open tall): where its lower edge is, in pixels from the top. */
+    val foldBottomPx: Float? = null,
 )
 
 val LocalWindowLayout = compositionLocalOf { WindowLayout() }
@@ -129,6 +138,9 @@ fun SheetPage(key: NavKey, bar: @Composable () -> Unit, content: @Composable () 
             androidx.compose.ui.Modifier.fillMaxSize()
                 // The list fades out over the first half of the way down, the bar in over the second: never both.
                 .graphicsLayer { alpha = (1f - sheet.lowness * 2f).coerceIn(0f, 1f) }
+                // In the sheet, content stops above the navigation bar (the gesture handle draws on the
+                // sheet's paper, never over a line of text); the wide card sits inside the safe area already.
+                .then(if (sheet.wide) androidx.compose.ui.Modifier else androidx.compose.ui.Modifier.padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()))
                 // Hidden at the low rest: not read by TalkBack, not reachable by keyboard or D-pad.
                 .then(if (low) androidx.compose.ui.Modifier.clearAndSetSemantics {}.focusProperties { canFocus = false; onEnter = { cancelFocusChange() } } else androidx.compose.ui.Modifier),
         ) { content() }

@@ -12,7 +12,18 @@ class FirstRunTest {
     @Test fun aNewInstallSeesItOnce() {
         val kv = InMemoryKeyValueStore()
         assertTrue(FirstRun.takeTurn(kv, empty))
+        FirstRun.markSeen(kv)
         assertFalse(FirstRun.takeTurn(kv, empty), "never again, finished or skipped")
+    }
+
+    /** The first launch decided to show setup, then stopped before it appeared: the next launch shows it. */
+    @Test fun aLaunchInterruptedBeforeSetupAppearsShowsItNextTime() {
+        val kv = InMemoryKeyValueStore()
+        assertTrue(FirstRun.takeTurn(kv, empty))
+        assertEquals(null, kv.getString(FirstRun.SEEN_KEY), "nothing written until it is on screen")
+        assertTrue(FirstRun.takeTurn(kv, empty), "still shown")
+        FirstRun.markSeen(kv)
+        assertFalse(FirstRun.takeTurn(kv, empty))
     }
 
     /** What each store writes when used counts as data: the real stores, not a copy of their keys. */
@@ -51,6 +62,7 @@ class FirstRunTest {
         val kv = InMemoryKeyValueStore()
         val secrets = InMemorySecretStore()
         assertTrue(AppSettings(secrets, preferences = kv).takeFirstRunTurn())
+        AppSettings(secrets, preferences = kv).markSetupSeen()
         assertFalse(AppSettings(secrets, preferences = kv).takeFirstRunTurn())
         val other = InMemorySecretStore().apply { write("a-key", AppSettings.TFL) }
         assertFalse(AppSettings(other, preferences = InMemoryKeyValueStore()).takeFirstRunTurn())

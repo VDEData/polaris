@@ -293,6 +293,9 @@ class AppSettings(
     /** Whether to show first-run setup, decided once at launch ([FirstRun.takeTurn]). */
     fun takeFirstRunTurn(): Boolean = FirstRun.takeTurn(preferences, secrets::read)
 
+    /** First-run setup is on screen ([FirstRun.markSeen]). */
+    fun markSetupSeen() = FirstRun.markSeen(preferences)
+
     override fun toString() = "AppSettings(redacted)"
 
     companion object {

@@ -1,5 +1,6 @@
 package polaris.engine
 
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import java.time.Instant
 import kotlin.math.abs
@@ -167,6 +168,10 @@ class DepartureTest {
         now = now.plusSeconds(61)
         store.load(leg)
         assertEquals(2, transport.boards)
+        // Refresh straight after: the floor holds it; 15 s later it goes.
+        store.load(leg, force = true); store.load(leg, force = true)
+        assertEquals(2, transport.boards)
+        now = now.plusSeconds(15)
         store.load(leg, force = true)
         assertEquals(3, transport.boards)
         // A walk asks for nothing.
@@ -183,6 +188,7 @@ class DepartureTest {
         assertEquals(1, transport.nearby)
         store.loadNearby(Coordinate(51.5309, -0.1238)) // 11 m on
         assertEquals(1, transport.nearby)
+        now = now.plusSeconds(15) // past the floor
         store.loadNearby(Coordinate(51.5340, -0.1238)) // 360 m on
         assertEquals(2, transport.nearby)
         now = now.plusSeconds(61)
@@ -195,10 +201,64 @@ class DepartureTest {
         val failing = DepartureStore(DepartureProvider(HTTP(CountingTransport(fail = true), "test")))
         failing.load(northernLeg())
         assertEquals(Loadable.Failed(Loadable.Reason.notAnswering), failing.board(northernLeg()))
-        // A failed load can be tried again at once (no minute's wait).
+        // A failed load can be tried again without the minute's wait, but not within the floor.
         val counting = CountingTransport(fail = true)
-        val store = DepartureStore(DepartureProvider(HTTP(counting, "test")))
+        var now = iso("2026-10-31T18:00:00Z")
+        val store = DepartureStore(DepartureProvider(HTTP(counting, "test")), clock = { now })
         store.load(northernLeg()); store.load(northernLeg())
+        assertEquals(1, counting.boards)
+        now = now.plusSeconds(15)
+        store.load(northernLeg())
         assertEquals(2, counting.boards)
+        store.loadNearby(Coordinate(51.5308, -0.1238)); store.loadNearby(Coordinate(51.5308, -0.1238), force = true)
+        assertEquals(1, counting.nearby)
+    }
+
+    /** A Refresh while the first load is on its way never sends a second request. */
+    @Test fun aRequestOnItsWayIsNeverSentTwice() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var sent = 0
+        val slow = HttpTransport { request ->
+            sent++
+            gate.await()
+            HttpResponse(200, Fixtures.bytes(if ("fetchStops=true" in request.url) "transitous-departures.json" else "transitous-nearby.json"))
+        }
+        var now = iso("2026-10-31T18:00:00Z")
+        val store = DepartureStore(DepartureProvider(HTTP(slow, "test")), clock = { now })
+        val first = launch { store.load(northernLeg()) }
+        testScheduler.runCurrent()
+        now = now.plusSeconds(30)
+        store.load(northernLeg(), force = true)
+        val nearbyFirst = launch { store.loadNearby(Coordinate(51.5308, -0.1238)) }
+        testScheduler.runCurrent()
+        assertTrue(store.nearbyIsBusy())
+        store.loadNearby(Coordinate(51.5308, -0.1238), force = true)
+        gate.complete(Unit)
+        first.join(); nearbyFirst.join()
+        assertEquals(2, sent, "one board, one nearby")
+        assertNotNull(store.board(northernLeg())?.value)
+    }
+
+    @Test fun nearbyIsFreshForAMinuteSoHomeNeedsNoFix() = runTest {
+        var now = iso("2026-10-31T18:19:00Z")
+        val store = DepartureStore(DepartureProvider(HTTP(CountingTransport(), "test")), clock = { now })
+        assertFalse(store.nearbyIsFresh())
+        store.loadNearby(Coordinate(51.5308, -0.1238))
+        assertTrue(store.nearbyIsFresh())
+        now = now.plusSeconds(61)
+        assertFalse(store.nearbyIsFresh())
+    }
+
+    /** The recorded trip's H&C ride from King's Cross: no H&C train in the recording, so no planned one (iOS's no-match case). */
+    @Test fun aBoardWithoutTheRidesLineHasNoYoursAndNoVerdict() {
+        // Leaving 18:01: the recording's H&C trains go at 18:04 and 18:14, more than 150 s away.
+        val leg = northernLeg("2026-10-31T18:01:00Z").copy(line = "Hammersmith & City", headsign = "Barking", toName = "Farringdon", path = listOf(kingsCross, Coordinate(51.5203, -0.1053)))
+        val board = board(leg)
+        assertNull(board.planned)
+        assertNull(Strip.verdict(board, iso("2026-10-31T18:00:00Z")))
+        // The strip still shows what calls at Farringdon (H&C, Circle and Metropolitan trains), timed against the ride.
+        assertEquals(setOf("Hammersmith & City", "Metropolitan", "Circle"), board.departures.map { it.line }.toSet())
+        // Leaving 18:04 instead, the 18:04 H&C is the planned one.
+        assertNotNull(board(leg.copy(departure = iso("2026-10-31T18:04:00Z"))).planned)
     }
 }

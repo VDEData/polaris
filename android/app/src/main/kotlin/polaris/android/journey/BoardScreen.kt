@@ -116,6 +116,7 @@ fun BoardContent(
     modifier: Modifier = Modifier,
     back: (() -> Unit)? = null,
     close: (() -> Unit)? = null,
+    docked: Boolean = false,
 ) {
     val c = polaris
     val now = ticking()
@@ -124,11 +125,14 @@ fun BoardContent(
     // Scrolled to yours once, when the board first comes in.
     var scrolled by rememberSaveable(leg.id) { mutableStateOf(false) }
     val plannedIndex = board?.departures?.indexOfFirst { it.id == board.plannedId } ?: -1
+    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
     LaunchedEffect(plannedIndex) {
         if (!scrolled && plannedIndex >= 0) {
             scrolled = true
             // The header and alerts come first; then the rows (centred roughly by leaving two above).
-            list.scrollToItem(HEADER_ITEMS + (board?.alerts?.size ?: 0) + maxOf(0, plannedIndex - 2))
+            // Two rows above yours, or one where rows are tall (large text) or few show (the docked card).
+            val above = if (docked || large) 1 else 2
+            list.scrollToItem(HEADER_ITEMS + (board?.alerts?.size ?: 0) + maxOf(0, plannedIndex - above))
         }
     }
     Column(modifier.fillMaxWidth().then(if (narrow) Modifier else Modifier.fillMaxSize())) {
@@ -265,7 +269,10 @@ fun LineScreen(key: LinePage, graph: AppGraph, shell: ShellViewModel, onBack: ()
                 item(key = "times") {
                     Column(Modifier.fillMaxWidth().surface(c).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.line_leaving), Modifier.semantics { heading() }, style = MaterialTheme.typography.labelLarge, color = c.inkSoft)
-                        line.departures.forEach { d ->
+                        // Gone more than 30 s ago: off the list.
+                        val live = line.departures.filter { it.expected > now.minusSeconds(30) }
+                        if (live.isEmpty()) Text(stringResource(R.string.line_all_gone), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+                        live.forEach { d ->
                             Row(Modifier.fillMaxWidth().heightIn(min = 32.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(Clock.of(d.expected), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = c.ink)
                                 if (d.isRealtime) LiveDot()

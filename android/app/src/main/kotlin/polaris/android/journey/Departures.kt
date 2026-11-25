@@ -308,7 +308,8 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
     val detail = listOfNotNull(
         departure.arrivalThere?.let { if (narrow) stringResource(R.string.board_arrives, Clock.of(it)) else stringResource(R.string.board_reaches, destination, Clock.of(it)) },
         departure.platform?.let { stringResource(if (departure.mode == LegMode.bus || departure.mode == LegMode.coach) R.string.board_stop else R.string.board_platform, it) },
-    ).joinToString(" · ")
+    // The dot stays with what comes before it, so a wrapped line never starts with it.
+    ).joinToString("\u00A0· ")
     Row(
         Modifier.fillMaxWidth()
             .alpha(if (gone && !isPlanned) 0.5f else 1f)

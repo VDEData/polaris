@@ -39,19 +39,21 @@
     <string name="key_saved">Saved on this phone</string>
     <string name="key_unreadable">Saved, but it can\'t be read yet. Enter it again to replace it.</string>
     <string name="key_not_saved">Couldn\'t save that. The key before it stands.</string>
+    <string name="key_replace">Replace the saved one</string>
+    <string name="key_remove">Remove</string>
+    <string name="key_remove_label">Remove %s</string>
+    <string name="settings_google_needs_key">Needs a key: add one under Keys and contact.</string>
     <string name="key_show">Show</string>
     <string name="key_hide">Hide</string>
     <string name="key_show_label">Show %s</string>
     <string name="key_hide_label">Hide %s</string>
-    <string name="key_clear">Clear</string>
-    <string name="key_clear_label">Clear %s</string>
     <string name="key_lost">A saved value could no longer be read on this phone and was removed: %s. Enter it again if you still want it.</string>
     <string name="key_lost_ok">OK</string>
 
     <string name="settings_places">Saved places</string>
     <string name="settings_home">Home</string>
     <string name="settings_work">Work</string>
-    <string name="settings_place_set">Set</string>
+    <string name="settings_place_set">Add</string>
     <string name="settings_place_change">Change %s</string>
     <string name="settings_place_clear">Remove %s</string>
 
@@ -73,6 +75,7 @@
     <string name="settings_version">Polaris %s</string>
     <string name="licences_title">Open-source licences</string>
     <string name="licences_back">Back to Settings</string>
+    <string name="licences_intro">Polaris is open source under the MIT licence. It is built with the work below, used under these licences.</string>
     <string name="licences_missing">The licence texts couldn\'t be read from this build.</string>
 
     <string name="setup_title">Set up</string>

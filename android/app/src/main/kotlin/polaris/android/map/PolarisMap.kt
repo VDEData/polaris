@@ -328,7 +328,12 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
                 modifier = Modifier
                     .background(colors.paper.copy(alpha = 0.88f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = colors.ink.copy(alpha = 0.85f)),
+                // Grows with the text size up to 1.3x, then stops: past that it wrapped over the map's own labels.
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = (10f * minOf(1f, 1.3f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
+                    color = colors.ink.copy(alpha = 0.85f),
+                ),
+                maxLines = 1,
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

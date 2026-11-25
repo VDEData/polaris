@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,6 +57,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.compose.ui.res.stringResource
 import polaris.android.R
+import polaris.android.shell.MapScene
+import polaris.android.shell.SceneEffect
+import polaris.engine.JourneyMap
 import polaris.android.shell.LocalSheet
 import polaris.android.shell.MeasuredBar
 import polaris.android.shell.SheetPage
@@ -92,6 +96,16 @@ fun HomeScreen(
     val c = polaris
 
     // The one-row bar shows at the sheet's low rest, over the list, which stays as it was.
+    // The map on Home: around where the person last was, once they've allowed location, framed in
+    // the part of the map left showing (beside the card when wide). No fix is asked for here.
+    val shows by shell.showsLocation.collectAsStateWithLifecycle()
+    val here = remember(shows) { if (shows) graph.locator.last() else null }
+    val content = remember(here) {
+        here?.let { MapScene.Content(frame = JourneyMap.Bounds(it.latitude - 0.006, it.longitude - 0.01, it.latitude + 0.006, it.longitude + 0.01)) }
+            ?: MapScene.Content()
+    }
+    SceneEffect(key, content)
+
     SheetPage(key, bar = { Bar(openSearch) }) {
         val list = rememberLazyListState()
         LazyColumn(
