@@ -175,8 +175,14 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     val wide = !foldAcross && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
     val widthPx = constraints.maxWidth.toFloat()
     // Up to the fold, 48 dp short of it; with no fold, 400 dp (less on a short landscape phone). The card starts 16 dp in.
+    // A book-style foldable held open wide whose fold WindowManager didn't report (it can be late
+    // or silent): a near-square wide window up to 1000 dp is laid out as if the fold were in the
+    // middle, so the card's width and the map half are the same whether or not it was reported.
+    val unreportedFold = hinge == null && maxWidth >= 840.dp && maxWidth <= 1000.dp && maxHeight >= maxWidth * 0.8f
     val foldStart = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.left else widthPx - it.right }
+        ?: if (unreportedFold) widthPx / 2 else null
     val foldEnd = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.right else widthPx - it.left }
+        ?: if (unreportedFold) widthPx / 2 else null
     val cardWidth: Dp = if (!wide) Dp.Unspecified else with(density) {
         if (foldStart != null) (foldStart.toDp() - 48.dp - 16.dp).coerceIn(320.dp, 560.dp) else minOf(400.dp, maxWidth * 0.45f)
     }

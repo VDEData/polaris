@@ -399,7 +399,8 @@ class SettingsStorageTest {
             providers.forEach { settings.setEnabled(it, true) }
             val threads = providers.map { p -> Thread { settings.setEnabled(p, false) } }
             threads.forEach { it.start() }; threads.forEach { it.join() }
-            kotlin.test.assertEquals(providers.toSet(), settings.disabledProviders, "round $it")
+            // Read back from the store itself, not the in-memory field.
+            kotlin.test.assertEquals(providers.toSet(), AppSettings(preferences = slow).disabledProviders, "round $it")
         }
     }
 }

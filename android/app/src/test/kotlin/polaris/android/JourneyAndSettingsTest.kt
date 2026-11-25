@@ -242,6 +242,65 @@ class JourneyAndSettingsTest {
         assertEquals("old@example.org", second.ui.value.field(SettingsViewModel.Item.contact).text)
     }
 
+    /**
+     * A key typed while Replace's write is still finishing (here held at the read that follows the
+     * write) is saved, and the field never says "Saved" over text the store doesn't hold.
+     */
+    @Test fun aKeyTypedWhileReplaceFinishesIsSaved() = runTest(dispatcher) {
+        val wrote = java.util.concurrent.atomic.AtomicBoolean(false)
+        val hold = java.util.concurrent.CountDownLatch(1)
+        val reachedRead = java.util.concurrent.CountDownLatch(1)
+        val values = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val store = object : SecretStore {
+            override fun read(account: String): SecretRead {
+                if (account != AppSettings.GOOGLE) return SecretRead.Absent
+                if (!wrote.get()) return SecretRead.Unreadable
+                if (values.size == 1) { reachedRead.countDown(); hold.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+                return SecretRead.Value(values.last())
+            }
+            override fun write(value: String, account: String): Boolean { values += value; wrote.set(true); return true }
+        }
+        val rig = rig(secrets = store)
+        val writers = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher, saves = writers).also { advanceUntilIdle() }
+        model.type(SettingsViewModel.Item.google, "abc")
+        model.replace(SettingsViewModel.Item.google)
+        kotlinx.coroutines.withContext(Dispatchers.Default) { assertTrue(reachedRead.await(5, java.util.concurrent.TimeUnit.SECONDS)) }
+        model.type(SettingsViewModel.Item.google, "abcd")
+        hold.countDown()
+        kotlinx.coroutines.withContext(Dispatchers.Default) { model.flush() }
+        writers.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+        assertEquals("abcd", values.last(), "the store holds what the field shows")
+        assertEquals(SettingsViewModel.KeyState.saved, model.ui.value.field(SettingsViewModel.Item.google).state)
+    }
+
+    /** A refused Replace on the contact leaves no blank in the saved state to delete the stored contact later. */
+    @Test fun aRefusedContactReplaceLeavesNothingToRestore() = runTest(dispatcher) {
+        var locked = true
+        val values = mutableMapOf(AppSettings.CONTACT to "old@example.org")
+        val writes = mutableListOf<String>()
+        val store = object : SecretStore {
+            override fun read(account: String) =
+                if (account == AppSettings.CONTACT && locked) SecretRead.Unreadable else values[account]?.let { SecretRead.Value(it) } ?: SecretRead.Absent
+            override fun write(value: String, account: String): Boolean { writes += value; if (value.isEmpty()) values.remove(account) else values[account] = value; return true }
+        }
+        val rig = rig(secrets = store)
+        val handle = SavedStateHandle()
+        val first = SettingsViewModel(handle, rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        first.type(SettingsViewModel.Item.contact, "abc")
+        first.replace(SettingsViewModel.Item.contact)
+        first.type(SettingsViewModel.Item.contact, "")
+        first.flush(); advanceUntilIdle()
+        assertEquals(SettingsViewModel.KeyState.unreadable, first.ui.value.field(SettingsViewModel.Item.contact).state)
+        assertFalse(handle.contains(SettingsViewModel.Item.contact.name), "no blank kept to come back")
+        // Android stops the app; on the way back the store can be read again.
+        locked = false
+        val second = SettingsViewModel(handle, rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        second.flush(); advanceUntilIdle()
+        assertTrue(writes.isEmpty(), "nothing written: $writes")
+        assertEquals("old@example.org", values[AppSettings.CONTACT])
+    }
+
     /** Google's "can't be read" goes once its key is replaced and then removed. */
     @Test fun googlesUnreadableStateFollowsTheKey() = runTest(dispatcher) {
         var replaced = false
@@ -401,6 +460,18 @@ class JourneyAndSettingsTest {
         val first = AppGraph(AppSettings(preferences = kv), GoogleUsage(kv), PlaceStore(kv), CountingTransport(), MemorySearchArchive(), FakeLocator(), firstRun = true)
         assertTrue(first.takeSetup())
         assertFalse(first.takeSetup(), "a second screen in the same process doesn't show it again")
+    }
+}
+
+class SeparatorsTest {
+    /** Every " · " in the app's strings keeps the dot with what follows it (a no-break space after it), so no line ends with one. */
+    @Test fun noStringEndsALineWithADot() {
+        val dir = java.io.File("src/main/res/values").takeIf { it.exists() } ?: java.io.File("app/src/main/res/values")
+        val offenders = dir.listFiles()!!.filter { it.name.endsWith(".xml") }.flatMap { file ->
+            file.readLines().filter { "<!--" !in it && Regex("""·(?!\\u00A0)""").containsMatchIn(it) && " · " in it }.map { "${file.name}: ${it.trim()}" }
+        }
+        assertTrue(offenders.isEmpty(), offenders.joinToString("\n"))
+        assertTrue(polaris.android.ui.SEPARATOR.endsWith("\u00A0"))
     }
 }
 

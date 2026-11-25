@@ -227,12 +227,13 @@ private fun NearbyRow(line: NearbyLine, now: Instant, pillWidth: androidx.compos
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             // Names wrap to a second line before they are shortened.
             Text(toText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            // The stop, the dot and the distance as three pieces (laid out right to left too, never
-            // run together); the stop gives way, the distance always shows.
+            // The distance first, in the same place on every row, then the stop, which wraps to a
+            // second line before it is shortened; three pieces, so right to left lays them out
+            // properly and never runs them together.
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(line.stopName, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(stringResource(R.string.nearby_dot), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1)
                 Text(stringResource(R.string.nearby_metres, metres), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, softWrap = false)
+                Text(stringResource(R.string.nearby_dot), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1)
+                Text(line.stopName, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         timesView()

@@ -277,4 +277,20 @@ class DepartureTest {
         // Leaving 18:04 instead, the 18:04 H&C is the planned one.
         assertNotNull(board(leg.copy(departure = iso("2026-10-31T18:04:00Z"))).planned)
     }
+
+    /** The clock stepped back an hour: a forced load still goes, and nothing counts as fresh. */
+    @Test fun aClockSteppedBackNeverHoldsRequests() = runTest {
+        val transport = CountingTransport()
+        var now = iso("2026-10-31T18:00:00Z")
+        val store = DepartureStore(DepartureProvider(HTTP(transport, "test")), clock = { now })
+        store.load(northernLeg())
+        store.loadNearby(Coordinate(51.5308, -0.1238))
+        now = now.minusSeconds(3600)
+        assertFalse(store.nearbyIsFresh(), "a fetch \"in the future\" isn't fresh")
+        assertEquals(0, store.nearbyHeldFor())
+        store.load(northernLeg(), force = true)
+        store.loadNearby(Coordinate(51.5308, -0.1238), force = true)
+        assertEquals(2, transport.boards)
+        assertEquals(2, transport.nearby)
+    }
 }

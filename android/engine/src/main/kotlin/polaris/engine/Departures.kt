@@ -371,7 +371,10 @@ class DepartureStore(
         else -> RETRY_SECONDS
     }
 
-    private fun tooSoon(last: Instant?, now: Instant, floor: Long) = last != null && Duration.between(last, now).seconds < floor
+    /** A clock stepped back (elapsed below zero) counts as past the floor, never as hours of waiting. */
+    private fun tooSoon(last: Instant?, now: Instant, floor: Long) = last != null && Duration.between(last, now).seconds.let { it in 0 until floor }
+
+    private fun fresh(at: Instant?, now: Instant) = at != null && Duration.between(at, now).seconds in 0 until FRESH_SECONDS
 
     private fun failed(previous: Failures?, e: Exception) =
         Failures((previous?.count ?: 0) + 1, e is ProviderError.Http && (e.code == 429 || e.code == 503))
@@ -383,7 +386,7 @@ class DepartureStore(
         synchronized(fetched) {
             if (key in inFlight) return
             val at = fetched[key]
-            if (!force && at != null && Duration.between(at, now).seconds < FRESH_SECONDS) return
+            if (!force && fresh(at, now)) return
             if (tooSoon(asked[key], now, floor(failures[key]))) return
             asked[key] = now
             inFlight += key
@@ -408,7 +411,7 @@ class DepartureStore(
     }
 
     /** Whether nearby was fetched within the minute: checked before asking for a fix at all. */
-    fun nearbyIsFresh(): Boolean = nearbyFetched?.let { Duration.between(it.first, clock()).seconds < FRESH_SECONDS } == true
+    fun nearbyIsFresh(): Boolean = fresh(nearbyFetched?.first, clock())
 
     /** Whether a nearby request is on its way or was asked for too recently (a Refresh would send nothing). */
     fun nearbyIsBusy(): Boolean = nearbyInFlight || nearbyHeldFor() > 0
@@ -420,14 +423,17 @@ class DepartureStore(
     fun boardHeldFor(leg: Leg): Long { val key = key(leg); return heldFor(asked[key], floor(failures[key])) }
 
     /** Never more than the floor itself, so a clock moved backwards can't hold a spinner for long. */
-    private fun heldFor(last: Instant?, floor: Long): Long = last?.let { (floor - Duration.between(it, clock()).seconds).coerceIn(0L, floor) } ?: 0L
+    private fun heldFor(last: Instant?, floor: Long): Long = last?.let {
+        val elapsed = Duration.between(it, clock()).seconds
+        if (elapsed < 0) 0L else (floor - elapsed).coerceIn(0L, floor)
+    } ?: 0L
 
     suspend fun loadNearby(coordinate: Coordinate, force: Boolean = false) {
         val now = clock()
         synchronized(this) {
             if (nearbyInFlight) return
             val last = nearbyFetched
-            if (!force && last != null && Duration.between(last.first, now).seconds < FRESH_SECONDS &&
+            if (!force && last != null && fresh(last.first, now) &&
                 JourneyMap.metres(last.second, coordinate) < 150
             ) return
             if (tooSoon(nearbyAsked, now, floor(nearbyFailures))) return

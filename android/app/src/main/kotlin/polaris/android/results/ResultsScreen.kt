@@ -529,12 +529,12 @@ interface SummaryWords {
         override val finding = "Finding where you are…"
         override val and = "and"
         override fun routes(count: Int) = "$count route${if (count == 1) "" else "s"}"
-        override fun soFarAsking(found: String, sources: String) = "$found so far · asking $sources"
+        override fun soFarAsking(found: String, sources: String) = "$found so far ·\u00A0asking $sources"
         override fun asking(sources: String) = "Asking $sources"
         override val notSearched = "Not searched"
         override val noSourceAnswered = "No source answered"
         override fun foundFrom(found: String, sources: String) = "$found from $sources"
-        override fun didntAnswer(text: String, sources: String) = "$text · $sources didn't answer"
+        override fun didntAnswer(text: String, sources: String) = "$text ·\u00A0$sources didn't answer"
     }
 }
 

@@ -309,7 +309,7 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
     val detail = listOfNotNull(
         departure.arrivalThere?.let { if (narrow) stringResource(R.string.board_arrives, Clock.of(it)) else stringResource(R.string.board_reaches, destination, Clock.of(it)) },
         departure.platform?.let { stringResource(if (departure.mode == LegMode.bus || departure.mode == LegMode.coach) R.string.board_stop else R.string.board_platform, it) },
-    // The dot stays with what comes before it, so a wrapped line never starts with it.
+    // The parts joined by the shared separator (the dot stays with what follows it).
     // At large text each part on its own line (a narrow row can't fit them joined); otherwise one line.
     ).joinToString(if (LocalDensity.current.fontScale >= 1.3f) "\n" else SEPARATOR)
     Row(

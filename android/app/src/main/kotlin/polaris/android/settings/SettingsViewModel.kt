@@ -99,7 +99,8 @@ class SettingsViewModel(
             // The contact as typed before Android stopped the app wins over what was read, and is
             // saved again, so the field never says "Saved" over text the store doesn't hold (keys
             // are never kept in the saved state and are read back from the store).
-            handle.get<String>(Item.contact.name)?.let { typed -> if (typed != read.field(Item.contact).text) type(Item.contact, typed) }
+            // A blank is never brought back as typed text: it would delete what the store holds without Remove.
+            handle.get<String>(Item.contact.name)?.takeIf { it.isNotBlank() }?.let { typed -> if (typed != read.field(Item.contact).text) type(Item.contact, typed) }
         }
     }
 
@@ -151,7 +152,8 @@ class SettingsViewModel(
     }
     private fun write(job: suspend () -> Unit) {
         val done = kotlinx.coroutines.CompletableDeferred<Unit>()
-        order.trySend { try { job() } finally { done.complete(Unit) } }
+        // After the page has gone the channel is closed: nothing to wait for, so flush() can't hang.
+        if (order.trySend { try { job() } finally { done.complete(Unit) } }.isFailure) done.complete(Unit)
         synchronized(jobs) { jobs.removeAll { it.isCompleted }; jobs += done }
     }
 
@@ -208,9 +210,8 @@ class SettingsViewModel(
                     AppSettings.Save.notSaved -> KeyState.notSaved
                     AppSettings.Save.keptUnreadable -> KeyState.unreadable
                 }
-                // A replace is over once its write lands, or is refused (the field is unreadable
-                // again and the next keystroke only drafts, until Replace is tapped again).
-                if (result != AppSettings.Save.notSaved) replacing -= item
+                // A refused blank is never kept in the saved state, where it would come back as typed text.
+                if (item == Item.contact && result == AppSettings.Save.keptUnreadable) handle.remove<String>(item.name)
                 val google = if (item == Item.google) settings.readKeys().google else null
                 _ui.update { ui ->
                     ui.copy(
@@ -219,6 +220,10 @@ class SettingsViewModel(
                         googleUnreadable = google?.let { it == AppSettings.Key.Unreadable } ?: ui.googleUnreadable,
                     )
                 }
+                // A replace is over once its write lands, or is refused (the field is unreadable
+                // again and the next keystroke only drafts, until Replace is tapped again). Only
+                // after the field shows that, so a keystroke in between is never taken for a draft.
+                if (result != AppSettings.Save.notSaved) replacing -= item
             }
         }
         synchronized(jobs) {
