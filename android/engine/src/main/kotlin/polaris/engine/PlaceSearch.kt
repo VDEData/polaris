@@ -108,6 +108,8 @@ class PlaceSearch(
         const val DEBOUNCE_MILLIS = 300L
         const val CACHE_SIZE = 20
         const val RESULTS = 8
+        /** The fixture's station as a stop and as a place is 190 m apart. */
+        const val SAME_PLACE_METRES = 250.0
 
         /** Lower case, single spaces, trimmed: "  Kings  Cross " and "kings cross" are one question. */
         fun normalised(text: String): String = text.trim().lowercase().replace(Regex("\\s+"), " ")
@@ -125,6 +127,11 @@ class PlaceSearch(
             ),
         )
 
+        /**
+         * The geocoder can list one place twice (a station as a stop and as a named place, or the
+         * same id twice): each id once, and each name in the same area once, keeping the first,
+         * which is the stop when there is one (it carries the modes).
+         */
         fun parse(data: ByteArray): List<PlaceMatch> = HTTP.decode<List<Match>>(data).mapNotNull { m ->
             val kind = when (m.type) {
                 "STOP" -> PlaceMatch.Kind.stop
@@ -144,6 +151,28 @@ class PlaceSearch(
                 kind = kind,
                 modes = m.modes ?: emptyList(),
             )
+        }.let(::dedupe)
+
+        /**
+         * Each id once; one place listed twice (the same name in the same area, within 250 m) once,
+         * in the geocoder's order, the stop's copy preferred. Same-named places further apart (two
+         * High Streets, a road and a stop named after it) are different places and both stay.
+         */
+        fun dedupe(all: List<PlaceMatch>): List<PlaceMatch> {
+            val ids = mutableSetOf<String>()
+            val kept = mutableListOf<PlaceMatch>()
+            for (match in all) {
+                if (!ids.add(match.place.id)) continue
+                val same = kept.indexOfFirst {
+                    normalised(it.place.name) == normalised(match.place.name) && it.place.subtitle == match.place.subtitle &&
+                        JourneyMap.metres(it.place.coordinate, match.place.coordinate) < SAME_PLACE_METRES
+                }
+                when {
+                    same < 0 -> kept += match
+                    kept[same].kind != PlaceMatch.Kind.stop && match.kind == PlaceMatch.Kind.stop -> kept[same] = match
+                }
+            }
+            return kept
         }
 
         @Serializable

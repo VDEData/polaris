@@ -175,12 +175,12 @@ anything in the xcconfig is compiled into the app, where anyone with the `.ipa` 
 | `POLARIS_ALERTS_URL`, `POLARIS_ALERTS_TOKEN` | Your own alerts server, below | Alerts are off |
 | `POLARIS_CONTACT` | A URL or email of yours; also settable per phone in Settings | The User-Agent names this project's page |
 
-## Android (early: engine and plumbing)
+## Android (early: first screens)
 
 `android/` is a Kotlin port in progress. So far it holds the engine: the models, the TfL,
 Transitous and Google providers, merging, ranking, TfL's network status and Google's monthly
 count, with the same names and behaviour as the Swift, and the same request budgets. Around it is
-the plumbing the screens will need, with no real screens yet:
+the plumbing and the first screens:
 
 - **Map:** MapLibre Native over OpenFreeMap's vector tiles, keyless, in Polaris's own day and
   night style (`MapStyle`), drawing a journey's legs in their line colours, its stops, the gold
@@ -194,10 +194,19 @@ the plumbing the screens will need, with no real screens yet:
   Keystore key; ordinary preferences in DataStore; the same precedence as iOS (entered, else
   built in, else none). Nothing is backed up or moved to a new phone.
 
-The app itself is still one plain screen that runs a single search (King's Cross to Canary Wharf)
-to prove the engine works on a device: TfL and Transitous, plus Google only if you built it with a
-Google key. Debug builds add a second launcher entry, "Polaris map check", that shows the map with
-a recorded journey and a place search box; it is not in release builds.
+- **Screens:** one map with one sheet over it, as on iOS: Home (where to, Home and Work, recent
+  places), the place search, and the routes for a trip (from and to with swap, leave now, depart
+  at or arrive by, the order and filters, remembered between searches, TfL's notices, and each
+  source's progress). The sheet rests low, at half or full height; pages push inside it, and
+  system back and predictive back return through them. Unfolded wide or on a tablet in landscape,
+  the sheet is a card on the leading half and the order and filters dock on the map. Location is
+  asked for only when you plan from where you are, tap the location button or pick Current
+  Location. The journey page, departure boards, Settings and Go come next.
+
+Debug builds add a second launcher entry, "Polaris map check", and can replay recorded answers
+instead of asking TfL or Transitous (`--es demo routes`; see `app/src/debug/.../Variant.kt`);
+neither is in release builds. Third-party licences for the Android app (the icons, MapLibre, the libraries) are in
+`android/THIRD_PARTY_NOTICES.md`.
 
 The engine needs only JDK 17; the app also needs the Android SDK (platform 36), from Android
 Studio or the command-line tools. Without an SDK, Gradle builds and tests the engine alone.
@@ -222,7 +231,7 @@ and `polaris.mapTiles` and `polaris.mapGlyphs` to use your own OpenMapTiles-comp
 instead of OpenFreeMap. With none of them set the build works as the iOS one does with no keys.
 
 `ANDROID_SERIAL=<emulator> ./gradlew :app:connectedDebugAndroidTest` runs the few checks only a
-device can do (the Keystore, DataStore) on that emulator. They use their own files and Keystore
+device can do (the Keystore, DataStore, and the sheet's pages with back) on that emulator. They use their own files and Keystore
 alias, never the app's, so a debug install's entered keys are left alone.
 
 Build-time keys are compiled into the app (`BuildConfig`), where anyone with the `.apk` can read
@@ -367,7 +376,7 @@ MIT. See `LICENSE`.
 - `Polaris/Shared` and `PolarisWidgets`: the trip's Live Activity (the attributes are compiled into both targets).
 - `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `apns.ts`.
 - `PolarisTests`: parsers against recorded Google/TfL/Transitous responses, boards, walking progress and leg-by-leg tracking, and the merge and ranking rules.
-- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM: also `PlaceSearch`, `MapStyle`, `JourneyMap` and the settings storage rules) and `app/` (one Compose screen; `map/PolarisMap` and `storage/` for the screens to come; the debug-only map check in `src/debug`).
+- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM: also `PlaceSearch`, `PlaceStore`, `Snapshot`, `MapStyle`, `JourneyMap` and the settings storage rules) and `app/` (Compose: `shell/` for the map, the sheet and its pages, `home/`, `search/` and `results/` with their view models, `map/PolarisMap`, `storage/`; the debug-only map check and recorded answers in `src/debug`).
 - `Polaris/Design/Theme.swift`: the star-atlas palette, light and dark (System, Light or Dark in Settings).
 
 Launch flags for checking screens without tapping (Debug only): `-setup` shows the first-run setup step; `-demo -demoReplan

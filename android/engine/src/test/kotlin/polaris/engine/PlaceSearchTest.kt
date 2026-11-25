@@ -86,7 +86,7 @@ class PlaceSearchTest {
         val (search, transport) = rig()
         search.type("trafalgar square")
         settle()
-        assertEquals(5, search.state.value.results.size)
+        assertEquals(4, search.state.value.results.size) // 5 answers, one place listed twice
         search.clear()
         settle()
         assertEquals(1, transport.sent.size)
@@ -102,7 +102,7 @@ class PlaceSearchTest {
         settle()
         // Back to the same words, spelt with other case and spaces: answered from memory, at once.
         search.type("  trafalgar   SQUARE ")
-        assertEquals(5, search.state.value.results.size)
+        assertEquals(4, search.state.value.results.size) // 5 answers, one place listed twice
         settle()
         assertEquals(listOf("trafalgar square", "trafalgar"), transport.sent.map { query(it)["text"] })
     }
@@ -177,12 +177,12 @@ class PlaceSearchTest {
         search.type("trafalgar squar")
         settle()
         assertNull(search.state.value.error)
-        assertEquals(5, search.state.value.results.size)
+        assertEquals(4, search.state.value.results.size) // 5 answers, one place listed twice
     }
 
     @Test fun readsTheRecordedAnswer() {
         val matches = PlaceSearch.parse(Fixtures.bytes("transitous-geocode-kings-cross.json"))
-        assertEquals(5, matches.size)
+        assertEquals(4, matches.size) // 5 answers: the Underground station as a stop and as a place
         val station = matches.first()
         assertEquals(PlaceMatch.Kind.stop, station.kind)
         assertEquals("King's Cross and St Pancras", station.place.name)

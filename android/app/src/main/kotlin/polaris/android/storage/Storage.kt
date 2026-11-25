@@ -100,6 +100,7 @@ object Storage {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
     @Volatile private var ready: Pair<AppSettings, GoogleUsage>? = null
+    @Volatile private var preferences: KeyValueStore? = null
 
     /**
      * `AppSettings.contact`, kept in memory for the map's tile, style and font requests, which
@@ -140,8 +141,15 @@ object Storage {
                 IntentFilter(Intent.ACTION_USER_PRESENT),
                 ContextCompat.RECEIVER_NOT_EXPORTED,
             )
+            this@Storage.preferences = preferences
             (settings to GoogleUsage(preferences)).also { ready = it }
         }
+    }
+
+    /** The same preferences file, for other small values (saved places). Loads settings first if needed. */
+    suspend fun preferences(context: Context): KeyValueStore {
+        settings(context)
+        return preferences!!
     }
 
     private fun refreshContact() {

@@ -2,11 +2,6 @@
 <!-- Debug builds only: a check of the map, place search and settings storage. Not the app's UI. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The map check's location dot, asked for only when "Show me" is tapped. Release builds have
-         no screen that uses location yet, so they don't declare it (see src/release). -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-
     <application>
         <activity
             android:name=".debug.MapCheckActivity"
