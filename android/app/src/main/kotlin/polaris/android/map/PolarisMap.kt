@@ -1,5 +1,6 @@
 package polaris.android.map
 
+import androidx.compose.ui.layout.onSizeChanged
 import android.annotation.SuppressLint
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -225,14 +226,20 @@ fun PolarisMap(
     // the map later (a results list, the keyboard) doesn't move the camera.
     // Only a journey not fitted before: after a rotation the saved camera stays where it was.
     val currentPadding by rememberUpdatedState(padding)
+    // Whether any of the map shows inside the padding (a sheet at full height covers it all): a
+    // fit waits until it does, then happens once, so a page opened from a full sheet frames its
+    // place when the sheet comes down rather than fitting into no room at all.
+    var mapHeight by remember { mutableStateOf(0) }
+    val room = mapHeight > 0 && mapHeight - padding[1] - padding[3] >= with(density) { 120.dp.roundToPx() }
     var fitted by rememberSaveable { mutableStateOf<List<Double>?>(null) }
     // Also refitted when [refitOn] changes within this composition, but not after a rotation,
     // where the saved camera stands.
     var refitSeen by remember { mutableStateOf<Any?>(Unit) }
-    LaunchedEffect(map, frame, refitOn) {
+    LaunchedEffect(map, frame, refitOn, room) {
         val m = map ?: return@LaunchedEffect
         val padding = currentPadding
         val bounds = frame ?: return@LaunchedEffect
+        if (!room) return@LaunchedEffect
         val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east)
         val refit = refitSeen != Unit && refitSeen != refitOn
         refitSeen = refitOn
@@ -274,7 +281,7 @@ fun PolarisMap(
         LocationDot.update(context, m, s, showLocation, colors)
     }
 
-    Box(modifier) {
+    Box(modifier.onSizeChanged { mapHeight = it.height }) {
         key(mapView) { AndroidView(factory = { mapView }, modifier = Modifier.matchParentSize()) }
         overlay()
         MapCredit(colors, contentPadding)

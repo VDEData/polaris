@@ -230,3 +230,18 @@ class JourneyAndSettingsTest {
         assertFalse(first.takeSetup(), "a second screen in the same process doesn't show it again")
     }
 }
+
+class NoticesTest {
+    @Test fun theNoticesFileReadsAsParagraphsWithEveryWordKept() {
+        val file = java.io.File("../THIRD_PARTY_NOTICES.md").takeIf { it.exists() } ?: java.io.File("THIRD_PARTY_NOTICES.md")
+        val lines = file.readLines()
+        val blocks = polaris.android.settings.noticeBlocks(lines)
+        assertTrue(blocks.first().heading)
+        // No Markdown marks left, and every word of the file is still there, in order.
+        assertTrue(blocks.none { "**" in it.text || "`" in it.text })
+        val words = { t: String -> t.replace("**", "").replace("`", "").split(Regex("\\s+")).map { it.trimStart('#', '-') }.filter { it.isNotEmpty() } }
+        assertEquals(words(lines.joinToString(" ")), words(blocks.joinToString(" ") { it.text }))
+        // The MapLibre notice its licence asks for is in it.
+        assertTrue(blocks.any { "MapLibre" in it.text })
+    }
+}

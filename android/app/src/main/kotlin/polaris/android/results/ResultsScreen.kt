@@ -157,6 +157,10 @@ fun ResultsScreen(
     val layout = LocalWindowLayout.current
     val docks = sheet.wide && !layout.short
     val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+    // Short windows and the largest text: the trip in its one-row form, the controls in one row and
+    // the status on one line, so the first route card fits the first screenful (a phone turned on
+    // its side with a disruption showing; 2x text with the sheet at half height).
+    val tight = layout.short || androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     val belowFull = sheet.state?.rest != Rest.Full
     if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
@@ -177,7 +181,7 @@ fun ResultsScreen(
         ) {
             item(key = "trip") {
                 TripHeader(
-                    ui.query, ui.resolved, compact = layout.short, onBack = onBack,
+                    ui.query, ui.resolved, compact = tight, onBack = onBack,
                     edit = { isOrigin -> openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin))) },
                     swap = model::swap,
                     searchAgain = model::searchAgain,
@@ -185,7 +189,7 @@ fun ResultsScreen(
             }
             item(key = "controls") {
                 Controls(
-                    ui, wide = docks,
+                    ui, wide = docks, oneRow = tight,
                     pickTime = { kind -> if (kind == null) model.setTime(TimeMode.LeaveNow) else timeKind = kind },
                     setSort = model::setSort,
                     openFilters = { showFilters = true },
@@ -193,7 +197,7 @@ fun ResultsScreen(
             }
             item(key = "status") {
                 Column {
-                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain)
+                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = tight)
                     // While sources are still answering: a quiet line, as well as the star's points.
                     if (ui.isSearching) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 4.dp), color = c.tint, trackColor = c.hairline)
                 }
@@ -386,12 +390,17 @@ enum class TimeKind { Depart, Arrive }
  * never a wrapping cloud of chips. Wide, the order and filters are docked on the map instead.
  */
 @Composable
-private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind?) -> Unit, setSort: (SortOrder) -> Unit, openFilters: () -> Unit) {
+private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, oneRow: Boolean, pickTime: (TimeKind?) -> Unit, setSort: (SortOrder) -> Unit, openFilters: () -> Unit) {
     val c = polaris
     var timeMenu by rememberSaveable { mutableStateOf(false) }
     var sortMenu by rememberSaveable { mutableStateOf(false) }
-    // Wraps onto a second line rather than hiding a control off the edge (long sort names, large text).
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps onto a second line rather than hiding a control off the edge (long sort names); where
+    // height is short (a short window, the largest text) one row that scrolls sideways instead.
+    val row: @Composable (@Composable () -> Unit) -> Unit = { content ->
+        if (oneRow) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        else FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+    row {
         Box {
             OutlinedButton(onClick = { timeMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(timeLabel(ui.query.time), maxLines = 1)
@@ -451,24 +460,27 @@ private fun timeLabel(time: TimeMode) = when (time) {
 
 /** Who has answered (the star's points fill in as each source does), what was found, and who didn't answer. */
 @Composable
-private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit) {
+private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit, oneLine: Boolean = false) {
     val c = polaris
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier
                 .weight(1f)
                 .clickable(role = Role.Button, onClickLabel = stringResource(R.string.results_show_sources)) { showSources() }
-                .heightIn(min = 48.dp)
+                .heightIn(min = if (oneLine) 40.dp else 48.dp)
                 .padding(horizontal = 4.dp)
                 .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FractalStar(22.dp, lit = listOf(ProviderID.google, ProviderID.tfl, ProviderID.transitous, ProviderID.apple).map { ui.statuses[it] is ProviderStatus.Done })
-            Text(summary(ui, rememberSummaryWords()), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            // One line where height is short; the whole of it is in the sources panel it opens.
+            Text(summary(ui, rememberSummaryWords()), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
+                maxLines = if (oneLine) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Symbol(R.drawable.sym_info, null, Modifier.size(18.dp), tint = c.inkFaint)
         }
-        if (!ui.isSearching && !ui.stale) {
+        // Search again is in the overflow too, so a short line leaves it there.
+        if (!ui.isSearching && !ui.stale && !oneLine) {
             IconButton(onClick = searchAgain) { Symbol(R.drawable.sym_refresh, stringResource(R.string.common_search_again), tint = c.tint) }
         }
     }

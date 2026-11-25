@@ -320,7 +320,8 @@ private fun MapAndSheet(
             val handlePx = with(density) { 28.dp.toPx() }
             val anchors = buildMap {
                 put(Rest.Low, heightPx - (barPx + handlePx + with(density) { navBottom.toPx() }))
-                put(Rest.Half, heightPx * if (short) 0.42f else 0.52f)
+                // At the largest text the half rest sits higher, so a route card fits under the page's controls.
+                put(Rest.Half, heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f)
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }

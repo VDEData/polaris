@@ -190,21 +190,18 @@ private fun Ticks(leg: Leg, board: DepartureBoard, now: Instant, reachable: Inst
             }
         },
     ) { measurables, constraints ->
-        val placeables = measurables.map { it.measure(Constraints(maxWidth = tileWidth.roundToPx())) }
-        val step = tileWidth.roundToPx() + gap.roundToPx()
-        val fits = { n: Int -> n * step - gap.roundToPx() <= constraints.maxWidth }
+        // Each tile at least its width, wider when its words need it ("cancelled"), never cut.
+        val placeables = measurables.map { it.measure(Constraints(minWidth = tileWidth.roundToPx())) }
+        val gapPx = gap.roundToPx()
+        val widthOf = { range: IntRange -> range.sumOf { placeables[it].width } + gapPx * (range.count() - 1) }
         // 2 before and 3 after, then 1+3, 1+2, and yours with the next.
-        val choice = listOf(2 to 3, 1 to 3, 1 to 2, 0 to 1).firstOrNull { (b, a) ->
-            val from = maxOf(0, anchor - b)
-            val to = minOf(all.size, anchor + a + 1)
-            fits(to - from)
-        } ?: (0 to 0)
-        val from = maxOf(0, anchor - choice.first)
-        val to = minOf(all.size, anchor + choice.second + 1)
-        val shown = (from until to).toList()
+        val range = listOf(2 to 3, 1 to 3, 1 to 2, 0 to 1).map { (b, a) -> maxOf(0, anchor - b) until minOf(all.size, anchor + a + 1) }
+            .firstOrNull { widthOf(it) <= constraints.maxWidth } ?: (anchor..anchor)
+        val shown = range.toList()
         val height = shown.maxOfOrNull { placeables[it].height } ?: 0
-        layout(if (shown.isEmpty()) 0 else shown.size * step - gap.roundToPx(), height) {
-            shown.forEachIndexed { i, index -> placeables[index].placeRelative(i * step, 0) }
+        layout(minOf(constraints.maxWidth, widthOf(range)), height) {
+            var x = 0
+            shown.forEach { index -> placeables[index].placeRelative(x, 0); x += placeables[index].width + gapPx }
         }
     }
 }
@@ -225,11 +222,11 @@ private fun Tile(departure: Departure, caption: Strip.Caption, isPlanned: Boolea
     val spoken = stringResource(R.string.strip_tile, time, words)
     Column(
         Modifier
-            .width(width)
+            .widthIn(min = width)
             .heightIn(min = 40.dp)
             .alpha(if (isGone && !isPlanned) 0.5f else 1f)
             .background(if (isPlanned) PolarisColors.Gold.copy(alpha = if (onGold) 1f else 0.32f) else c.ink.copy(alpha = 0.045f), RoundedCornerShape(9.dp))
-            .padding(vertical = 3.dp)
+            .padding(vertical = 3.dp, horizontal = 4.dp)
             .clearAndSetSemantics { contentDescription = spoken },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

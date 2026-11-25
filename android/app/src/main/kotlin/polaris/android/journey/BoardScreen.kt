@@ -73,8 +73,13 @@ fun BoardScreen(key: BoardPage, graph: AppGraph, onBack: () -> Unit) {
     val ui by model.ui.collectAsStateWithLifecycle()
     val leg = ui.journey?.legs?.firstOrNull { it.id == key.legId }
     val night = polaris.isNight
-    val content = remember(leg, night) {
-        leg?.start?.let { s -> MapScene.Content(frame = JourneyMap.Bounds(s.latitude - 0.003, s.longitude - 0.005, s.latitude + 0.003, s.longitude + 0.005)) } ?: MapScene.Content()
+    // The route stays drawn; the map frames the stop the board is for.
+    val journey = ui.journey
+    val query = ui.query
+    val content = remember(journey, leg, night) {
+        val drawing = journey?.let { JourneyMap.drawing(it, night, query?.origin?.takeUnless { p -> p.isCurrentLocation }?.coordinate, query?.destination?.takeUnless { p -> p.isCurrentLocation }?.coordinate) }
+        val stop = leg?.start
+        MapScene.Content(drawing, frame = stop?.let { s -> JourneyMap.Bounds(s.latitude - 0.003, s.longitude - 0.005, s.latitude + 0.003, s.longitude + 0.005) } ?: drawing?.bounds)
     }
     SceneEffect(key, content)
     val title = stringResource(R.string.board_title)

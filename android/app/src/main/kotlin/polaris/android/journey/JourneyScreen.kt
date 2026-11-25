@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -154,7 +156,7 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
             Modifier.fillMaxSize(),
             state = list,
             contentPadding = PaddingValues(bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 14.dp),
         ) {
             item(key = "top") { TopRow(title, journey?.let { summary(it) }, journey, query, onBack) }
             when {
@@ -345,17 +347,27 @@ private fun LegRow(
             val showOnMap = stringResource(R.string.journey_show_on_map)
             Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = showOnMap, onClick = onFocus), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (large) "${Clock.of(leg.departure)} $fromName" else fromName, style = MaterialTheme.typography.titleSmall, color = c.ink)
-                if (leg.mode.isTransit) RideTitle(leg) else WalkTitle(leg)
+                if (leg.mode.isTransit) RideTitle(leg)
             }
             if (leg.mode.isTransit) {
                 RideDetail(leg, notices, board, reachable, onBoard)
             } else {
-                WalkDetail(leg)
+                // The walk and its directions on one line where they fit.
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    WalkTitle(leg)
+                    WalkDetail(leg)
+                }
             }
             if (isLast) {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-                    FractalStar(18.dp, Modifier.padding(end = 0.dp), color = star)
-                    Spacer(Modifier.width(6.dp))
+                    // The star sits on the rail, where the line ends.
+                    Box(Modifier.width(0.dp)) {
+                        // Centred on the rail: 21 dp before where the names start.
+                        FractalStar(18.dp, Modifier.wrapContentWidth(unbounded = true).offset(x = (-21).dp), color = star)
+                    }
                     Text(destination, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = c.ink)
                     Text(stringResource(R.string.journey_arrive, Clock.of(leg.arrival)), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft, maxLines = 1, softWrap = false)
                 }

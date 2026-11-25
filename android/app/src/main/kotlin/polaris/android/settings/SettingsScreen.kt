@@ -420,14 +420,44 @@ fun DataCreditsFull(modifier: Modifier = Modifier) {
     }
 }
 
-/** The third-party notices shipped with the app (android/THIRD_PARTY_NOTICES.md), as they are. */
+/** One block of the notices: a heading, a list item or a paragraph, with Markdown's marks taken out. */
+data class NoticeBlock(val text: String, val heading: Boolean = false, val bullet: Boolean = false)
+
+/**
+ * The notices file (Markdown, wrapped at 100 columns) as blocks to show: lines joined into
+ * paragraphs and list items, headings apart, `**` and backticks dropped. Plain, so it is tested.
+ */
+fun noticeBlocks(lines: List<String>): List<NoticeBlock> {
+    val blocks = mutableListOf<NoticeBlock>()
+    var current: StringBuilder? = null
+    var bullet = false
+    fun flush() {
+        current?.let { blocks += NoticeBlock(it.toString().replace("**", "").replace("`", "").trim(), bullet = bullet) }
+        current = null
+        bullet = false
+    }
+    for (raw in lines) {
+        val line = raw.trimEnd()
+        when {
+            line.isBlank() -> flush()
+            line.startsWith("#") -> { flush(); blocks += NoticeBlock(line.trimStart('#', ' '), heading = true) }
+            line.trimStart().startsWith("- ") -> { flush(); current = StringBuilder(line.trimStart().removePrefix("- ")); bullet = true }
+            current == null -> current = StringBuilder(line.trim())
+            else -> current!!.append(' ').append(line.trim())
+        }
+    }
+    flush()
+    return blocks
+}
+
+/** The third-party notices shipped with the app (android/THIRD_PARTY_NOTICES.md), every word of them. */
 @Composable
 fun LicencesScreen(night: Boolean, onClose: () -> Unit) {
     val c = polaris
     val context = LocalContext.current
-    val lines by androidx.compose.runtime.produceState<List<String>?>(null) {
+    val blocks by androidx.compose.runtime.produceState<List<NoticeBlock>?>(null) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { context.assets.open("THIRD_PARTY_NOTICES.md").bufferedReader().readLines() }.getOrElse { emptyList() }
+            runCatching { noticeBlocks(context.assets.open("THIRD_PARTY_NOTICES.md").bufferedReader().readLines()) }.getOrElse { emptyList() }
         }
     }
     CoverPage(night) {
@@ -435,19 +465,24 @@ fun LicencesScreen(night: Boolean, onClose: () -> Unit) {
             IconButton(onClick = onClose) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.licences_back)) }
             Text(stringResource(R.string.licences_title), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge, color = c.ink)
         }
-        val shown = lines
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = coverBottom())) {
+        val shown = blocks
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = coverBottom()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             if (shown != null && shown.isEmpty()) item { Text(stringResource(R.string.licences_missing), color = c.inkSoft) }
             shown?.let { all ->
                 items(all.size) { i ->
-                    val line = all[i]
-                    val headingLine = line.startsWith("#")
-                    Text(
-                        line.trimStart('#', ' ').ifEmpty { " " },
-                        Modifier.then(if (headingLine) Modifier.padding(top = 12.dp).semantics { heading() } else Modifier),
-                        style = if (headingLine) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodySmall,
-                        color = if (headingLine) c.ink else c.inkSoft,
-                    )
+                    val b = all[i]
+                    when {
+                        b.heading -> Text(b.text, Modifier.padding(top = 12.dp).semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = c.ink)
+                        b.bullet -> Row {
+                            Text("•", Modifier.padding(end = 8.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+                            Text(b.text, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+                        }
+                        else -> Text(b.text, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+                    }
                 }
             }
         }
