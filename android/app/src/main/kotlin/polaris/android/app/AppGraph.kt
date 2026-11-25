@@ -36,13 +36,28 @@ class AppGraph(
     val version: String = "0.1.0",
     /** TfL's status, kept 3 minutes for the whole app. */
     val networkCache: NetworkStatusCache = NetworkStatusCache.shared,
+    /** First-run setup is to be shown: decided once, when the graph was built at launch ([polaris.engine.FirstRun]). */
+    firstRun: Boolean = false,
+    /** Work that must finish even if the screen that started it closes (a key typed just before back). */
+    val background: kotlinx.coroutines.CoroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
 ) {
+    private val setupPending = java.util.concurrent.atomic.AtomicBoolean(firstRun)
+
+    /** True once, for the first screen after a launch that decided to show setup. */
+    fun takeSetup(): Boolean = setupPending.getAndSet(false)
+
     /** One HTTP for place search: Polaris's User-Agent with the contact as it is at each request. */
     val http: HTTP by lazy { HTTP(transport, version) { settings.contact } }
 
     fun searchModel(): SearchModel = SearchModel.create(settings, usage, version, identity, transport, networkCache)
 
     fun placeSearch(scope: kotlinx.coroutines.CoroutineScope): PlaceSearch = PlaceSearch(http, scope)
+
+    /** Departure boards and what's leaving nearby, each kept a minute, for the whole app. */
+    val departures: polaris.engine.DepartureStore by lazy { polaris.engine.DepartureStore(polaris.engine.DepartureProvider(http)) }
+
+    /** The appearance chosen in Settings, which the activity follows at once. */
+    val appearance: kotlinx.coroutines.flow.MutableStateFlow<polaris.engine.Appearance> by lazy { kotlinx.coroutines.flow.MutableStateFlow(settings.appearance) }
 
     companion object {
         @Volatile private var loaded: AppGraph? = null
@@ -52,6 +67,8 @@ class AppGraph(
 
         /** Reads storage off the main thread the first time; later calls return the same graph. */
         suspend fun load(context: Context, transport: HttpTransport? = null): AppGraph {
+            // A debug run on recorded answers never decides first-run setup (nor shows it).
+            val decidesSetup = transport == null
             loaded?.let { return it }
             val app = context.applicationContext
             val (settings, usage) = Storage.settings(app)
@@ -66,6 +83,7 @@ class AppGraph(
                     locator = AndroidLocator(app),
                     identity = appIdentity(app),
                     version = BuildConfig.VERSION_NAME,
+                    firstRun = decidesSetup && settings.takeFirstRunTurn(),
                 )
             }.also { loaded = it }
         }

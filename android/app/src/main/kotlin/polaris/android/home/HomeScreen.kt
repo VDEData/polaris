@@ -70,15 +70,22 @@ import polaris.android.ui.surface
 import polaris.engine.Place
 
 /**
- * Home, the sheet's root (iOS's `HomeSheet`): the wordmark, where to, Home and Work, and recent
- * places. Nothing here asks for location or sends a request until the person picks somewhere.
+ * Home, the sheet's root (iOS's `HomeSheet`): the wordmark with Settings in its overflow, where
+ * to, Home and Work, recent places, and "Leaving near you". Location is never asked for here
+ * unasked: what's leaving nearby is asked for (one request, kept a minute) only once the person
+ * has allowed location, and offers a button to allow it otherwise.
  *
- * Not here yet: "Leaving near you", which needs departure boards (not ported to Android yet), and
- * "Your lines", which comes with alerts. Settings comes in the next update, so there is no
- * Settings button yet.
+ * Not here yet: "Your lines", which comes with alerts.
  */
 @Composable
-fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Unit) {
+fun HomeScreen(
+    key: NavKey,
+    graph: polaris.android.app.AppGraph,
+    shell: ShellViewModel,
+    openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
+    openLine: (polaris.engine.NearbyLine) -> Unit,
+) {
     val places by shell.places.collectAsStateWithLifecycle()
     val finding by shell.finding.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
@@ -99,7 +106,8 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                     FractalStar(26.dp)
-                    Text(stringResource(R.string.app_name), style = PolarisType.wordmark, color = c.ink, modifier = Modifier.semantics { heading() })
+                    Text(stringResource(R.string.app_name), style = PolarisType.wordmark, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+                    SettingsMenu(openSettings)
                 }
             }
             item { WhereTo(Modifier.fillMaxWidth()) { openSearch(SearchFor.Destination) } }
@@ -141,6 +149,8 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
                     }
                 }
             }
+            // "Leaving near you" is a nice extra, so it sits last and shows only a few rows (as on iOS).
+            nearbySection(graph, shell, wide = sheet.wide, openLine = openLine)
         }
     }
 }
@@ -262,6 +272,18 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
             DropdownMenuItem(text = { Text(stringResource(R.string.home_set_as_home)) }, leadingIcon = { Symbol(R.drawable.sym_home, null) }, onClick = { menu = false; setHome() })
             DropdownMenuItem(text = { Text(stringResource(R.string.home_set_as_work)) }, leadingIcon = { Symbol(R.drawable.sym_work, null) }, onClick = { menu = false; setWork() })
             DropdownMenuItem(text = { Text(stringResource(R.string.common_remove)) }, leadingIcon = { Symbol(R.drawable.sym_delete, null) }, onClick = { menu = false; forget() })
+        }
+    }
+}
+
+/** Settings, from the overflow beside the wordmark (Android's place for it; no gear icon needed). */
+@Composable
+private fun SettingsMenu(openSettings: () -> Unit) {
+    var menu by rememberSaveable { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }) { Symbol(R.drawable.sym_more_vert, stringResource(R.string.home_more), tint = polaris.inkSoft) }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.settings_open)) }, onClick = { menu = false; openSettings() })
         }
     }
 }

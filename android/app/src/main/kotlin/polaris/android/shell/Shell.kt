@@ -1,5 +1,11 @@
 package polaris.android.shell
 
+import polaris.android.settings.SettingsScreen
+import polaris.android.settings.LicencesScreen
+import polaris.android.settings.SetupScreen
+import polaris.android.journey.JourneyScreen
+import polaris.android.journey.BoardScreen
+import polaris.android.journey.LineScreen
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -80,7 +86,6 @@ import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.home.HomeScreen
 import polaris.android.map.PolarisMap
-import polaris.android.results.JourneyPlaceholder
 import polaris.android.results.ResultsScreen
 import polaris.android.search.PlaceSearchScreen
 import polaris.android.ui.HalfDialog
@@ -91,6 +96,10 @@ import polaris.engine.Snapshot
 /** The window's pages: the map with its sheet, and a place search over it. */
 @Serializable data object MainWindow : NavKey
 @Serializable data class SearchWindow(val kind: SearchFor) : NavKey
+/** Settings, the licences under it, and first-run setup: cover pages over the map (over the leading card when wide). */
+@Serializable data object SettingsWindow : NavKey
+@Serializable data object LicencesWindow : NavKey
+@Serializable data object SetupWindow : NavKey
 
 /** Builds the app's view models from the graph; every screen's model takes its dependencies directly. */
 inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: (androidx.lifecycle.SavedStateHandle) -> T) =
@@ -106,9 +115,10 @@ inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: 
  * use the sheet.
  */
 @Composable
-fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null) {
+fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null, showSetup: Boolean = false) {
     val shell: ShellViewModel = viewModel(factory = factory { ShellViewModel(graph) })
-    val window = rememberNavBackStack(MainWindow)
+    // First-run setup is over everything on a fresh start; after that the saved stack decides.
+    val window = rememberNavBackStack(*(if (showSetup) arrayOf<NavKey>(MainWindow, SetupWindow) else arrayOf<NavKey>(MainWindow)))
     val pages = rememberNavBackStack(HomePage)
     val scene = remember { MapScene() }
 
@@ -147,6 +157,8 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     }
 
     val openSearch: (SearchFor) -> Unit = { kind -> if (window.lastOrNull() !is SearchWindow) window.add(SearchWindow(kind)) }
+    val openSettings: () -> Unit = { if (window.lastOrNull() == MainWindow) window.add(SettingsWindow) }
+    val cover = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))
 
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
@@ -181,7 +193,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         entryProvider = entryProvider {
             entry<MainWindow> {
                 CompositionLocalProvider(LocalScene provides scene) {
-                    MapAndSheet(graph, shell, pages, night, openSearch)
+                    MapAndSheet(graph, shell, pages, night, openSearch, openSettings)
                 }
             }
             entry<SearchWindow>(metadata = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))) { key ->
@@ -193,6 +205,19 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
                     night = night,
                     onClose = { window.removeAll { it == key } },
                 )
+            }
+            entry<SettingsWindow>(metadata = cover) {
+                SettingsScreen(
+                    graph, shell, night, openSearch,
+                    openLicences = { if (window.lastOrNull() == SettingsWindow) window.add(LicencesWindow) },
+                    onClose = { window.removeAll { it == SettingsWindow || it == LicencesWindow } },
+                )
+            }
+            entry<LicencesWindow>(metadata = cover) {
+                LicencesScreen(night) { window.removeAll { it == LicencesWindow } }
+            }
+            entry<SetupWindow>(metadata = cover) {
+                SetupScreen(graph, night) { window.removeAll { it == SetupWindow } }
             }
         },
     )
@@ -245,6 +270,7 @@ private fun MapAndSheet(
     pages: androidx.navigation3.runtime.NavBackStack<NavKey>,
     night: Boolean,
     openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
 ) {
     val scene = LocalScene.current
     val density = LocalDensity.current
@@ -258,7 +284,7 @@ private fun MapAndSheet(
     val bars = remember { mutableStateMapOf<NavKey, Int>() }
     val movablePages = remember(graph, shell, pages) {
         movableContentOf { host: SheetHost ->
-            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch) }
+            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch, openSettings) }
         }
     }
     var dockHeight by remember { mutableStateOf(0) }
@@ -399,6 +425,7 @@ private fun SheetPages(
     shell: ShellViewModel,
     pages: androidx.navigation3.runtime.NavBackStack<NavKey>,
     openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
 ) {
     // Pages slide in from the end; going back, the page on top slides away over the one under it
     // (and follows the finger during predictive back). Each page is opaque, so they never overlap.
@@ -414,7 +441,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, shell, openSearch) } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> pages.add(LinePage(line.id, line.stopName)) } } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->
@@ -422,7 +449,15 @@ private fun SheetPages(
                     }
                 }
             }
-            entry<JourneyPage> { key -> page { JourneyPlaceholder(key, graph, onBack = { pages.removeLastOrNull() }) } }
+            entry<JourneyPage> { key ->
+                page {
+                    JourneyScreen(key, graph, onBack = { pages.removeLastOrNull() }) { leg ->
+                        if (pages.lastOrNull() == key) pages.add(BoardPage(key.searchId, key.journeyId, leg.id))
+                    }
+                }
+            }
+            entry<BoardPage> { key -> page { BoardScreen(key, graph, onBack = { pages.removeLastOrNull() }) } }
+            entry<LinePage> { key -> page { LineScreen(key, graph, shell, onBack = { pages.removeLastOrNull() }) } }
         },
     )
 }

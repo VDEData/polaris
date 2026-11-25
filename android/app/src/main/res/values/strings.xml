@@ -207,10 +207,6 @@
     <string name="time_today">Today</string>
     <string name="time_tomorrow">Tomorrow</string>
 
-    <!-- The route's page, for now -->
-    <string name="placeholder_route">Route</string>
-    <string name="placeholder_title">%1$s – %2$s · %3$s</string>
-    <string name="placeholder_body">Journey details (the stops, departures and Go) come in the next update. Back returns to the routes.</string>
 
     <!-- The sheet and the map -->
     <string name="sheet_drag_handle">Drag handle</string>

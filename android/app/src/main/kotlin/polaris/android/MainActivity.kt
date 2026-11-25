@@ -10,6 +10,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import polaris.android.app.AppGraph
+import polaris.engine.Appearance
 import polaris.android.shell.PolarisApp
 import polaris.android.ui.PolarisTheme
 import polaris.android.ui.polaris
@@ -35,15 +37,31 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val demo = Variant.transport(this, intent)
         val startTrip = if (savedInstanceState == null) Variant.startTrip(intent) else null
+        val fresh = savedInstanceState == null
         setContent {
-            val night = isSystemInDarkTheme()
+            val context = LocalContext.current
+            // Already built after a rotation or a fold: no blank first frame then.
+            var graph by remember { mutableStateOf(AppGraph.cached()) }
+            LaunchedEffect(Unit) { graph = AppGraph.load(context, demo) }
+            // The appearance chosen in Settings, or the phone's own.
+            val chosen = graph?.appearance?.collectAsState()?.value ?: Appearance.system
+            val night = when (chosen) {
+                Appearance.system -> isSystemInDarkTheme()
+                Appearance.light -> false
+                Appearance.dark -> true
+            }
+            // The bars' icons follow the appearance in use, not only the phone's.
+            LaunchedEffect(night) {
+                val clear = android.graphics.Color.TRANSPARENT
+                val style = if (night) SystemBarStyle.dark(clear) else SystemBarStyle.light(clear, clear)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
             PolarisTheme(night) {
-                val context = LocalContext.current
-                // Already built after a rotation or a fold: no blank first frame then.
-                var graph by remember { mutableStateOf(AppGraph.cached()) }
-                LaunchedEffect(Unit) { graph = AppGraph.load(context, demo) }
                 Box(Modifier.fillMaxSize().background(polaris.paper)) {
-                    graph?.let { PolarisApp(it, night, startTrip) }
+                    graph?.let { g ->
+                        val setup = remember(g) { fresh && g.takeSetup() }
+                        PolarisApp(g, night, startTrip, showSetup = setup)
+                    }
                 }
             }
         }

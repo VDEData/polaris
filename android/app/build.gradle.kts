@@ -88,13 +88,31 @@ abstract class DebugRecordings : DefaultTask() {
 val mapCheckAssets = tasks.register<DebugRecordings>("mapCheckAssets") {
     val fixtures = rootProject.layout.projectDirectory.dir("../PolarisTests/Fixtures")
     recordings.from(
-        listOf("transitous-plan.json", "tfl-journeys.json").map { fixtures.file(it) },
+        listOf("transitous-plan.json", "tfl-journeys.json", "transitous-departures.json", "transitous-nearby.json").map { fixtures.file(it) },
         listOf("transitous-geocode-kings-cross.json", "transitous-geocode-trafalgar-square.json").map { rootProject.layout.projectDirectory.file("engine/src/test/resources/$it") },
     )
+}
+// Every build: the third-party notices (android/THIRD_PARTY_NOTICES.md), shown in Settings' licences page.
+abstract class NoticesAsset : DefaultTask() {
+    @get:InputFile abstract val notices: RegularFileProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val dir = output.get().asFile
+        dir.deleteRecursively()
+        dir.mkdirs()
+        notices.get().asFile.copyTo(dir.resolve("THIRD_PARTY_NOTICES.md"))
+    }
+}
+val noticesAsset = tasks.register<NoticesAsset>("noticesAsset") {
+    notices.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
 }
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(mapCheckAssets, DebugRecordings::output)
+    }
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(noticesAsset, NoticesAsset::output)
     }
 }
 

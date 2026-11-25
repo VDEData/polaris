@@ -23,9 +23,17 @@ data class ResultsPage(val query: String, val id: String = UUID.randomUUID().toS
     val journeyQuery: JourneyQuery? get() = Snapshot.decodeQuery(query)
 }
 
-/** One route from a results page. The journey page itself comes in the next update. */
+/** One route from a results page: the journey page. */
 @Serializable
 data class JourneyPage(val searchId: String, val journeyId: String) : NavKey
+
+/** The full departure board for one ride of a route, from its journey page. */
+@Serializable
+data class BoardPage(val searchId: String, val journeyId: String, val legId: String) : NavKey
+
+/** A line leaving a stop near you, from Home's "Leaving near you" ([polaris.engine.NearbyLine.id] and its stop). */
+@Serializable
+data class LinePage(val lineId: String, val stopName: String) : NavKey
 
 /** What a place search is for, and so where its pick goes. Saved, so a search open during a rotation stays open. */
 @Serializable
