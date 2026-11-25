@@ -1,10 +1,11 @@
-// Every two minutes: for each phone, the alerts whose times are now, against TfL. Nothing is
-// fetched when nobody is travelling. The evening before, planned works on tomorrow's trips.
+// Every two minutes: for each phone, the alerts whose times are now, against TfL, and for a
+// while after a time ends, any disruption told until it has ended. Nothing is fetched when
+// nobody is travelling or waiting to hear. The evening before, planned works on tomorrow's trips.
 
 import { canPush, send, type ApnsEnv } from "./apns.ts";
 import { loadLineMaps } from "./linemap.ts";
 import { issuesFor, issuesInRanges, linesToPlace, type LineMaps } from "./match.ts";
-import { MAX_RETRIES, plannedStep, step, type DeviceState, type Ways } from "./policy.ts";
+import { follow, following, MAX_RETRIES, plannedStep, step, type DeviceState, type Ways } from "./policy.ts";
 import { clearPush, issuesPush, plannedPush, type Push } from "./push.ts";
 import { activeWindows, dateKey, during, eachWay, localTime, PLANNED_CHECK_AT, travelRanges } from "./schedule.ts";
 import { fetchTfL, lineStatusURL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL, type LineStatus, type StationDisruption } from "./tfl.ts";
@@ -58,20 +59,29 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
         const windows = activeWindows(a, now, device.timeZone);
         return windows.length ? [{ alert: during(a, windows), base: a }] : [];
       }),
+      // Outside its times, an alert with a disruption told and not yet ended: only that is
+      // followed, every way its times go, and only the lines and stations it was on.
+      follow: device.alerts.filter((a) => !activeWindows(a, now, device.timeZone).length && following(device.state.alerts[a.id], now)).map((a) => during(a)),
       planned: local.minutes >= PLANNED_CHECK_AT && device.state.plannedOn !== dateKey(local),
       today: dateKey(local),
     };
   });
   const live = work.flatMap((w) => w.live.map((l) => l.alert));
   const plannedAlerts = work.filter((w) => w.planned).flatMap((w) => w.device.alerts);
-  if (!live.length && !plannedAlerts.length) return { devices: devices.length, checked: 0, sent: 0 };
+  // A followed alert: all its lines (still the one request, and enough to know whether all is
+  // well again), and station notices only if it was told about a station.
+  const followed = work.flatMap((w) => w.follow);
+  const followedLines = followed.flatMap((a) => a.segments.map((s) => s.line.id));
+  const followedStops = work.flatMap((w) => w.follow.filter((a) => Object.keys(w.device.state.alerts[a.id]?.said ?? {}).some((s) => s.startsWith("stop:"))));
+  if (!live.length && !plannedAlerts.length && !followed.length) return { devices: devices.length, checked: 0, sent: 0 };
 
-  const segments = [...live, ...plannedAlerts].flatMap((a) => a.segments);
+  const lineIds = [...live.flatMap((a) => a.segments.map((s) => s.line.id)), ...followedLines];
+  const stopAlerts = [...live, ...plannedAlerts, ...followedStops];
   let lines: LineStatus[] = [], stations: StationDisruption[] = [];
   try {
     [lines, stations] = await Promise.all([
-      live.length ? fetchTfL(lineStatusURL(live.flatMap((a) => a.segments.map((s) => s.line.id))), 60, env.TFL_APP_KEY).then(parseLineStatuses) : [],
-      fetchTfL(stationDisruptionsURL(segments.map((s) => s.mode)), 60, env.TFL_APP_KEY).then(parseStationDisruptions),
+      lineIds.length ? fetchTfL(lineStatusURL(lineIds), 60, env.TFL_APP_KEY).then(parseLineStatuses) : [],
+      stopAlerts.length ? fetchTfL(stationDisruptionsURL(stopAlerts.flatMap((a) => a.segments.map((s) => s.mode))), 60, env.TFL_APP_KEY).then(parseStationDisruptions) : [],
     ]);
   } catch (error) {
     console.error("TfL unavailable", String(error));
@@ -80,12 +90,12 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
 
   // Only when TfL names a section in words, or says one way only: the line's stations in order.
   // Each way an alert's times go, too: which ways a disruption is on decides what's news.
-  const ridden = [...live, ...work.flatMap((w) => w.live.flatMap((l) => eachWay(l.base)))];
+  const ridden = [...live, ...work.flatMap((w) => w.live.flatMap((l) => eachWay(l.base))), ...followed];
   const maps = await loadLineMaps(linesToPlace(ridden, lines, stations), env.TFL_APP_KEY, now);
 
   let sent = 0;
-  for (const { device, live: active, planned, today } of work) {
-    if (!active.length && !planned) continue;
+  for (const { device, live: active, follow: followedHere, planned, today } of work) {
+    if (!active.length && !planned && !followedHere.length) continue;
     const before = JSON.stringify(device.state);
     const state = device.state;
     const retries = { ...(state.retries ?? {}) };
@@ -118,7 +128,14 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
         const result = step(state.alerts[alert.id], issues, now, waysFor(alert, base, lines, stations, now, maps));
         const commit = () => void (state.alerts[alert.id] = result.state);
         if (result.push?.kind === "issues") await deliver(alert.id, issuesPush(alert, result.push.issues, now), commit);
-        else if (result.push?.kind === "clear") await deliver(alert.id, clearPush(alert, now), commit);
+        else if (result.push?.kind === "clear") await deliver(alert.id, clearPush(alert, result.push, now), commit);
+        else commit();
+      }
+      for (const alert of followedHere) {
+        if (gone) break;
+        const result = follow(state.alerts[alert.id], issuesFor(alert, lines, stations, { at: now }, maps), now, followedStops.includes(alert));
+        const commit = () => void (state.alerts[alert.id] = result.state);
+        if (result.push?.kind === "clear") await deliver(alert.id, clearPush(alert, result.push, now), commit);
         else commit();
       }
       if (planned && !gone) {
@@ -156,7 +173,7 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
       await env.DB.prepare("UPDATE devices SET state = ?1 WHERE token = ?2").bind(JSON.stringify(state), device.token).run();
     }
   }
-  return { devices: devices.length, checked: live.length, sent };
+  return { devices: devices.length, checked: live.length + followed.length, sent };
 }
 
 /** For an alert with any time going one way: the way ridden now, which ways each disruption on
