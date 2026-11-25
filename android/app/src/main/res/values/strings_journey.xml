@@ -110,7 +110,7 @@
     <string name="nearby_show_more">Show %s more</string>
     <string name="nearby_show_fewer">Show fewer</string>
     <string name="nearby_to">to %s</string>
-    <string name="nearby_stop_distance">%1$s · %2$s m</string>
+    <string name="nearby_stop_distance">%1$s · %2$s\u00A0m</string>
     <string name="nearby_now">Now</string>
     <string name="nearby_minutes_suffix">%s\u00A0min</string>
     <string name="nearby_open">Shows the next departures</string>
