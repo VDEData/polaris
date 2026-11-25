@@ -42,8 +42,9 @@ export function issuesPush(alert: Alert, issues: Issue[], now: number): Push {
  * notification, so Notification Centre shows how things stand now rather than trouble that is
  * over. Whether the merged one still sounds and shows a banner hasn't been seen on a phone. */
 export function clearPush(alert: Alert, decision: Extract<Decision, { kind: "clear" }>, now: number): Push {
+  // State from before the words were kept: what was told isn't known, only whether all is well.
   const body = !decision.ended.length
-    ? `Good service again on ${lineList(alert)}.`
+    ? decision.all ? `Good service again on ${lineList(alert)}.` : `What you were told about on ${lineList(alert)} has cleared.`
     : [...sentences(alert, decision.ended, decision.still), ...(!decision.still.length && decision.all ? ["Good service again."] : [])].join(" ");
   return {
     payload: {
@@ -90,15 +91,19 @@ function some(alert: Alert, title: string, n: number, all = false): { ended: str
         ? { ended: `${capital(what)} on ${on} have cleared.`, still: "" }
         : { ended: `${capital(what)} on part of ${on} have cleared.`, still: "They continue elsewhere on the line." };
     }
-    const noun = NOUNS[what] ?? what;
-    const nouns = /s$/.test(noun) ? noun : `${noun}s`;
+    const noun = what === "bus service" ? "replacement bus service" : NOUNS[what] ?? what;
+    const nouns = plural(noun);
+    const trains = what === "bus service" ? "; trains are running again." : ".";
     return {
-      ended: all ? `The ${nouns} on ${on} have ended.` : n === 1 ? `One of the ${nouns} on ${on} has ended.` : `${n} of the ${nouns} on ${on} have ended.`,
+      ended: all ? `The ${nouns} on ${on} have ended${trains}` : n === 1 ? `One of the ${nouns} on ${on} has ended.` : `${n} of the ${nouns} on ${on} have ended.`,
       still: n === 1 ? "One continues." : `${n} continue.`,
     };
   }
   return { ended: words(alert, title).ended, still: words(alert, title).still };
 }
+
+/** "part suspensions", "changes of frequency". */
+const plural = (noun: string): string => (/ of /.test(noun) ? noun.replace(/^(\w+)/, (w: string) => plural(w)) : /s$/.test(noun) ? noun : `${noun}s`);
 
 // TfL's words for a line's trouble, as things that end: "the part suspension".
 const NOUNS: Record<string, string> = { suspended: "suspension", "part suspended": "part suspension", closed: "closure", "service closed": "closure", "part closed": "part closure", diverted: "diversion" };

@@ -21,11 +21,16 @@ export interface AlertState {
   fixed?: Record<string, number>;
   /** When following began after your time ended, to tell you when it ends. */
   following?: number;
+  /** What the alert matched when this was decided (its stretches, ways and minor delays), so an
+   * edit that changes it settles what it no longer matches quietly. */
+  matches?: string;
 }
 
 export interface Told {
   /** As the notice said it: "Jubilee line: minor delays". */
   title: string;
+  /** When a notice told it (absent in state from before it was kept). */
+  at?: number;
   /** The first check it wasn't there. */
   gone?: number;
   /** Back soon after it was told ended: told ended again only after a longer quiet. */
@@ -123,9 +128,17 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
   const fixed = recent(prev.fixed, now);
   // Back at a place a notice still standing tells, as it was there lately (severe and minor
   // delays taking turns, a list of stations that changes and changes back): TfL flipping, told already.
-  const flipped = (i: Issue) => !!said && !!known[i.signature] && within(known[i.signature].seen, now, FLAP_GUARD) && Object.keys(said).some((s) => place(s) === place(i.signature));
+  const standing = (i: Issue) => Object.keys(said ?? {}).filter((s) => place(s) === place(i.signature));
+  const recentlySeen = (i: Issue) => !!known[i.signature] && within(known[i.signature].seen, now, FLAP_GUARD);
+  // How bad the standing notice says that place is.
+  const toldRank = (i: Issue) => Math.max(...standing(i).map((s) => rank(known[s]?.severity ?? "closed")));
+  const flipped = (i: Issue) => !!said && recentlySeen(i) && standing(i).length > 0 && rank(i.severity) <= toldRank(i);
+  // Back to worse than the notice standing says (severe, eased to minor, severe again): news, but
+  // once in half an hour at most for that place, or a line taking turns would buzz at every turn.
+  const worseAgain = (i: Issue) => !!said && recentlySeen(i) && standing(i).length > 0 && rank(i.severity) > toldRank(i);
+  const lastTold = (i: Issue) => Math.max(...standing(i).map((s) => said![s].at ?? -Infinity));
   // Not in a notice still standing: told ended, or never told.
-  const fresh = (i: Issue) => !!said && !(i.signature in said) && !flipped(i);
+  const fresh = (i: Issue) => !!said && !(i.signature in said) && !flipped(i) && (!worseAgain(i) || passed(lastTold(i), now, FLAP_GUARD));
   const news = issues.some((i) => !known[i.signature] || rank(i.severity) > rank(known[i.signature].severity) || untold(i.signature) || fresh(i));
   const pushing = issues.length > 0 && (news || prev.open === undefined);
 
@@ -155,7 +168,7 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     const next: Record<string, Told> = {};
     for (const issue of issues) {
       const shaky = issue.signature in fixed || said?.[issue.signature]?.shaky;
-      next[issue.signature] = shaky ? { title: issue.title, shaky: true } : { title: issue.title };
+      next[issue.signature] = shaky ? { title: issue.title, at: now, shaky: true } : { title: issue.title, at: now };
     }
     for (const [signature, entry] of Object.entries(said ?? {})) {
       if (signature in next || !(signature in known)) continue;
@@ -182,7 +195,8 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     if (issue.signature in current || !flipped(issue)) continue;
     const before = Object.entries(current).filter(([s]) => place(s) === place(issue.signature) && !issues.some((i) => i.signature === s));
     for (const [s] of before) delete current[s];
-    current[issue.signature] = { title: issue.title, ...(before.some(([, t]) => t.shaky) ? { shaky: true } : {}) };
+    const at = Math.max(...before.map(([, t]) => t.at ?? -Infinity));
+    current[issue.signature] = { title: issue.title, ...(Number.isFinite(at) ? { at } : {}), ...(before.some(([, t]) => t.shaky) ? { shaky: true } : {}) };
   }
 
   const result = settle(current, known, live, issues, away, fixed, now, prev.open, context, false);
@@ -241,8 +255,9 @@ function settle(said: Record<string, Told>, known: AlertState["live"], live: Ale
   const ended: string[] = [];
   for (const [signature, entry] of Object.entries(said)) {
     // TfL's answer left its line out: as it was.
+    // TfL's answer left its line out: as it was, and the time unknown doesn't count against it.
     if (context.unknown?.has(place(signature))) {
-      left[signature] = entry;
+      left[signature] = { ...entry, watched: now };
       continue;
     }
     if (away.has(signature) || stillThere(signature, said, issues)) {
@@ -254,6 +269,8 @@ function settle(said: Record<string, Told>, known: AlertState["live"], live: Ale
     // Not watched as it ended (last seen long before it was found gone: overnight, or after
     // following stopped): settled without a notice. Yesterday's delays needn't be undone at breakfast.
     if (!Number.isFinite(seen) || !within(seen, gone, FLAP_GUARD)) continue;
+    // Found gone, then not watched long enough to say so (following stopped): not told hours later.
+    if (!within(gone, now, (entry.shaky ? FLAP_GUARD : 0) + FLAP_GUARD)) continue;
     if (passed(gone, now, entry.shaky ? FLAP_GUARD : QUIET_BEFORE_CLEAR)) {
       ended.push(entry.title);
       fixed[signature] = now;

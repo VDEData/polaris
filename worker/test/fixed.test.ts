@@ -3,7 +3,7 @@
 // against TfL answers that change over time, and records exactly what reached APNs.
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import { runChecks, type Env } from "../src/checks.ts";
 import { forgetLineMaps } from "../src/linemap.ts";
 import { plannedPush } from "../src/push.ts";
@@ -35,7 +35,7 @@ const JUB_GOOD = good("jubilee", "Jubilee line");
 const CEN_GOOD = good("central", "Central line");
 
 /** One push as APNs got it. */
-interface Sent { at: string; priority: string; collapseId: string; expiresIn: number; payload: any; status: number }
+interface Sent { at: string; token: string; priority: string; collapseId: string; expiresIn: number; payload: any; status: number }
 
 interface Options {
   state?: unknown;
@@ -44,14 +44,23 @@ interface Options {
   edit?: (at: string) => unknown[] | undefined;
   /** What APNs answers the nth push (from 1). */
   apns?: (n: number) => number;
+  /** Runs that don't happen (a missed cron tick). */
+  skip?: (at: string) => boolean;
+  /** The marks to run at, in this order, instead of every two minutes from `from` to `to`. */
+  marks?: string[];
+  /** More phones, after this one. */
+  rows?: Record<string, any>[];
+  /** Writing this phone's state fails. */
+  failWrite?: string;
 }
 
 /** The cron every two minutes from `from` to `to` (inclusive, "HH:MM" on Monday 9 November
- * 2026, or a full "YYYY-MM-DDTHH:MM"), with TfL saying `lines(time)` then. Each run is a little
- * late, as real cron runs are: between 0.3 and 3 seconds after its two-minute mark. */
-async function simulate(from: string, to: string, lines: (at: string) => Status[] | undefined, alerts: unknown[] = [commute], options: Options = {}) {
+ * 2026, or a full "YYYY-MM-DDTHH:MM"), with TfL saying `lines(time)` then. Each run is on its
+ * two-minute mark (as the Worker sees it, given the cron's scheduled time), or with `late` a
+ * little after it, between 0.3 and 3 seconds, as a run that reads the clock would see it. */
+async function run(late: boolean, from: string, to: string, lines: (at: string) => Status[] | undefined, alerts: unknown[] = [commute], options: Options = {}) {
   forgetLineMaps();
-  const db = fakeDB([{ token: TOKEN, environment: "sandbox", time_zone: "Europe/London", alerts: JSON.stringify(alerts), state: JSON.stringify(options.state ?? { alerts: {}, planned: {} }) }]);
+  const db = fakeDB([{ token: TOKEN, environment: "sandbox", time_zone: "Europe/London", alerts: JSON.stringify(alerts), state: JSON.stringify(options.state ?? { alerts: {}, planned: {} }) }, ...(options.rows ?? [])], options.failWrite);
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"])) as CryptoKeyPair;
   const key = Buffer.from(await crypto.subtle.exportKey("pkcs8", pair.privateKey)).toString("base64");
   const env = { DB: db, APNS_KEY: key, APNS_KEY_ID: "KEY123", APNS_TEAM_ID: "TEAM123456", APNS_TOPIC: "com.example.polaris" } as unknown as Env;
@@ -63,7 +72,7 @@ async function simulate(from: string, to: string, lines: (at: string) => Status[
     if (url.includes("push.apple.com")) {
       const h = init!.headers as Record<string, string>;
       const status = options.apns?.(sent.length + 1) ?? 200;
-      sent.push({ at: clock, priority: h["apns-priority"], collapseId: h["apns-collapse-id"], expiresIn: Number(h["apns-expiration"]) - Math.floor(now / 1000), payload: JSON.parse(init!.body as string), status });
+      sent.push({ at: clock, token: url.split("/device/")[1], priority: h["apns-priority"], collapseId: h["apns-collapse-id"], expiresIn: Number(h["apns-expiration"]) - Math.floor(now / 1000), payload: JSON.parse(init!.body as string), status });
       const reason = ({ 410: "Unregistered", 503: "ServiceUnavailable" } as Record<number, string>)[status];
       return new Response(status === 200 ? "" : JSON.stringify({ reason }), { status });
     }
@@ -80,11 +89,15 @@ async function simulate(from: string, to: string, lines: (at: string) => Status[
   }) as typeof fetch;
   const runs: string[] = [];
   let i = 0;
-  for (let t = Date.parse(`${iso(from)}:00Z`); t <= Date.parse(`${iso(to)}:00Z`); t += 120_000) {
+  const marks: number[] = [];
+  if (options.marks) marks.push(...options.marks.map((m) => Date.parse(`${iso(m)}:00Z`)));
+  else for (let t = Date.parse(`${iso(from)}:00Z`); t <= Date.parse(`${iso(to)}:00Z`); t += 120_000) marks.push(t);
+  for (const t of marks) {
     clock = new Date(t).toISOString().slice(0, 16);
+    if (options.skip?.(clock)) continue;
     const edited = options.edit?.(clock);
     if (edited && db.rows[0]) db.rows[0].alerts = JSON.stringify(edited);
-    now = t + 300 + ((i++ * 7919) % 2700);
+    now = t + (late ? 300 + ((i++ * 7919) % 2700) : 0);
     const result = await runChecks(env, now);
     if (result.checked) runs.push(clock);
   }
@@ -110,6 +123,10 @@ function assertEnded(sent: Sent[], alert: { id: string; name: string }) {
   }
 }
 const until = (switchAt: string, before: Status[], after: Status[]) => (at: string) => (at.slice(11) < switchAt ? before : after);
+
+// Every timeline twice: runs on their marks, and runs a little late.
+for (const late of [false, true]) describe(late ? "runs a little late" : "runs on the mark", () => {
+const simulate = (from: string, to: string, lines: (at: string) => Status[] | undefined, alerts?: unknown[], options?: Options) => run(late, from, to, lines, alerts, options);
 
 test("a fixed notice is an ordinary notification you notice: active, with sound, sent at once, and it says what ended", async () => {
   // Told at 07:30, cleared at 07:50, inside the time.
@@ -349,10 +366,12 @@ test("review 1: severe and minor delays flipping on one line every six minutes: 
     return [Math.floor((m - 450) / 6) % 2 === 0 ? JUB_SEVERE : JUB_MINOR, CEN_GOOD];
   };
   const { sent } = await simulate("07:30", "08:30", lines);
-  // As before this change: severe at 07:30, then minor (a new status) at 07:36; back and forth after is no news.
+  // Severe at 07:30, then minor (a new status) at 07:36. Back to severe is worse than the notice
+  // standing says, so it is told, but once in half an hour at most for the line: 08:06.
   assert.deepEqual(seen(sent), [
     "07:30 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
     "07:36 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
+    "08:06 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
   ]);
 });
 
@@ -465,8 +484,108 @@ test("review note: collapse IDs stay within APNs' 64 bytes for the longest alert
   }
 });
 
+
+// Review of PR #9, second round.
+
+const outOnly = { ...contract().alerts[0], direction: "out", windows: [{ start: 420, end: 540 }] };
+
+test("round 2, 1: the alert's way turned round while the trouble lasts: settled quietly, no false 'cleared'", async () => {
+  const { sent } = await simulate("07:30", "08:10", () => EAST, [outOnly], { edit: (at) => (at.slice(11) >= "07:40" ? [{ ...outOnly, direction: "back" }] : undefined) });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30"]);
+});
+
+test("round 2, 1: the alert's stretch changed to one the trouble isn't on: settled quietly", async () => {
+  const west = { ...outOnly, segments: [{ ...outOnly.segments[0], from: { id: "910GPADTLL", name: "Paddington" }, to: { id: "910GBONDST", name: "Bond Street" }, stations: ["910GPADTLL", "910GBONDST"] }] };
+  const { sent } = await simulate("07:30", "08:10", () => EAST, [outOnly], { edit: (at) => (at.slice(11) >= "07:40" ? [west] : undefined) });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30"]);
+});
+
+test("round 2, 1: a time's own way changed while the trouble lasts: settled quietly", async () => {
+  const { sent } = await simulate("07:30", "08:10", () => EAST, [slotted], { edit: (at) => (at.slice(11) >= "07:40" ? [{ ...slotted, windows: [{ start: 420, end: 600, direction: "back" }, { start: 600, end: 720, direction: "back" }] }] : undefined) });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30"]);
+});
+
+test("round 2, 1: an edit that changes nothing matched (the name) doesn't settle anything", async () => {
+  const { sent } = await simulate("07:30", "08:10", until("07:50", EAST, ELIZ_GOOD), [outOnly], { edit: (at) => (at.slice(11) >= "07:40" ? [{ ...outOnly, name: "Renamed" }] : undefined) });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30", "07:54"]);
+});
+
+test("round 2, 2: cleared just as following stops: not told the next morning", async () => {
+  const day1 = await simulate("2026-11-09T08:50", "2026-11-09T12:10", (at) => (at.slice(11) < "11:58" ? [JUB_SEVERE, CEN_GOOD] : [JUB_GOOD, CEN_GOOD]));
+  assert.equal(day1.sent.length, 1);
+  const day2 = await simulate("2026-11-10T06:58", "2026-11-10T07:30", () => [JUB_GOOD, CEN_GOOD], [commute], { state: day1.state() });
+  assert.deepEqual(seen(day2.sent), []);
+  assert.equal(day2.state().alerts[commute.id].open, undefined);
+});
+
+test("round 2, 3: severe, eased to minor, then severe again and staying: told again within half an hour", async () => {
+  const lines = (at: string) => { const t = at.slice(11); return t < "07:40" ? [JUB_SEVERE, CEN_GOOD] : t < "08:00" ? [JUB_MINOR, CEN_GOOD] : t < "09:30" ? [JUB_SEVERE, CEN_GOOD] : [JUB_GOOD, CEN_GOOD]; };
+  const allDay = { ...commute, windows: [{ start: 420, end: 720 }] };
+  const { sent } = await simulate("07:30", "10:00", lines, [allDay]);
+  assert.deepEqual(seen(sent), [
+    "07:30 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
+    "07:40 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
+    "08:10 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
+    "09:34 Severe delays on the Jubilee line have cleared. Good service again.",
+  ]);
+});
+
+test("round 2, 4: a line missing from TfL's answer for 40 minutes, then good: the ended notice still comes", async () => {
+  const lines = (at: string) => { const t = at.slice(11); return t < "09:10" ? [JUB_MINOR, CEN_GOOD] : t < "09:50" ? [CEN_GOOD] : [JUB_GOOD, CEN_GOOD]; };
+  const { sent } = await simulate("08:50", "10:10", lines);
+  assert.deepEqual(seen(sent), [
+    "08:50 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
+    "09:54 Minor delays on the Jubilee line have cleared.",
+  ]);
+});
+
+test("round 2, 6: old state caught mid-quiet with trouble still on the line: not 'good service again'", async () => {
+  const at = Date.parse("2026-11-09T07:30:00Z");
+  const severeOnly = { ...commute, minorDelays: false };
+  const old = { alerts: { [commute.id]: { live: { "line:jubilee:6:abc": { severity: "delays", seen: at } }, open: at, quietSince: at + 120_000 } }, planned: {} };
+  const { sent } = await simulate("07:34", "07:50", () => [JUB_MINOR, CEN_GOOD], [severeOnly], { state: old });
+  assert.deepEqual(seen(sent), ["07:36 What you were told about on the Jubilee line and the Central line has cleared."]);
+});
+
+test("round 2, 7: one unreadable phone, and one whose state can't be written, don't stop the others", async () => {
+  const other = (token: string, extra: Record<string, unknown> = {}) => ({ token, environment: "sandbox", time_zone: "Europe/London", alerts: JSON.stringify([commute]), state: JSON.stringify({ alerts: {}, planned: {} }), ...extra });
+  const logged: string[] = [];
+  const error = console.error;
+  console.error = (...a: unknown[]) => void logged.push(a.map(String).join(" "));
+  try {
+    const { tried } = await simulate("07:30", "07:30", () => [JUB_MINOR, CEN_GOOD], [commute], { rows: [other("cd".repeat(32), { alerts: "{not json" }), other("ef".repeat(32))], failWrite: TOKEN });
+    assert.deepEqual(tried.map((s) => s.token), [TOKEN, "ef".repeat(32)]);
+  } finally {
+    console.error = error;
+  }
+  assert.ok(logged.length >= 2, logged.join("\n"));
+  assert.ok(logged.every((l) => !l.includes("cd".repeat(32)) && !l.includes(TOKEN)), "no tokens in the log");
+});
+
+test("round 2, 8: a missed run: the ended notice comes at the next one", async () => {
+  const { sent } = await simulate("07:30", "08:10", until("07:50", [JUB_MINOR, CEN_GOOD], [JUB_GOOD, CEN_GOOD]), [commute], { skip: (at) => at.endsWith("07:54") });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30", "07:56"]);
+});
+
+test("round 2, 8: a run out of order (07:52 after 07:54) sends nothing more", async () => {
+  const marks = ["07:30", "07:32", "07:34", "07:36", "07:38", "07:40", "07:42", "07:44", "07:46", "07:48", "07:50", "07:54", "07:52", "07:56", "07:58", "08:00"];
+  const { sent } = await simulate("07:30", "08:00", until("07:50", [JUB_MINOR, CEN_GOOD], [JUB_GOOD, CEN_GOOD]), [commute], { marks });
+  assert.deepEqual(seen(sent), [
+    "07:30 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
+    "07:54 Minor delays on the Jubilee line have cleared. Good service again.",
+  ]);
+});
+
+test("round 2, 8: an ended notice refused for a passing reason on following's last run is still tried after it", async () => {
+  const { tried, state } = await simulate("08:50", "12:20", until("11:56", [JUB_SEVERE, CEN_GOOD], [JUB_GOOD, CEN_GOOD]), [commute], { apns: (n) => (n === 2 ? 503 : 200) });
+  assert.deepEqual(tried.map((s) => `${hhmm(s)} ${s.status}`), ["08:50 200", "12:00 503", "12:02 200"]);
+  assert.equal(state().retries, undefined);
+});
+
+});
+
 /** Enough of D1 for the checks, as in checks.test.ts. */
-function fakeDB(rows: Record<string, any>[]) {
+function fakeDB(rows: Record<string, any>[], failWrite?: string) {
   const meta = new Map<string, { value: string; updated_at: number }>();
   return {
     rows,
@@ -477,6 +596,7 @@ function fakeDB(rows: Record<string, any>[]) {
         async all() { return { results: rows.map((r) => ({ ...r })) }; },
         async first() { return sql.includes("FROM meta") ? meta.get("apns_jwt") ?? null : null; },
         async run() {
+          if (sql.startsWith("UPDATE devices SET state") && args[1] === failWrite) throw new Error("D1 write failed");
           if (sql.startsWith("UPDATE devices SET state")) rows.find((r) => r.token === args[1])!.state = args[0];
           if (sql.startsWith("DELETE FROM devices")) rows.splice(rows.findIndex((r) => r.token === args[0]), 1);
           if (sql.startsWith("INSERT INTO meta")) meta.set("apns_jwt", { value: args[0] as string, updated_at: args[1] as number });

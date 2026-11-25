@@ -53,6 +53,12 @@ test("what ended is said in the words it was told, and what goes on too", () => 
   assert.equal((same.payload as any).aps.alert.body, "One of the part suspensions on the Elizabeth line has ended. One continues.");
   const delays = clearPush(two, { kind: "clear", ended: ["Elizabeth line: minor delays"], still: ["Elizabeth line: minor delays", "Elizabeth line: minor delays"], all: false }, now);
   assert.equal((delays.payload as any).aps.alert.body, "Minor delays on part of the Elizabeth line have cleared. They continue elsewhere on the line.");
+  const body = (ended: string[], still: string[]) => (clearPush(two, { kind: "clear", ended, still, all: false }, now).payload as any).aps.alert.body;
+  assert.equal(body(["Elizabeth line: change of frequency"], ["Elizabeth line: change of frequency"]), "One of the changes of frequency on the Elizabeth line has ended. One continues.");
+  assert.equal(body(["Elizabeth line: bus service"], ["Elizabeth line: bus service"]), "One of the replacement bus services on the Elizabeth line has ended. One continues.");
+  assert.equal(body(["Elizabeth line: bus service", "Elizabeth line: bus service"], []), "The replacement bus services on the Elizabeth line have ended; trains are running again.");
+  // State from before the words were kept, with something still reported on the line.
+  assert.equal(body([], []), "What you were told about on the Elizabeth line and Southeastern has cleared.");
   const partial = clearPush(two, { kind: "clear", ended: ["Elizabeth line: severe delays"], still: ["Southeastern: minor delays"], all: false }, now);
   assert.equal((partial.payload as any).aps.alert.body, "Severe delays on the Elizabeth line have cleared. Minor delays on Southeastern continue.");
 });

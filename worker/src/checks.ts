@@ -4,8 +4,8 @@
 
 import { canPush, send, type ApnsEnv } from "./apns.ts";
 import { loadLineMaps } from "./linemap.ts";
-import { issuesFor, issuesInRanges, linesToPlace, troubled, type LineMaps } from "./match.ts";
-import { follow, following, forget, MAX_RETRIES, plannedStep, step, type AlertState, type Context, type DeviceState, type Ways } from "./policy.ts";
+import { hash, issuesFor, issuesInRanges, linesToPlace, troubled, type LineMaps } from "./match.ts";
+import { follow, following, forget, MAX_RETRIES, place, plannedStep, step, type AlertState, type Context, type DeviceState, type Ways } from "./policy.ts";
 import { clearPush, issuesPush, plannedPush, type Push } from "./push.ts";
 import { activeWindows, dateKey, during, eachWay, localTime, PLANNED_CHECK_AT, travelRanges } from "./schedule.ts";
 import { fetchTfL, lineStatusURL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL, type LineStatus, type StationDisruption } from "./tfl.ts";
@@ -32,13 +32,21 @@ export const emptyState = (): DeviceState => ({ alerts: {}, planned: {} });
 
 export async function loadDevices(env: Env): Promise<(Device & { state: DeviceState })[]> {
   const { results } = await env.DB.prepare("SELECT token, environment, time_zone, alerts, state FROM devices").all<Row>();
-  return results.map((r) => ({
-    token: r.token,
-    environment: r.environment,
-    timeZone: r.time_zone,
-    alerts: JSON.parse(r.alerts) as Alert[],
-    state: { ...emptyState(), ...(JSON.parse(r.state) as Partial<DeviceState>) },
-  }));
+  // One row that can't be read is skipped (and logged, without its token); the rest still run.
+  return results.flatMap((r) => {
+    try {
+      return [{
+        token: r.token,
+        environment: r.environment,
+        timeZone: r.time_zone,
+        alerts: JSON.parse(r.alerts) as Alert[],
+        state: { ...emptyState(), ...(JSON.parse(r.state) as Partial<DeviceState>) },
+      }];
+    } catch (error) {
+      console.error("device row unreadable, skipped", String(error).slice(0, 200));
+      return [];
+    }
+  });
 }
 
 export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: number; checked: number; sent: number }> {
@@ -49,7 +57,15 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
     if (devices.length) console.error("pushes not configured: set APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID and APNS_TOPIC");
     return { devices: devices.length, checked: 0, sent: 0 };
   }
-  const work = devices.map((device) => {
+  const work = devices.flatMap((device) => {
+    try {
+      return [plan(device)];
+    } catch (error) {
+      console.error("device can't be planned, skipped", String(error).slice(0, 200));
+      return [];
+    }
+  });
+  function plan(device: Device & { state: DeviceState }) {
     const local = localTime(now, device.timeZone);
     return {
       device,
@@ -61,18 +77,21 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
       }),
       // Outside its times, an alert with a disruption told and not yet ended: only that is
       // followed, every way its times go, and only the lines and stations it was on.
-      follow: device.alerts.filter((a) => !activeWindows(a, now, device.timeZone).length && following(device.state.alerts[a.id], now)).map((a) => during(a)),
+      // An ended notice still owed a retry is tried once following has stopped, too.
+      follow: device.alerts
+        .filter((a) => !activeWindows(a, now, device.timeZone).length && (following(device.state.alerts[a.id], now) || !!device.state.retries?.[`${a.id}:ended`]))
+        .map((a) => ({ alert: during(a), base: a })),
       planned: local.minutes >= PLANNED_CHECK_AT && device.state.plannedOn !== dateKey(local),
       today: dateKey(local),
     };
-  });
+  }
   const live = work.flatMap((w) => w.live.map((l) => l.alert));
   const plannedAlerts = work.filter((w) => w.planned).flatMap((w) => w.device.alerts);
   // A followed alert: all its lines (still the one request, and enough to know whether all is
   // well again), and station notices only if it was told about a station.
-  const followed = work.flatMap((w) => w.follow);
+  const followed = work.flatMap((w) => w.follow.map((f) => f.alert));
   const followedLines = followed.flatMap((a) => a.segments.map((s) => s.line.id));
-  const followedStops = work.flatMap((w) => w.follow.filter((a) => Object.keys(w.device.state.alerts[a.id]?.said ?? {}).some((s) => s.startsWith("stop:"))));
+  const followedStops = work.flatMap((w) => w.follow.map((f) => f.alert).filter((a) => Object.keys(w.device.state.alerts[a.id]?.said ?? {}).some((s) => s.startsWith("stop:"))));
   if (!live.length && !plannedAlerts.length && !followed.length) return { devices: devices.length, checked: 0, sent: 0 };
 
   const lineIds = [...live.flatMap((a) => a.segments.map((s) => s.line.id)), ...followedLines];
@@ -96,6 +115,18 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
   let sent = 0;
   for (const { device, live: active, follow: followedHere, planned, today } of work) {
     if (!active.length && !planned && !followedHere.length) continue;
+    try {
+      sent += await checkDevice(device, active, followedHere, planned, today);
+    } catch (error) {
+      // One phone's failure (its state can't be written, say) is logged, without its token, and
+      // the rest still run.
+      console.error("device check failed", String(error).slice(0, 200));
+    }
+  }
+  return { devices: devices.length, checked: live.length + followed.length, sent };
+
+  async function checkDevice(device: Device & { state: DeviceState }, active: { alert: Alert; base: Alert }[], followedHere: { alert: Alert; base: Alert }[], planned: boolean, today: string): Promise<number> {
+    let sent = 0;
     const before = JSON.stringify(device.state);
     const state = device.state;
     const retries = { ...(state.retries ?? {}) };
@@ -132,18 +163,20 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
       for (const { alert, base } of active) {
         if (gone) break;
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
-        const result = step(covered(state.alerts[alert.id], base), issues, now, waysFor(alert, base, lines, stations, now, maps), context(base, lineIds, lines, true));
-        const commit = () => void (state.alerts[alert.id] = result.state);
+        const ways = waysFor(alert, base, lines, stations, now, maps);
+        const matched = new Set([...issues.map((i) => i.signature), ...(ways?.holds ? ways.on.keys() : [])]);
+        const result = step(covered(state.alerts[alert.id], base, matched), issues, now, ways, context(base, lineIds, lines, true));
+        const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
         if (result.push?.kind === "issues") await deliver(alert.id, issuesPush(alert, result.push.issues, now), commit);
         else if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
         else commit();
         settled(alert.id);
       }
-      for (const alert of followedHere) {
+      for (const { alert, base } of followedHere) {
         if (gone) break;
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
-        const result = follow(covered(state.alerts[alert.id], alert)!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
-        const commit = () => void (state.alerts[alert.id] = result.state);
+        const result = follow(covered(state.alerts[alert.id], base, new Set(issues.map((i) => i.signature)))!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
+        const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
         if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
         else commit();
         settled(alert.id);
@@ -175,15 +208,15 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
     }
     if (gone) {
       await env.DB.prepare("DELETE FROM devices WHERE token = ?1").bind(device.token).run();
-      continue;
+      return sent;
     }
     if (Object.keys(retries).length) state.retries = retries;
     else delete state.retries;
     if (JSON.stringify(state) !== before) {
       await env.DB.prepare("UPDATE devices SET state = ?1 WHERE token = ?2").bind(JSON.stringify(state), device.token).run();
     }
+    return sent;
   }
-  return { devices: devices.length, checked: live.length + followed.length, sent };
 }
 
 /** What a check knows besides the alert's trouble: lines asked of TfL that its answer left out
@@ -195,13 +228,22 @@ function context(alert: Alert, asked: string[], lines: LineStatus[], stationsAsk
   return { unknown, calm: stationsAsked && !troubled(ids, lines) };
 }
 
-/** Told trouble the alert no longer covers (a line taken off it, minor delays turned off) is
- * settled quietly. */
-function covered(state: AlertState | undefined, alert: Alert): AlertState | undefined {
+/** What an alert matches: its stretches, its ways and its times' ways, minor delays. Not its
+ * name or days. */
+export function fingerprint(alert: Alert): string {
+  return hash(JSON.stringify([alert.segments, alert.direction ?? "both", alert.windows, alert.minorDelays]));
+}
+
+/** Told trouble the alert no longer covers is settled quietly: a line taken off it, minor delays
+ * turned off, or (after any edit to what it matches: its way, a time's way, its stations) what it
+ * no longer matches now, `matched`. */
+function covered(state: AlertState | undefined, alert: Alert, matched: ReadonlySet<string>): AlertState | undefined {
+  const edited = state?.matches !== undefined && state.matches !== fingerprint(alert);
   const lineIds = new Set(alert.segments.map((s) => s.line.id));
   const stops = new Set(alert.segments.flatMap((s) => [...s.stations, s.from?.id ?? "", s.to?.id ?? ""].flatMap((id) => id.split("|"))));
   return forget(state, (signature, severity) => {
     if (severity === "minor" && !alert.minorDelays) return false;
+    if (edited && !matched.has(signature) && ![...matched].some((m) => place(m) === place(signature))) return false;
     const [kind, id] = signature.split(":");
     return kind === "line" ? lineIds.has(id) : kind === "stop" ? stops.has(id) : true;
   });
