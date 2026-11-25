@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The app's own words. Wordings from the engine (sources, sort orders, modes, notices) are
+    shared with iOS and stay there. Numbers interpolated as text in the code are %s here, so
+    they keep ASCII digits in every locale, as before.
+-->
+<resources>
+    <string name="app_name">Polaris</string>
+
+    <!-- Shared -->
+    <string name="common_back">Back</string>
+    <string name="common_done">Done</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_search_again">Search again</string>
+    <string name="common_reset">Reset</string>
+    <string name="common_show_fewer">Show fewer</string>
+    <string name="common_more_options">More options</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_recent">Recent</string>
+    <string name="common_home">Home</string>
+    <string name="common_work">Work</string>
+    <string name="common_finding_you">Finding where you are…</string>
+    <string name="common_searching">Searching…</string>
+    <!-- A label and its value, as "Sort: Best" or "From: King's Cross". -->
+    <string name="common_label_value">%1$s: %2$s</string>
+    <string name="list_and">and</string>
+    <string name="list_or">or</string>
+    <string name="trip_from">From</string>
+    <string name="trip_to">To</string>
+
+    <!-- Durations: "26 min", "1 h 05" -->
+    <string name="duration_minutes">%1$s min</string>
+    <string name="duration_hours_minutes">%1$d h %2$02d</string>
+    <string name="leg_walk_minutes">Walk %1$s min</string>
+
+    <!-- Home -->
+    <string name="home_where_to">Where to?</string>
+    <string name="home_search_click_label">Search</string>
+    <string name="home_search_description">Search for where to go</string>
+    <string name="home_add">Add</string>
+    <string name="home_set_place">Set %1$s</string>
+    <string name="home_plan_trip_to">Plan a trip to %1$s</string>
+    <string name="home_change_or_remove">Change or remove %1$s</string>
+    <string name="home_more_for">More for %1$s</string>
+    <string name="home_change_place">Change %1$s</string>
+    <string name="home_remove_place">Remove %1$s</string>
+    <string name="home_plan_trip_here">Plan a trip here</string>
+    <string name="home_set_as_home">Set as Home</string>
+    <string name="home_set_as_work">Set as Work</string>
+
+    <!-- Place search -->
+    <string name="search_title_destination">Where to?</string>
+    <string name="search_title_origin">Start from</string>
+    <string name="search_title_home">Set Home</string>
+    <string name="search_title_work">Set Work</string>
+    <string name="search_placeholder">Places, addresses or stops</string>
+    <string name="search_close">Close search</string>
+    <string name="search_clear_text">Clear text</string>
+    <string name="search_again_for">Search again for “%1$s”</string>
+    <string name="search_current_location">Current Location</string>
+    <string name="search_keep_typing">Keep typing: places show from 3 letters.</string>
+    <string name="search_no_match">No places match “%1$s”. Try a station, a street or a postcode.</string>
+    <string name="search_places_credit">Places from Transitous, © OpenStreetMap contributors</string>
+    <string name="search_in_maps_app">Search “%1$s” in your maps app</string>
+    <string name="search_in_maps_app_detail">For shops, chains and kinds of place</string>
+    <string name="search_failed">Couldn\'t search places</string>
+    <string name="search_transitous_down">Transitous isn\'t answering right now. Try again in a moment.</string>
+    <string name="search_try_again">Try again</string>
+
+    <!-- Location -->
+    <string name="location_no_fix_title">Can\'t find where you are</string>
+    <string name="location_choose_start">Choose a start</string>
+    <string name="location_off_pick_start">Location is off for Polaris. Pick where you\'re starting from instead.</string>
+    <string name="location_pick_start">Pick where you\'re starting from instead.</string>
+    <string name="location_off_title">Location is off for Polaris</string>
+    <string name="location_open_settings">Open settings</string>
+    <string name="location_not_now">Not now</string>
+    <string name="location_off_body">Allow location in Settings to use where you are, or pick a place instead.</string>
+    <string name="location_show_mine">Show my location</string>
+
+    <!-- Results -->
+    <string name="results_no_fix_body">Location is off or no fix came. Pick a start instead.</string>
+    <string name="results_stale_title">These routes weren\'t kept</string>
+    <string name="results_stale_body">Android closed Polaris while it was in the background.</string>
+    <string name="results_old_title">These routes are from %1$s</string>
+    <string name="results_old_body">Times may have changed since. Search again for the latest.</string>
+    <plurals name="results_more_slower">
+        <item quantity="one">%1$s slower or longer route</item>
+        <item quantity="other">%1$s slower or longer routes</item>
+    </plurals>
+    <plurals name="results_more_closed">
+        <item quantity="one">%1$s route through a closure</item>
+        <item quantity="other">%1$s routes through a closure</item>
+    </plurals>
+    <string name="results_more_mixed">%1$s more routes, %2$s through a closure</string>
+    <string name="results_restoring">Bringing back your routes…</string>
+    <string name="results_waiting">Routes appear here as each source answers.</string>
+    <string name="results_trip_title">%1$s → %2$s</string>
+    <string name="results_swap">Swap start and destination</string>
+    <string name="results_open_trip_in">Open this trip in</string>
+    <string name="results_change">Change</string>
+    <string name="results_leave_now">Leave now</string>
+    <string name="results_depart_at_menu">Depart at…</string>
+    <string name="results_arrive_by_menu">Arrive by…</string>
+    <string name="results_depart_time">Depart %1$s</string>
+    <string name="results_arrive_by_time">Arrive by %1$s</string>
+    <string name="results_sort">Sort: %1$s</string>
+    <string name="results_filters">Filters</string>
+    <string name="results_filters_on">Filters, %1$s on</string>
+    <string name="results_show_sources">Show sources</string>
+    <plurals name="results_hidden">
+        <item quantity="one">%1$s route hidden by your filters</item>
+        <item quantity="other">%1$s routes hidden by your filters</item>
+    </plurals>
+    <string name="results_all_hidden">Every route is hidden by your filters</string>
+    <string name="results_clear_filters">Clear filters</string>
+    <string name="results_empty_title">No routes found</string>
+    <string name="results_empty_body">None of the sources came back with a journey. Try another app from the menu above.</string>
+
+    <!-- The summary line: "3 routes so far · asking TfL", "5 routes from Google and TfL · Transitous didn't answer" -->
+    <plurals name="summary_routes">
+        <item quantity="one">%1$s route</item>
+        <item quantity="other">%1$s routes</item>
+    </plurals>
+    <string name="summary_so_far_asking">%1$s so far · asking %2$s</string>
+    <string name="summary_asking">Asking %1$s</string>
+    <string name="summary_not_searched">Not searched</string>
+    <string name="summary_no_source">No source answered</string>
+    <string name="summary_found_from">%1$s from %2$s</string>
+    <string name="summary_didnt_answer">%1$s · %2$s didn\'t answer</string>
+
+    <!-- Sources -->
+    <string name="sources_title">Sources</string>
+    <plurals name="sources_journeys">
+        <item quantity="one">%1$s journey</item>
+        <item quantity="other">%1$s journeys</item>
+    </plurals>
+    <plurals name="sources_note">
+        <item quantity="one">Each source\'s journeys are counted as it sent them. The list shows %1$s route: departures on the same lines are one route (\"Or leave at\"), and a route several sources found shows once, with each one\'s badge. The star\'s points fill in as Google, TfL and Transitous answer.</item>
+        <item quantity="other">Each source\'s journeys are counted as it sent them. The list shows %1$s routes: departures on the same lines are one route (\"Or leave at\"), and a route several sources found shows once, with each one\'s badge. The star\'s points fill in as Google, TfL and Transitous answer.</item>
+    </plurals>
+    <string name="sources_didnt_answer">Didn\'t answer</string>
+    <string name="sources_interrupted">Interrupted</string>
+    <string name="sources_credits_tfl">"Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights [2019]. "</string>
+    <string name="sources_credits_timetables_from">"Timetables and places from "</string>
+    <string name="sources_credits_with">") with © "</string>
+    <string name="sources_credits_osm">OpenStreetMap contributors</string>
+
+    <!-- Notices -->
+    <string name="notices_show">Show the notices</string>
+    <plurals name="notices_summary_description">
+        <item quantity="one">%1$s, and %2$s more reported</item>
+        <item quantity="other">%1$s, and %2$s more reported</item>
+    </plurals>
+    <string name="notices_plus">+%1$s</string>
+    <string name="notices_show_less">Show less</string>
+    <string name="notices_show_full">Show TfL\'s full notice</string>
+    <string name="notices_closed_note">Routes through it are under the others, below.</string>
+    <string name="notices_read_tfl">Read TfL\'s notice</string>
+    <plurals name="notices_more_reported">
+        <item quantity="one">%1$s more reported</item>
+        <item quantity="other">%1$s more reported</item>
+    </plurals>
+
+    <!-- A route card -->
+    <string name="route_leave_earlier">leave %1$s min earlier</string>
+    <string name="route_later">+%1$s min</string>
+    <string name="route_best">Best route</string>
+    <string name="route_leave_arrive">leave %1$s, arrive %2$s</string>
+    <string name="route_found_by">found by %1$s</string>
+    <string name="route_or_leave_at_spoken">or leave at %1$s</string>
+    <string name="route_live_times">live times</string>
+    <string name="route_show">Show this route</string>
+    <string name="route_time_range">%1$s – %2$s</string>
+    <string name="route_disruption">Disruption reported</string>
+    <string name="route_or_leave_at">Or leave at %1$s</string>
+    <string name="route_direct">Direct</string>
+    <plurals name="route_changes">
+        <item quantity="one">%1$s change</item>
+        <item quantity="other">%1$s changes</item>
+    </plurals>
+    <string name="route_walk">%1$s min walk</string>
+
+    <!-- Sort and filters -->
+    <string name="filters_sort_and_filter">Sort and filter</string>
+    <string name="filters_sort">Sort</string>
+    <string name="filters_changes">Changes</string>
+    <string name="filters_walking">Walking</string>
+    <string name="filters_avoid">Avoid</string>
+    <string name="filters_avoid_value">Avoid: %1$s</string>
+    <string name="filters_avoid_nothing">nothing</string>
+    <string name="filters_any">Any</string>
+    <string name="filters_up_to_one_change">Up to 1</string>
+    <string name="filters_direct_only">Direct only</string>
+    <string name="filters_up_to_10_min">Up to 10 min</string>
+    <string name="filters_up_to_5_min">Up to 5 min</string>
+    <string name="sort_best">Best</string>
+    <string name="sort_fastest">Fastest</string>
+    <string name="sort_fewest_changes">Fewest changes</string>
+    <string name="sort_least_walking">Least walking</string>
+
+    <!-- Time -->
+    <string name="time_depart_at">Depart at</string>
+    <string name="time_arrive_by">Arrive by</string>
+    <string name="time_change_day">Change the day</string>
+    <string name="time_day">Day</string>
+    <string name="time_today">Today</string>
+    <string name="time_tomorrow">Tomorrow</string>
+
+    <!-- The route's page, for now -->
+    <string name="placeholder_route">Route</string>
+    <string name="placeholder_title">%1$s – %2$s · %3$s</string>
+    <string name="placeholder_body">Journey details (the stops, departures and Go) come in the next update. Back returns to the routes.</string>
+
+    <!-- The sheet and the map -->
+    <string name="sheet_drag_handle">Drag handle</string>
+    <string name="sheet_expand">Expand</string>
+    <string name="sheet_collapse">Collapse</string>
+    <string name="sheet_collapsed">Collapsed</string>
+    <string name="sheet_half_open">Half open</string>
+    <string name="sheet_expanded">Expanded</string>
+    <string name="map_show_sources">Show map data sources</string>
+</resources>

@@ -34,6 +34,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -46,12 +48,13 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import polaris.android.R
 import polaris.android.ui.polaris
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** The sheet's rests, as on iOS: a one-row bar, half the window, and full height. */
-enum class Rest(val spoken: String) { Low("Collapsed"), Half("Half open"), Full("Expanded") }
+enum class Rest(@StringRes val spoken: Int) { Low(R.string.sheet_collapsed), Half(R.string.sheet_half_open), Full(R.string.sheet_expanded) }
 
 /** Moves the sheet between two offsets; a spring on a device, instant in tests. */
 fun interface SheetAnimator {
@@ -214,21 +217,25 @@ fun DragHandle(state: SheetState, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val rests = state.rests
     val index = rests.indexOf(state.rest)
+    val expand = stringResource(R.string.sheet_expand)
+    val collapse = stringResource(R.string.sheet_collapse)
+    val handle = stringResource(R.string.sheet_drag_handle)
+    val spoken = stringResource(state.rest.spoken)
     Box(
         modifier
             .fillMaxWidth()
             .height(28.dp)
             // A tap moves up a rest (from full, back to half), as Material's own handle does.
-            .clickable(role = Role.Button, onClickLabel = if (index == rests.lastIndex) "Collapse" else "Expand") {
+            .clickable(role = Role.Button, onClickLabel = if (index == rests.lastIndex) collapse else expand) {
                 val next = if (index in 0 until rests.lastIndex) rests[index + 1] else rests.getOrNull(rests.lastIndex - 1)
                 next?.let { state.personChose(scope, it) }
             }
             .semantics {
-                contentDescription = "Drag handle"
-                stateDescription = state.rest.spoken
+                contentDescription = handle
+                stateDescription = spoken
                 customActions = buildList {
-                    if (index in 0 until rests.lastIndex) add(CustomAccessibilityAction("Expand") { state.personChose(scope, rests[index + 1]); true })
-                    if (index > 0) add(CustomAccessibilityAction("Collapse") { state.personChose(scope, rests[index - 1]); true })
+                    if (index in 0 until rests.lastIndex) add(CustomAccessibilityAction(expand) { state.personChose(scope, rests[index + 1]); true })
+                    if (index > 0) add(CustomAccessibilityAction(collapse) { state.personChose(scope, rests[index - 1]); true })
                 }
             },
         contentAlignment = Alignment.Center,

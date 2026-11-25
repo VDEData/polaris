@@ -44,6 +44,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import polaris.android.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -311,7 +313,7 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
         Box(
             Modifier
                 .sizeIn(minHeight = 48.dp)
-                .clickable(role = Role.Button, onClickLabel = "Show map data sources") { open = true },
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.map_show_sources)) { open = true },
             contentAlignment = Alignment.CenterStart,
         ) {
             Text(

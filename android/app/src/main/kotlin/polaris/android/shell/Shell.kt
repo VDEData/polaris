@@ -75,6 +75,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.home.HomeScreen
@@ -199,17 +200,17 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         is ShellViewModel.Need.Stranded -> CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
-                title = "Can't find where you are",
-                confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text("Choose a start") } },
-                dismissButton = { TextButton(shell::dismissNeed) { Text("Cancel") } },
-            ) { Text(if (n.locationOff) "Location is off for Polaris. Pick where you're starting from instead." else "Pick where you're starting from instead.") }
+                title = stringResource(R.string.location_no_fix_title),
+                confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text(stringResource(R.string.location_choose_start)) } },
+                dismissButton = { TextButton(shell::dismissNeed) { Text(stringResource(R.string.common_cancel)) } },
+            ) { Text(if (n.locationOff) stringResource(R.string.location_off_pick_start) else stringResource(R.string.location_pick_start)) }
         }
         ShellViewModel.Need.LocationOff -> {
             val context = androidx.compose.ui.platform.LocalContext.current
             CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
-                title = "Location is off for Polaris",
+                title = stringResource(R.string.location_off_title),
                 confirmButton = {
                     TextButton({
                         shell.dismissNeed()
@@ -218,10 +219,10 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
                                 android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)),
                             )
                         }
-                    }) { Text("Open settings") }
+                    }) { Text(stringResource(R.string.location_open_settings)) }
                 },
-                dismissButton = { TextButton(shell::dismissNeed) { Text("Not now") } },
-            ) { Text("Allow location in Settings to use where you are, or pick a place instead.") }
+                dismissButton = { TextButton(shell::dismissNeed) { Text(stringResource(R.string.location_not_now)) } },
+            ) { Text(stringResource(R.string.location_off_body)) }
             }
         }
         else -> Unit
@@ -429,8 +430,9 @@ private fun SheetPages(
 /** The one floating control, top right, clear of the sheet at every rest. */
 @Composable
 private fun LocationButton(modifier: Modifier, onClick: () -> Unit) {
+    val description = stringResource(R.string.location_show_mine)
     Surface(modifier.size(48.dp), shape = CircleShape, color = polaris.surface, shadowElevation = 3.dp) {
-        IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = "Show my location" }) {
+        IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = description }) {
             Symbol(R.drawable.sym_my_location, null, tint = polaris.tint)
         }
     }
