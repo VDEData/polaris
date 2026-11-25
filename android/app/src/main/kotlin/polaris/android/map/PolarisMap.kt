@@ -136,6 +136,14 @@ fun PolarisMap(
      * What the screen lays over the map (panels, cards, controls). Drawn under the map's credit,
      * which therefore can't be covered; see `MapCredit` for where it sits.
      */
+    /**
+     * Part of what counts as "already fitted" besides the box: a page that wants a refit when the
+     * window changes shape (Go, folded or unfolded) passes the window's size here. Null keeps the
+     * saved camera after a rotation or fold, as every other page does.
+     */
+    fitKey: String? = null,
+    /** During Go on a ride with no fix (underground): where it has got to by the clock, drawn as a hollow ring, not a fix. */
+    estimate: polaris.engine.Coordinate? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -213,6 +221,10 @@ fun PolarisMap(
         val s = style ?: return@LaunchedEffect
         JourneyLayers.show(s, drawing, others)
     }
+    LaunchedEffect(style, estimate) {
+        val s = style ?: return@LaunchedEffect
+        JourneyLayers.estimate(s, estimate)
+    }
 
     // Fit the camera to the journey, inside whatever covers the map.
     val padding = with(density) {
@@ -231,16 +243,16 @@ fun PolarisMap(
     // place when the sheet comes down rather than fitting into no room at all.
     var mapHeight by remember { mutableStateOf(0) }
     val room = mapHeight > 0 && mapHeight - padding[1] - padding[3] >= with(density) { 120.dp.roundToPx() }
-    var fitted by rememberSaveable { mutableStateOf<List<Double>?>(null) }
+    var fitted by rememberSaveable { mutableStateOf<List<Any?>?>(null) }
     // Also refitted when [refitOn] changes within this composition, but not after a rotation,
     // where the saved camera stands.
     var refitSeen by remember { mutableStateOf<Any?>(Unit) }
-    LaunchedEffect(map, frame, refitOn, room) {
+    LaunchedEffect(map, frame, refitOn, room, fitKey) {
         val m = map ?: return@LaunchedEffect
         val padding = currentPadding
         val bounds = frame ?: return@LaunchedEffect
         if (!room) return@LaunchedEffect
-        val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east)
+        val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east, fitKey)
         val refit = refitSeen != Unit && refitSeen != refitOn
         refitSeen = refitOn
         if (key == fitted && !refit) return@LaunchedEffect
@@ -326,7 +338,8 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
             Text(
                 MapStyle.ATTRIBUTION,
                 modifier = Modifier
-                    .background(colors.paper.copy(alpha = 0.88f), RoundedCornerShape(6.dp))
+                    // Near opaque, so the map's own place labels don't show through the credit; it covers only its own words.
+                    .background(colors.paper.copy(alpha = 0.97f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 // Grows with the text size up to 1.3x, then stops: past that it wrapped over the map's own labels.
                 style = MaterialTheme.typography.labelSmall.copy(
@@ -389,12 +402,14 @@ private object JourneyLayers {
     const val OTHERS = "polaris-other-lines"
     const val STOPS = "polaris-journey-stops"
     const val STAR = "polaris-star"
+    const val ESTIMATE = "polaris-estimate"
 
     fun install(context: Context, style: Style, colors: PolarisColors) {
         style.addImage(STAR, starBitmap(context))
         style.addSource(GeoJsonSource(OTHERS))
         style.addSource(GeoJsonSource(LINES))
         style.addSource(GeoJsonSource(STOPS))
+        style.addSource(GeoJsonSource(ESTIMATE))
         val transit = Expression.eq(Expression.get("walk"), Expression.literal(false))
         val walk = Expression.eq(Expression.get("walk"), Expression.literal(true))
         // The alternatives: their rides only, thin and faint, under the chosen route.
@@ -442,6 +457,13 @@ private object JourneyLayers {
                 PropertyFactory.circleStrokeColor(colors.casing.toArgb()), PropertyFactory.circleStrokeWidth(2.5f),
             ),
         )
+        // An estimate, not a fix: a ring in the location colour with no filled centre.
+        style.addLayer(
+            CircleLayer("polaris-estimate", ESTIMATE).withProperties(
+                PropertyFactory.circleRadius(7f), PropertyFactory.circleColor(colors.surface.copy(alpha = 0.6f).toArgb()),
+                PropertyFactory.circleStrokeColor(colors.here.toArgb()), PropertyFactory.circleStrokeWidth(3f),
+            ),
+        )
         style.addLayer(
             SymbolLayer("polaris-destination", STOPS).withFilter(kind("destination")).withProperties(
                 PropertyFactory.iconImage(STAR), PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconIgnorePlacement(true),
@@ -456,6 +478,12 @@ private object JourneyLayers {
         )
         style.getSourceAs<GeoJsonSource>(LINES)?.setGeoJson(drawing?.let(JourneyMap::linesGeoJson) ?: empty)
         style.getSourceAs<GeoJsonSource>(STOPS)?.setGeoJson(drawing?.let(JourneyMap::stopsGeoJson) ?: empty)
+    }
+
+    fun estimate(style: Style, at: polaris.engine.Coordinate?) {
+        val empty = """{"type":"FeatureCollection","features":[]}"""
+        val point = at?.let { """{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[${it.longitude},${it.latitude}]}}]}""" }
+        style.getSourceAs<GeoJsonSource>(ESTIMATE)?.setGeoJson(point ?: empty)
     }
 
     /** The north star (Theme.swift's `NorthStar`), gold with a navy edge, for where the journey ends. */

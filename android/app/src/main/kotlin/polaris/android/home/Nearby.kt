@@ -225,15 +225,16 @@ private fun NearbyRow(line: NearbyLine, now: Instant, pillWidth: androidx.compos
     Row(rowModifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         androidx.compose.foundation.layout.Box(Modifier.width(pillWidth)) { DeparturePill(line.mode, line.line, line.lineColor) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            // Names wrap to a second line before they are shortened.
-            Text(toText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // Names wrap as far as they need and are never shortened (a long Underground stop on
+            // the narrow card beside a fold ran past two lines).
+            Text(toText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink)
             // The distance first, in the same place on every row, then the stop, which wraps to a
             // second line before it is shortened; three pieces, so right to left lays them out
             // properly and never runs them together.
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(stringResource(R.string.nearby_metres, metres), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, softWrap = false)
                 Text(stringResource(R.string.nearby_dot), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1)
-                Text(line.stopName, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(line.stopName, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
             }
         }
         timesView()

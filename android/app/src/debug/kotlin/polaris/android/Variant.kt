@@ -50,6 +50,49 @@ object Variant {
         }
     }
 
+    /**
+     * `--ei ahead N`: the app's clock runs N minutes ahead of the phone's (the recordings stay
+     * moved to the real time), so a trip shows its later states without waiting: at the stop
+     * after the train left, mid-ride, near the end. Debug only.
+     */
+    fun clock(intent: Intent?): (() -> java.time.Instant)? {
+        val minutes = intent?.getIntExtra("ahead", 0) ?: 0
+        if (minutes == 0) return null
+        return { java.time.Instant.now().plusSeconds(minutes * 60L) }
+    }
+
+    /**
+     * `--ez replanDemo true`: a re-plan's search answers with one hand-written way from wherever
+     * Go asks, 12 minutes sooner than the trip, so the offer card, Switch and Keep can be seen. No
+     * request is sent for it. Debug only, and shots of it are labelled simulated.
+     */
+    fun replanSearch(intent: Intent?): (suspend (JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? {
+        if (intent?.getBooleanExtra("replanDemo", false) != true) return null
+        return { query, _ ->
+            delay(900)
+            val leaves = (query.time as? TimeMode.DepartAt)?.at ?: java.time.Instant.now()
+            val from = query.origin.coordinate
+            val to = query.destination.coordinate
+            val board = leaves.plusSeconds(180)
+            val dlr = polaris.engine.Leg(
+                mode = polaris.engine.LegMode.dlr, line = "DLR", lineColor = polaris.engine.RGB.hex("00AFAD"), headsign = "Lewisham",
+                fromName = query.origin.name, toName = "Heron Quays", departure = board, arrival = board.plusSeconds(9 * 60), stopCount = 5,
+                path = listOf(from, Coordinate((from.latitude + to.latitude) / 2, (from.longitude + to.longitude) / 2), Coordinate(51.5027, -0.0215)),
+                platform = "3",
+            )
+            val walk = polaris.engine.Leg(
+                mode = polaris.engine.LegMode.walk, fromName = "Heron Quays", toName = query.destination.name,
+                departure = dlr.arrival, arrival = dlr.arrival.plusSeconds(240), distanceMeters = 300.0, path = listOf(Coordinate(51.5027, -0.0215), to),
+            )
+            val journey = polaris.engine.Journey(
+                departure = board, arrival = walk.arrival, legs = listOf(dlr, walk),
+                sources = listOf(polaris.engine.SourceTag(polaris.engine.ProviderID.transitous, "Fastest")),
+            )
+            // Arrives well before anything the recordings can give from there.
+            polaris.engine.ReplanAnswer(listOf(journey), answered = true, usedGoogle = false)
+        }
+    }
+
     fun startTrip(intent: Intent?): JourneyQuery? {
         if (intent?.getBooleanExtra("trip", false) != true) return null
         return JourneyQuery(

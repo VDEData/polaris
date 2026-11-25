@@ -4,6 +4,7 @@ import polaris.android.settings.SettingsScreen
 import polaris.android.settings.LicencesScreen
 import polaris.android.settings.SetupScreen
 import polaris.android.journey.JourneyScreen
+import polaris.android.go.GoScreen
 import polaris.android.journey.BoardScreen
 import polaris.android.journey.LineScreen
 import android.Manifest
@@ -135,6 +136,19 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     LaunchedEffect(startTrip) {
         if (startTrip != null && !startedTrip && pages.size == 1) pages.add(ResultsPage(startTrip))
         startedTrip = true
+    }
+    // A trip the app was stopped during: back in Go, on top of whatever the saved stack had.
+    val tripOpens by graph.trips.opens.collectAsStateLifecycle()
+    // Before any page is composed: a Go page restored with the stack finds its trip already back,
+    // rather than closing itself for want of one (and losing its sheet height and scroll place).
+    remember(graph) { graph.trips.resumePending() }
+    LaunchedEffect(tripOpens) {
+        if (!tripOpens) return@LaunchedEffect
+        graph.trips.opened()
+        if (pages.lastOrNull() != GoPage) {
+            pages.removeAll { it == GoPage }
+            pages.add(GoPage)
+        }
     }
     LaunchedEffect(shell) {
         shell.closedSearches.collect { kind -> window.removeAll { it is SearchWindow && it.kind == kind } }
@@ -273,7 +287,12 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
 private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateLifecycle(): androidx.compose.runtime.State<T> = collectAsStateWithLifecycle()
 
 /** Which rest a page asks for when it comes on top: Home goes back to the person's own, the others to half. */
-private fun preferredRest(key: NavKey?): Rest? = if (key is HomePage || key == null) null else Rest.Half
+private fun preferredRest(key: NavKey?): Rest? = when (key) {
+    null, is HomePage -> null
+    // Go's rest is the low bar (its header and the step button), as iOS's Go rest is: the map leads.
+    is GoPage -> Rest.Low
+    else -> Rest.Half
+}
 
 @Composable
 private fun MapAndSheet(
@@ -300,6 +319,8 @@ private fun MapAndSheet(
         }
     }
     var dockHeight by remember { mutableStateOf(0) }
+    var bannerHeight by remember { mutableStateOf(0) }
+    val banner = scene.bannerOf(top)
 
     // A page coming on top asks for its rest; a rotation (same page on top) asks for nothing.
     var lastTop by rememberSaveable { mutableStateOf<String?>(null) }
@@ -332,11 +353,12 @@ private fun MapAndSheet(
             val handlePx = with(density) { 28.dp.toPx() }
             val anchors = buildMap {
                 put(Rest.Low, heightPx - (barPx + handlePx + with(density) { navBottom.toPx() }))
-                // At the largest text the half rest sits higher, so a route card fits under the page's controls.
+                // At the largest text the half rest sits higher (70% of the window), so the first route card
+                // fits whole under the page's two-row trip and wrapped controls.
                 // Open tall, the half rest is 48 dp below the fold, so neither the sheet's edge nor the map's
                 // credit sits on it.
                 val foldRest = layout.foldBottomPx?.let { it + with(density) { 48.dp.toPx() } }?.takeIf { it < heightPx * 0.7f }
-                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f))
+                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.30f else 0.52f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
@@ -354,11 +376,12 @@ private fun MapAndSheet(
         }
 
         // What covers the map, for its credit and for fitting routes into the part left showing.
+        val bannerDp = if (banner != null) with(density) { bannerHeight.toDp() } + 8.dp else 0.dp
         val covered = if (wide) {
-            PaddingValues(start = layout.mapStart, top = statusTop + 16.dp, end = 72.dp, bottom = navBottom)
+            PaddingValues(start = layout.mapStart, top = statusTop + 16.dp + bannerDp, end = 72.dp, bottom = navBottom)
         } else {
             val sheetTop = if (sheet.top.isNaN()) heightPx else sheet.top
-            PaddingValues(top = statusTop + 8.dp, end = 64.dp, bottom = with(density) { (heightPx - sheetTop).coerceAtLeast(0f).toDp() })
+            PaddingValues(top = statusTop + 8.dp + bannerDp, end = 64.dp, bottom = with(density) { (heightPx - sheetTop).coerceAtLeast(0f).toDp() })
         }
 
         PolarisMap(
@@ -373,9 +396,13 @@ private fun MapAndSheet(
                 start = covered.calculateStartPadding(direction), top = covered.calculateTopPadding(), end = covered.calculateEndPadding(direction),
                 bottom = with(density) { dockHeight.toDp() } + 64.dp,
             ) else covered,
-            refitOn = if (wide) dockHeight else null,
+            // The docked card (wide) and Go's banner are measured after the routes come: a change
+            // in either fits the frame again inside the room left.
+            refitOn = listOf(if (wide) dockHeight else null, if (banner != null) bannerHeight else null),
             showLocation = showsLocation,
             recentre = recentre,
+            estimate = content.estimate,
+            fitKey = content.fitKey,
             overlay = {
                 // The status bar's clock and icons sit on a soft band of paper, not straight on map labels.
                 // Opaque behind the bar itself, fading out over 16 dp below it, at every rest.
@@ -390,10 +417,20 @@ private fun MapAndSheet(
                             ),
                         ),
                 )
+                banner?.let { card ->
+                    // Go's instruction, across the top of the map (of the map half when wide), below the status bar.
+                    Box(
+                        Modifier.align(Alignment.TopStart)
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                            .padding(start = if (wide) layout.mapStart - layout.safeStart else 10.dp, end = 10.dp, top = 8.dp)
+                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.fillMaxWidth())
+                            .onSizeChanged { bannerHeight = it.height },
+                    ) { card() }
+                }
                 LocationButton(
                     Modifier.align(Alignment.TopEnd)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
-                        .padding(top = 12.dp, end = 12.dp),
+                        .padding(top = 12.dp + bannerDp, end = 12.dp),
                 ) { shell.locateMe() }
                 if (wide) {
                     scene.dockOf(top)?.let { dock ->
@@ -459,7 +496,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) } } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings, openLine = { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) }, openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) }) } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->
@@ -469,9 +506,17 @@ private fun SheetPages(
             }
             entry<JourneyPage> { key ->
                 page {
-                    JourneyScreen(key, graph, onBack = { pages.removeLastOrNull() }) { leg ->
+                    JourneyScreen(
+                        key, graph, shell, onBack = { pages.removeLastOrNull() },
+                        openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) },
+                    ) { leg ->
                         if (pages.lastOrNull() == key) pages.add(BoardPage(key.searchId, key.journeyId, leg.id))
                     }
+                }
+            }
+            entry<GoPage> { key ->
+                page {
+                    GoScreen(key, graph, openSettings, onLeave = { pages.removeAll { it == GoPage } })
                 }
             }
             entry<BoardPage> { key -> page { BoardScreen(key, graph, onBack = { pages.removeLastOrNull() }) } }

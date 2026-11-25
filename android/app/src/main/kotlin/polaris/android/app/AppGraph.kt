@@ -42,6 +42,18 @@ class AppGraph(
     val background: kotlinx.coroutines.CoroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
     /** The time, for the departures store's minute and floor (a test's own clock). */
     val clock: () -> java.time.Instant = java.time.Instant::now,
+    /** Where the live trip is kept for a relaunch (a file in the app; memory in tests). */
+    val tripStore: polaris.engine.TripStore = polaris.engine.TripStore.Memory(),
+    /** Fixes while a trip is live. */
+    val tracker: polaris.android.trip.LocationTracking = polaris.android.trip.NoTracking,
+    /** Whether the phone has a way to the internet (no re-plan is sent without one). */
+    val online: () -> Boolean = { true },
+    /** A trip found at launch still worth resuming ([polaris.engine.TripResume]). */
+    pendingTrip: polaris.engine.SavedTrip? = null,
+    /** A re-plan's search in place of the real one (a debug check's canned answer). */
+    private val replanSearch: (suspend (polaris.engine.JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null,
+    /** Where the trip runs: the main thread in the app (it is confined to one thread). */
+    tripScope: () -> kotlinx.coroutines.CoroutineScope = { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate) },
 ) {
     private val setupPending = java.util.concurrent.atomic.AtomicBoolean(firstRun)
 
@@ -58,6 +70,15 @@ class AppGraph(
     /** Departure boards and what's leaving nearby, each kept a minute, for the whole app. */
     val departures: polaris.engine.DepartureStore by lazy { polaris.engine.DepartureStore(polaris.engine.DepartureProvider(http), clock) }
 
+    /** The live trip, one for the whole app (Go). */
+    val trips: polaris.android.trip.TripSession by lazy {
+        polaris.android.trip.TripSession(
+            scope = tripScope(), departures = departures, tracker = tracker, store = tripStore, clock = clock,
+            search = replanSearch ?: polaris.engine.ReplanSearch.live(settings, usage, http, identity, networkCache),
+            isOnline = online, pending = pendingTrip,
+        )
+    }
+
     /** The appearance chosen in Settings, which the activity follows at once. */
     val appearance: kotlinx.coroutines.flow.MutableStateFlow<polaris.engine.Appearance> by lazy { kotlinx.coroutines.flow.MutableStateFlow(settings.appearance) }
 
@@ -69,7 +90,14 @@ class AppGraph(
 
         /** Reads storage off the main thread the first time; later calls return the same graph. */
         /** [secrets] replaces the Keystore store: debug checks only (`Variant.secrets`), null in release. */
-        suspend fun load(context: Context, transport: HttpTransport? = null, secrets: polaris.engine.SecretStore? = null): AppGraph {
+        /** [clock] and [replanSearch] replace the real ones: debug checks only, null in release. */
+        suspend fun load(
+            context: Context,
+            transport: HttpTransport? = null,
+            secrets: polaris.engine.SecretStore? = null,
+            clock: (() -> java.time.Instant)? = null,
+            replanSearch: (suspend (polaris.engine.JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null,
+        ): AppGraph {
             // A debug run on recorded answers, or on the simulated store, never decides first-run setup (nor shows it).
             val decidesSetup = transport == null && secrets == null
             loaded?.let { return it }
@@ -79,6 +107,9 @@ class AppGraph(
             val settings = secrets?.let { polaris.engine.AppSettings(it, Storage.buildDefaults, polaris.engine.InMemoryKeyValueStore()) } ?: stored
             val preferences = Storage.preferences(app)
             return withContext(Dispatchers.IO) {
+                val trips = polaris.engine.FileTripStore(File(app.noBackupFilesDir, "trip.json"))
+                // A trip the app was stopped during: picked up again, or cleared away, before any screen is up.
+                val resumable = polaris.engine.TripResume.decide(trips, (clock ?: java.time.Instant::now)())
                 AppGraph(
                     settings = settings,
                     usage = usage,
@@ -89,8 +120,21 @@ class AppGraph(
                     identity = appIdentity(app),
                     version = BuildConfig.VERSION_NAME,
                     firstRun = decidesSetup && settings.takeFirstRunTurn(),
+                    tripStore = trips,
+                    tracker = polaris.android.trip.AndroidLocationTracker(app, clock ?: java.time.Instant::now),
+                    online = { isOnline(app) },
+                    pendingTrip = resumable,
+                    clock = clock ?: java.time.Instant::now,
+                    replanSearch = replanSearch,
                 )
             }.also { loaded = it }
+        }
+
+        /** A network with the internet on it (underground there is none: Go sends no re-plan then). */
+        private fun isOnline(context: Context): Boolean {
+            val manager = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return true
+            val caps = runCatching { manager.getNetworkCapabilities(manager.activeNetwork) }.getOrNull() ?: return false
+            return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
         }
 
         /**

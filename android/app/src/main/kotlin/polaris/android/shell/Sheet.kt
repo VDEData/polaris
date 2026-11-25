@@ -165,6 +165,20 @@ class SheetState(initial: Rest, remembered: Rest, private val animator: SheetAni
         targetFor(velocity)?.let { personChose(scope, it) }
     }
 
+    /**
+     * The person's own scroll or drag left the sheet exactly on a rest without a fling to settle it
+     * (a list pulling it to full height): that rest is theirs, so it is the one saved and restored.
+     */
+    fun landed() {
+        if (offset.isNaN()) return
+        val at = anchors.entries.firstOrNull { abs(it.value - offset) < 1 }?.key ?: return
+        if (at != rest || at != remembered) {
+            animation?.cancel()
+            rest = at
+            remembered = at
+        }
+    }
+
     companion object {
         val Saver: Saver<SheetState, *> = listSaver(
             save = { listOf(it.rest.name, it.remembered.name) },
@@ -179,16 +193,19 @@ class SheetState(initial: Rest, remembered: Rest, private val animator: SheetAni
  * sheet does.
  */
 fun sheetNestedScroll(state: SheetState, scope: CoroutineScope) = object : NestedScrollConnection {
+    /** This gesture moved the sheet (not only the list inside it). */
+    private var moved = false
+
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         val dy = available.y
         // Up: grow the sheet before scrolling the list.
-        return if (dy < 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy)) else Offset.Zero
+        return if (dy < 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy).also { if (it != 0f) moved = true }) else Offset.Zero
     }
 
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
         val dy = available.y
         // Down, with the list at its top: shrink the sheet.
-        return if (dy > 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy)) else Offset.Zero
+        return if (dy > 0 && source == NestedScrollSource.UserInput) Offset(0f, state.dragBy(dy).also { if (it != 0f) moved = true }) else Offset.Zero
     }
 
     override suspend fun onPreFling(available: Velocity): Velocity {
@@ -204,6 +221,10 @@ fun sheetNestedScroll(state: SheetState, scope: CoroutineScope) = object : Neste
 
     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
         if (state.anchors.values.none { abs(it - state.top) < 1 }) state.settle(scope, available.y)
+        // Only a gesture that moved the sheet chooses a rest: a list flung inside a sheet a page
+        // asked for leaves the person's own rest as it was.
+        else if (moved) state.landed()
+        moved = false
         return available
     }
 }
