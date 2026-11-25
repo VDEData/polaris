@@ -294,6 +294,8 @@ fun AlertLine(alert: ServiceAlert, minor: Boolean = false) {
 @Composable
 fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference: Double?, destination: String, narrow: Boolean) {
     val c = polaris
+    // At large text a row is narrow wherever it is: the headsign under the line, never cut.
+    val narrow = narrow || LocalDensity.current.fontScale >= 1.3f
     val gone = departure.expected < now
     val status = when {
         departure.isCancelled -> stringResource(R.string.board_cancelled)
@@ -346,7 +348,7 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
                     Text(headsign, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {

@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,7 +85,7 @@ class SettingsViewModel(
             }
             // The contact as typed before a rotation wins over what was read (keys are read back from the store).
             val typed = listOf(Item.contact).mapNotNull { item -> handle.get<String>(item.name)?.let { item to it } }.toMap()
-            _ui.value = read.copy(fields = read.fields.mapValues { (item, field) -> typed[item]?.let { field.copy(text = it) } ?: field })
+            _ui.update { read.copy(fields = read.fields.mapValues { (item, field) -> typed[item]?.let { field.copy(text = it) } ?: field }) }
         }
     }
 
@@ -126,8 +127,8 @@ class SettingsViewModel(
     /** A key or the contact typed: shown at once, saved in order off the main thread. */
     fun type(item: Item, text: String) {
         if (item == Item.contact) handle[item.name] = text
-        val before = _ui.value.field(item)
-        _ui.value = _ui.value.copy(fields = _ui.value.fields + (item to before.copy(text = text)))
+        // Atomic: a save landing on the IO thread mid-keystroke changes only the state, never the text.
+        _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
         pending[item] = text
         val job = saves.launch(io) {
             writes.withLock {
@@ -142,8 +143,7 @@ class SettingsViewModel(
                     AppSettings.Save.notSaved -> KeyState.notSaved
                     AppSettings.Save.keptUnreadable -> KeyState.unreadable
                 }
-                val now = _ui.value.field(item)
-                _ui.value = _ui.value.copy(fields = _ui.value.fields + (item to now.copy(state = state)))
+                _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(state = state))) }
             }
         }
         synchronized(jobs) {

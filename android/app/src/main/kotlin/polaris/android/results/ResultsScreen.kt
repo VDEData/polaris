@@ -157,10 +157,12 @@ fun ResultsScreen(
     val layout = LocalWindowLayout.current
     val docks = sheet.wide && !layout.short
     val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
-    // Short windows and the largest text: the trip in its one-row form, the controls in one row and
-    // the status on one line, so the first route card fits the first screenful (a phone turned on
-    // its side with a disruption showing; 2x text with the sheet at half height).
-    val tight = layout.short || androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+    // Short windows (a phone on its side): the trip in its one-row form, the controls in one row
+    // and the status on one line, so the first route card fits beside the map with a disruption showing.
+    val tight = layout.short
+    // At the largest text: the status on one line (the sheet's half rest sits higher too), but the
+    // trip keeps its two rows and the controls wrap, so names and Filters stay whole and in view.
+    val oneLineStatus = tight || androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
     val belowFull = sheet.state?.rest != Rest.Full
     if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
@@ -197,7 +199,7 @@ fun ResultsScreen(
             }
             item(key = "status") {
                 Column {
-                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = tight)
+                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = oneLineStatus)
                     // While sources are still answering: a quiet line, as well as the star's points.
                     if (ui.isSearching) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 4.dp), color = c.tint, trackColor = c.hairline)
                 }

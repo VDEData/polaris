@@ -99,7 +99,7 @@ fun BoardScreen(key: BoardPage, graph: AppGraph, onBack: () -> Unit) {
 @Composable
 internal fun PageBar(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.journey_back_to_routes)) }
+        IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.common_back)) }
         Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = polaris.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         trailing()
     }
@@ -135,7 +135,7 @@ fun BoardContent(
     // The stop, its line, Refresh and Close stay put while the rows scroll (scrolled to yours).
     Column(Modifier.padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = if (narrow) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (back != null) IconButton(onClick = back, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.journey_back_to_routes)) }
+                if (back != null) IconButton(onClick = back, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.common_back)) }
                 Text(
                     board?.stopName ?: leg.fromName,
                     Modifier.weight(1f).padding(start = if (back == null) 4.dp else 0.dp).semantics { heading() },
@@ -235,7 +235,7 @@ fun LineScreen(key: LinePage, graph: AppGraph, shell: ShellViewModel, onBack: ()
         ) {
             item(key = "bar") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.journey_back_to_routes)) }
+                    IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.common_back)) }
                     Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (refreshing) CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
                     else IconButton(onClick = refresh) { Symbol(R.drawable.sym_refresh, stringResource(R.string.board_refresh), tint = c.tint) }
