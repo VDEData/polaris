@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,7 +177,7 @@ fun ResultsScreen(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 16.dp, end = 16.dp,
-                bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                bottom = 24.dp, // the sheet already stops its pages above the navigation bar
             ),
             // Tighter on a short window, so the whole first route fits beside the map.
             verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 12.dp),
@@ -199,7 +200,7 @@ fun ResultsScreen(
             }
             item(key = "status") {
                 Column {
-                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = oneLineStatus)
+                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = oneLineStatus, showSearchAgain = !tight)
                     // While sources are still answering: a quiet line, as well as the star's points.
                     if (ui.isSearching) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 4.dp), color = c.tint, trackColor = c.hairline)
                 }
@@ -245,8 +246,11 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
     }
     if (ranked.more.isNotEmpty()) {
         item(key = "more") {
-            TextButton(onClick = model::toggleMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(if (ui.showMore) stringResource(R.string.common_show_fewer) else moreLabel(ranked.more), fontWeight = FontWeight.SemiBold)
+            // The group's own heading ("4 slower or longer routes") stays in view when it is open, so
+            // the cards under it read as their own group, not as more of the order above.
+            val action = stringResource(if (ui.showMore) R.string.common_show_fewer else R.string.results_show_more_routes)
+            TextButton(onClick = model::toggleMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { onClick(label = action) { model.toggleMore(); true } }) {
+                Text(moreLabel(ranked.more), fontWeight = FontWeight.SemiBold)
                 Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(20.dp).graphicsLayer { rotationZ = if (ui.showMore) 180f else 0f })
             }
         }
@@ -462,7 +466,7 @@ private fun timeLabel(time: TimeMode) = when (time) {
 
 /** Who has answered (the star's points fill in as each source does), what was found, and who didn't answer. */
 @Composable
-private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit, oneLine: Boolean = false) {
+private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit, oneLine: Boolean = false, showSearchAgain: Boolean = true) {
     val c = polaris
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(
@@ -481,8 +485,8 @@ private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchA
                 maxLines = if (oneLine) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Symbol(R.drawable.sym_info, null, Modifier.size(18.dp), tint = c.inkFaint)
         }
-        // Search again is in the overflow too, so a short line leaves it there.
-        if (!ui.isSearching && !ui.stale && !oneLine) {
+        // Search again is in the overflow too, so a short window leaves it there (2x keeps it).
+        if (!ui.isSearching && !ui.stale && showSearchAgain) {
             IconButton(onClick = searchAgain) { Symbol(R.drawable.sym_refresh, stringResource(R.string.common_search_again), tint = c.tint) }
         }
     }

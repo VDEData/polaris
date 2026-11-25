@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import polaris.android.R
+import polaris.android.home.headsignText
 import polaris.android.app.AppGraph
 import polaris.android.shell.BoardPage
 import polaris.android.shell.LinePage
@@ -163,7 +164,7 @@ fun BoardContent(
         state = list,
         contentPadding = PaddingValues(
             start = 16.dp, end = 16.dp,
-            bottom = 16.dp + (if (narrow) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+            bottom = 16.dp, // in the sheet the page already stops above the navigation bar; docked, there is none
         ),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
@@ -234,7 +235,7 @@ fun LineScreen(key: LinePage, graph: AppGraph, shell: ShellViewModel, onBack: ()
         val now = ticking(30)
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "bar") {
@@ -259,7 +260,7 @@ fun LineScreen(key: LinePage, graph: AppGraph, shell: ShellViewModel, onBack: ()
                         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                             DeparturePill(line.mode, line.line, line.lineColor)
                             Text(
-                                if (line.headsign.isEmpty()) line.line else stringResource(R.string.nearby_to, line.headsign),
+                                headsignText(line.line, line.headsign),
                                 style = MaterialTheme.typography.titleMedium, color = c.ink,
                             )
                         }

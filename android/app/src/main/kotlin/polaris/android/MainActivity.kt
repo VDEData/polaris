@@ -36,13 +36,14 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         val demo = Variant.transport(this, intent)
+        val secrets = Variant.secrets(intent)
         val startTrip = if (savedInstanceState == null) Variant.startTrip(intent) else null
         val fresh = savedInstanceState == null
         setContent {
             val context = LocalContext.current
             // Already built after a rotation or a fold: no blank first frame then.
             var graph by remember { mutableStateOf(AppGraph.cached()) }
-            LaunchedEffect(Unit) { graph = AppGraph.load(context, demo) }
+            LaunchedEffect(Unit) { graph = AppGraph.load(context, demo, secrets) }
             // The appearance chosen in Settings, or the phone's own.
             val chosen = graph?.appearance?.collectAsState()?.value ?: Appearance.system
             val night = when (chosen) {

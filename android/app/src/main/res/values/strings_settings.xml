@@ -43,6 +43,7 @@
     <string name="key_remove">Remove</string>
     <string name="key_remove_label">Remove %s</string>
     <string name="settings_google_needs_key">Needs a key: add one under Keys and contact.</string>
+    <string name="settings_google_unreadable">Its saved key can\'t be read yet, so Google is skipped for now.</string>
     <string name="key_show">Show</string>
     <string name="key_hide">Hide</string>
     <string name="key_show_label">Show %s</string>

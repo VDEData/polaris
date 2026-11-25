@@ -231,7 +231,18 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     fun refreshNearby(force: Boolean = false) {
         if (!graph.locator.hasPermission || nearbyJob?.isActive == true) return
         if (!force && graph.departures.nearbyIsFresh()) return
-        if (force && graph.departures.nearbyIsBusy()) return
+        if (force && graph.departures.nearbyIsBusy()) {
+            // Held by the floor (or already on its way): the spinner stays for what's left of it,
+            // so the tap is seen to be taken, and nothing more is sent.
+            val held = graph.departures.nearbyHeldFor()
+            if (held > 0 && !_nearbyLoading.value) {
+                nearbyJob = viewModelScope.launch {
+                    _nearbyLoading.value = true
+                    try { kotlinx.coroutines.delay(held * 1000) } finally { _nearbyLoading.value = false }
+                }
+            }
+            return
+        }
         _showsLocation.value = true
         nearbyJob = viewModelScope.launch {
             _nearbyLoading.value = true

@@ -77,7 +77,6 @@ fun LazyListScope.nearbySection(graph: AppGraph, shell: ShellViewModel, wide: Bo
         val state = remember(version) { graph.departures.nearby }
         // Asked once Home is showing and location is allowed, and again when Home comes back or
         // the app returns, if the minute has passed (no fix is asked for within it).
-        LaunchedEffect(shows) { if (shows) shell.refreshNearby() }
         androidx.lifecycle.compose.LifecycleResumeEffect(shows) {
             if (shows) shell.refreshNearby()
             onPauseOrDispose { }
@@ -101,6 +100,8 @@ private fun NearbyList(
 ) {
     val c = polaris
     var showAll by rememberSaveable { mutableStateOf(false) }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val narrow = maxWidth < 400.dp
     Column(Modifier.fillMaxWidth().surface(c)) {
         val lines = state?.value
         when {
@@ -127,11 +128,11 @@ private fun NearbyList(
                 // One width for every pill, the widest, so names start at the same place on every row.
                 val pillWidth = pillColumnWidth(live)
                 shown.forEachIndexed { index, line ->
-                    if (index > 0) HorizontalDivider(Modifier.padding(start = 12.dp), color = c.hairline)
-                    NearbyRow(line, now, pillWidth) { openLine(line) }
+                    if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 12.dp), color = c.hairline)
+                    NearbyRow(line, now, pillWidth, narrow) { openLine(line) }
                 }
                 if (live.size > collapsed) {
-                    HorizontalDivider(Modifier.padding(start = 12.dp), color = c.hairline)
+                    HorizontalDivider(Modifier.padding(horizontal = 12.dp), color = c.hairline)
                     TextButton(onClick = { showAll = !showAll }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Text(if (showAll) stringResource(R.string.nearby_show_fewer) else stringResource(R.string.nearby_show_more, live.size - collapsed), fontWeight = FontWeight.Medium)
                     }
@@ -147,6 +148,15 @@ private fun NearbyList(
             }
         }
     }
+    }
+}
+
+/** "to Paddington"; a headsign that is already a "via …" stands as it is; none, the line's name. */
+@Composable
+fun headsignText(line: String, headsign: String): String = when {
+    headsign.isEmpty() -> line
+    headsign.lowercase().startsWith("via ") -> headsign
+    else -> stringResource(R.string.nearby_to, headsign)
 }
 
 @Composable
@@ -173,16 +183,17 @@ private fun pillColumnWidth(lines: List<NearbyLine>): androidx.compose.ui.unit.D
 }
 
 @Composable
-private fun NearbyRow(line: NearbyLine, now: Instant, pillWidth: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun NearbyRow(line: NearbyLine, now: Instant, pillWidth: androidx.compose.ui.unit.Dp, narrow: Boolean, onClick: () -> Unit) {
     val c = polaris
     // At large text the row stacks (line and times, then where to, then the stop and distance),
     // each line wrapping, so nothing is cut short.
     val large = LocalDensity.current.fontScale >= 1.3f
-    val minutes = line.departures.take(if (large) 2 else 3).map { maxOf(0L, (it.expected.epochSecond - now.epochSecond) / 60).toInt() }
+    // Under 400 dp for the list (a phone, the card on a fold), the next two, as iOS does when narrow.
+    val minutes = line.departures.take(if (large || narrow) 2 else 3).map { maxOf(0L, (it.expected.epochSecond - now.epochSecond) / 60).toInt() }
     val nowWord = stringResource(R.string.nearby_now)
     val times = minutes.joinToString(", ") { if (it == 0) nowWord else it.toString() }
         .let { if (minutes.isEmpty() || minutes.last() == 0) it else stringResource(R.string.nearby_minutes_suffix, it) }
-    val toText = if (line.headsign.isEmpty()) line.line else stringResource(R.string.nearby_to, line.headsign)
+    val toText = headsignText(line.line, line.headsign)
     val metres = roundedMetres(line.distance)
     val timesView: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import polaris.android.app.AppGraph
 import polaris.android.app.MemorySearchArchive
@@ -38,6 +39,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -74,16 +76,16 @@ class JourneyAndSettingsTest {
         }
     }
 
-    private class Rig(secrets: SecretStore = InMemorySecretStore(), locator: FakeLocator = FakeLocator(), scope: CoroutineScope) {
+    private class Rig(secrets: SecretStore = InMemorySecretStore(), locator: FakeLocator = FakeLocator(), scope: CoroutineScope, clock: () -> java.time.Instant = java.time.Instant::now) {
         val transport = Transport()
         val kv = InMemoryKeyValueStore()
         val archive = MemorySearchArchive()
         val settings = AppSettings(secrets, BuildDefaults(contact = "https://example.org/polaris"), kv)
-        val graph = AppGraph(settings, GoogleUsage(kv), PlaceStore(kv), transport, archive, locator, networkCache = NetworkStatusCache(), background = scope)
+        val graph = AppGraph(settings, GoogleUsage(kv), PlaceStore(kv), transport, archive, locator, networkCache = NetworkStatusCache(), background = scope, clock = clock)
     }
 
-    private fun TestScope.rig(secrets: SecretStore = InMemorySecretStore(), locator: FakeLocator = FakeLocator()) =
-        Rig(secrets, locator, CoroutineScope(SupervisorJob() + dispatcher))
+    private fun TestScope.rig(secrets: SecretStore = InMemorySecretStore(), locator: FakeLocator = FakeLocator(), clock: () -> java.time.Instant = java.time.Instant::now) =
+        Rig(secrets, locator, CoroutineScope(SupervisorJob() + dispatcher), clock)
 
     /** Opens the recorded trip's results so its search is in the archive, as a results page leaves it. */
     private fun TestScope.searched(rig: Rig): ResultsViewModel =
@@ -178,12 +180,61 @@ class JourneyAndSettingsTest {
     /** A store whose TfL key can't be read now, and whose writes can be made to fail. */
     private class Locked(var failWrites: Boolean = false) : SecretStore {
         val written = mutableListOf<String>()
+        val values = mutableListOf<String>()
         override fun read(account: String) = if (account == AppSettings.TFL) SecretRead.Unreadable else SecretRead.Absent
         override fun write(value: String, account: String): Boolean {
             if (failWrites) return false
             written += account
+            values += value
             return true
         }
+    }
+
+    /** Replace tapped, then a key typed before the write lands: that key is saved too. */
+    @Test fun keysTypedAfterReplaceAreSaved() = runTest(dispatcher) {
+        val store = Locked()
+        val rig = rig(secrets = store)
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        model.type(SettingsViewModel.Item.tfl, "abc")
+        model.replace(SettingsViewModel.Item.tfl)
+        model.type(SettingsViewModel.Item.tfl, "abcd")
+        model.flush(); advanceUntilIdle()
+        assertEquals("abcd", store.values.last(), "the store holds what the field shows")
+    }
+
+    /** Switches tapped quickly in a row, written on real threads: none is lost. */
+    @Test fun quickSwitchesAreWrittenInOrder() = runTest(dispatcher) {
+        repeat(20) {
+            val kv = InMemoryKeyValueStore()
+            val settings = AppSettings(InMemorySecretStore(), BuildDefaults(googleKey = "built-in"), kv)
+            val graph = AppGraph(settings, GoogleUsage(kv), PlaceStore(kv), Transport(), MemorySearchArchive(), FakeLocator(), networkCache = NetworkStatusCache())
+            val model = SettingsViewModel(SavedStateHandle(), graph, io = Dispatchers.Default, saves = CoroutineScope(SupervisorJob() + Dispatchers.Default))
+            model.setEnabled(polaris.engine.ProviderID.google, false)
+            model.setEnabled(polaris.engine.ProviderID.tfl, false)
+            model.setEnabled(polaris.engine.ProviderID.transitous, false)
+            model.setDeepSearch(false)
+            kotlinx.coroutines.withContext(Dispatchers.Default) { model.flush() }
+            assertEquals(polaris.engine.ProviderID.entries.filter { it != polaris.engine.ProviderID.apple }.toSet(), settings.disabledProviders, "round $it")
+            assertFalse(settings.deepSearch)
+        }
+    }
+
+    /** After the floor, Refresh sends; inside it, the spinner stays for what's left, and nothing is sent. */
+    @Test fun refreshSendsAfterTheFloorAndShowsItIsHeldBefore() = runTest(dispatcher) {
+        var now = java.time.Instant.parse("2026-10-31T18:19:00Z")
+        val rig = rig(clock = { now })
+        val shell = ShellViewModel(rig.graph)
+        shell.refreshNearby(); advanceUntilIdle()
+        assertEquals(1, rig.transport.nearby)
+        now = now.plusSeconds(5)
+        shell.refreshNearby(force = true); runCurrent()
+        assertTrue(shell.nearbyLoading.value, "a held tap is seen")
+        assertEquals(1, rig.transport.nearby)
+        advanceUntilIdle()
+        assertFalse(shell.nearbyLoading.value)
+        now = now.plusSeconds(10)
+        shell.refreshNearby(force = true); advanceUntilIdle()
+        assertEquals(2, rig.transport.nearby, "past the floor, Refresh sends")
     }
 
     @Test fun anUnreadableKeyIsShownAsSuchAndABlankFieldNeverDeletesIt() = runTest(dispatcher) {
@@ -299,21 +350,26 @@ class NoticesTest {
         assertTrue(blocks.first().heading)
     }
 
-    @Test fun everyWordOutsideTheRepoOnlyPassagesIsKept() {
-        val kept = mutableListOf<String>()
-        var skip = false
-        for (l in lines) {
-            val t = l.trim()
-            if (t == "<!-- repo-only -->") { skip = true; continue }
-            if (t == "<!-- /repo-only -->") { skip = false; continue }
-            if (t.startsWith("<!--")) { if (!t.endsWith("-->")) skip = true; continue }
-            if (!skip && !t.startsWith("```")) kept += l
-        }
-        val words = { t: String -> t.replace("**", "").replace("`", "").replace(Regex("""[\[\]()#-]"""), " ").split(Regex("\\s+")).filter { it.isNotEmpty() } }
-        assertEquals(words(kept.joinToString(" ")), words(polaris.android.settings.noticeBlocks(lines).joinToString(" ") { it.text }))
-        // MapLibre's own notice, which its licence asks for, is there, its licence texts line for line.
+    @Test fun everyHeadingAndTheApacheTextReachTheApp() {
         val blocks = polaris.android.settings.noticeBlocks(lines)
-        assertTrue(blocks.any { "MapLibre" in it.text })
-        assertTrue(blocks.any { it.preformatted && "\n" in it.text })
+        // Every ### heading in the file, by the words before any link.
+        val headings = lines.filter { it.startsWith("### ") }.map { it.removePrefix("### ").substringBefore("](").trimStart('[') }
+        assertEquals(28, headings.size)
+        for (h in headings) assertTrue(blocks.any { it.heading && it.text.startsWith(h) }, h)
+        val all = blocks.joinToString("\n") { it.text }
+        assertTrue("Apache License" in all && "Version 2.0, January 2004" in all, "the Apache 2.0 text")
+        assertTrue("BSD 2-Clause" in all)
+        // No raw rules, rows of equals signs, star bullets or doubled addresses.
+        assertTrue(blocks.filter { !it.preformatted }.none { it.text.matches(Regex("^[-=]{3,}$")) || it.text.startsWith("* ") })
+        assertFalse(Regex("""(https?://\S+) \(\1\)""").containsMatchIn(all))
+    }
+
+    @Test fun anUnclosedBlockFailsRatherThanDroppingText() {
+        assertFailsWith<IllegalStateException> { polaris.android.settings.noticeBlocks(listOf("# T", "<!-- repo-only -->", "kept?")) }
+        assertFailsWith<IllegalStateException> { polaris.android.settings.noticeBlocks(listOf("# T", "```", "licence")) }
+        assertFailsWith<IllegalStateException> { polaris.android.settings.noticeBlocks(listOf("# T", "<!-- a note", "that runs on")) }
+        // An ordinary comment ends at its own -->, and what follows is shown.
+        val blocks = polaris.android.settings.noticeBlocks(listOf("# T", "<!-- a note", "on two lines -->", "Shown text."))
+        assertEquals("Shown text.", blocks.last().text)
     }
 }

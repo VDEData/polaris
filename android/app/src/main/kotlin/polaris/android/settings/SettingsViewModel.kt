@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -60,6 +61,8 @@ class SettingsViewModel(
         val lost: Set<String> = emptySet(),
         /** Google can be asked: a key is entered or built in (its switch means nothing without one). */
         val googleUsable: Boolean = false,
+        /** Google's entered key is saved but can't be read now (not the same as having none). */
+        val googleUnreadable: Boolean = false,
     ) {
         override fun toString() = "Ui(loaded=$loaded, appearance=$appearance, fields=$fields)"
 
@@ -89,11 +92,14 @@ class SettingsViewModel(
                     fields = Item.entries.associateWith { item -> fieldFor(item) },
                     lost = settings.lostSecrets,
                     googleUsable = googleUsable(),
+                    googleUnreadable = settings.readKeys().google == AppSettings.Key.Unreadable,
                 )
             }
-            // The contact as typed before a rotation wins over what was read (keys are read back from the store).
-            val typed = listOf(Item.contact).mapNotNull { item -> handle.get<String>(item.name)?.let { item to it } }.toMap()
-            _ui.update { read.copy(fields = read.fields.mapValues { (item, field) -> typed[item]?.let { field.copy(text = it) } ?: field }) }
+            _ui.update { read }
+            // The contact as typed before Android stopped the app wins over what was read, and is
+            // saved again, so the field never says "Saved" over text the store doesn't hold (keys
+            // are never kept in the saved state and are read back from the store).
+            handle.get<String>(Item.contact.name)?.let { typed -> if (typed != read.field(Item.contact).text) type(Item.contact, typed) }
         }
     }
 
@@ -118,23 +124,39 @@ class SettingsViewModel(
 
     private fun googleUsable() = (settings.readKeys().google as? AppSettings.Key.Use)?.value != null
 
-    // Choices are written off the main thread; the screen shows them at once. Their controls are
-    // enabled only once the stores have been read, so a tap is never overwritten by that read.
+    // Choices are written off the main thread, one at a time in the order tapped (setEnabled
+    // rewrites the whole switched-off set, so two quick switches must not interleave); the screen
+    // shows them at once. Their controls are enabled only once the stores have been read, so a tap
+    // is never overwritten by that read.
     fun setAppearance(appearance: Appearance) {
         graph.appearance.value = appearance
         _ui.update { it.copy(appearance = appearance) }
-        saves.launch(io) { settings.appearance = appearance }
+        write { settings.appearance = appearance }
     }
 
     fun setEnabled(provider: ProviderID, enabled: Boolean) {
         _ui.update { it.copy(enabled = it.enabled + (provider to enabled)) }
-        saves.launch(io) { settings.setEnabled(provider, enabled) }
+        write { settings.setEnabled(provider, enabled) }
     }
 
     fun setDeepSearch(on: Boolean) {
         _ui.update { it.copy(deepSearch = on) }
-        saves.launch(io) { settings.deepSearch = on }
+        write { settings.deepSearch = on }
     }
+
+    /** Ordered: each write waits for the one before, under the same lock as keys. */
+    private val order = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    init {
+        saves.launch(io) { for (job in order) writes.withLock { job() } }
+    }
+    private fun write(job: suspend () -> Unit) {
+        val done = kotlinx.coroutines.CompletableDeferred<Unit>()
+        order.trySend { try { job() } finally { done.complete(Unit) } }
+        synchronized(jobs) { jobs.removeAll { it.isCompleted }; jobs += done }
+    }
+
+    /** Items whose unreadable value the person chose to replace: their keystrokes save again, as normal. */
+    private val replacing = java.util.Collections.synchronizedSet(mutableSetOf<Item>())
 
     /**
      * Over a value that is saved but can't be read now, typing only drafts: nothing is written
@@ -142,7 +164,7 @@ class SettingsViewModel(
      * value. Elsewhere a key is saved as it is typed, as on iOS.
      */
     fun type(item: Item, text: String) {
-        if (_ui.value.field(item).state == KeyState.unreadable) {
+        if (_ui.value.field(item).state == KeyState.unreadable && item !in replacing) {
             if (item == Item.contact) handle[item.name] = text
             _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
             return
@@ -154,6 +176,8 @@ class SettingsViewModel(
     fun replace(item: Item) {
         val draft = _ui.value.field(item).text.trim()
         if (draft.isEmpty()) return
+        // From this tap on, what is typed is saved as typed (a key typed before the write lands included).
+        replacing += item
         typeAndSave(item, draft)
     }
 

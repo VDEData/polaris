@@ -149,13 +149,16 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
         }
     }
 
+    // Once for the page, whichever layout shows the countdown (a fold or a turn changes it).
+    journey?.let { val (leave, urgent) = leaveText(it); UrgencyAnnouncement(leave, urgent) }
+
     val title = journey?.let { stringResource(R.string.journey_title, Clock.of(it.departure), Clock.of(it.arrival), durationText(it.duration)) } ?: ""
     SheetPage(key, bar = { TopRow(title, null, journey, query, onBack) }) {
         val list = rememberLazyListState()
         LazyColumn(
             Modifier.fillMaxSize(),
             state = list,
-            contentPadding = PaddingValues(bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+            contentPadding = PaddingValues(bottom = 24.dp), // the sheet stops its pages above the navigation bar
             verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 14.dp),
         ) {
             // A short window (a phone on its side): when to leave joins the subtitle and Share goes
@@ -163,8 +166,7 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
             item(key = "top") {
                 val sub = journey?.let { summary(it) }
                 if (layout.short && journey != null && query != null) {
-                    val (leave, urgent) = leaveText(journey)
-                    UrgencyAnnouncement(leave, urgent)
+                    val (leave, _) = leaveText(journey)
                     TopRow(title, sub?.let { stringResource(R.string.journey_summary, leave, it) }, journey, query, onBack, share = shareAction(journey, query))
                 } else TopRow(title, sub, journey, query, onBack)
             }
@@ -260,12 +262,15 @@ private fun leaveText(journey: Journey): Pair<String, Boolean> {
 @Composable
 private fun UrgencyAnnouncement(leave: String, urgent: Boolean) {
     val view = androidx.compose.ui.platform.LocalView.current
-    var said by rememberSaveable { mutableStateOf(false) }
+    // What it was when the page last looked: only a change from not urgent to urgent speaks, so a
+    // journey opened inside two minutes says nothing extra (its text is read as usual), and a
+    // rotation or fold, which keeps this saved value, doesn't speak again.
+    var wasUrgent by rememberSaveable { mutableStateOf<Boolean?>(null) }
     androidx.compose.runtime.LaunchedEffect(urgent) {
-        if (urgent && !said) {
-            said = true
+        if (wasUrgent == false && urgent) {
             @Suppress("DEPRECATION") view.announceForAccessibility(leave)
         }
+        wasUrgent = urgent
     }
 }
 
@@ -282,7 +287,6 @@ private fun shareAction(journey: Journey, query: JourneyQuery): () -> Unit {
 private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modifier) {
     val c = polaris
     val (leave, urgent) = leaveText(journey)
-    UrgencyAnnouncement(leave, urgent)
     val share = shareAction(journey, query)
     val leaveRow: @Composable (Modifier) -> Unit = { m ->
         Row(m.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

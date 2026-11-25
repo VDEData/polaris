@@ -31,6 +31,25 @@ object Variant {
         return DemoTransport(context.applicationContext, scenario)
     }
 
+    /**
+     * `--ez unreadableKey true`: a simulated store whose TfL key reads as saved but unreadable
+     * (as the Keystore does when it is locked), for checking the draft and Replace states. A key
+     * written to it is kept in memory. Never in release builds; the real store is not touched.
+     */
+    fun secrets(intent: Intent?): polaris.engine.SecretStore? {
+        if (intent?.getBooleanExtra("unreadableKey", false) != true) return null
+        return object : polaris.engine.SecretStore {
+            private val memory = polaris.engine.InMemorySecretStore()
+            private var replaced = false
+            override fun read(account: String) =
+                if (account == polaris.engine.AppSettings.TFL && !replaced) polaris.engine.SecretRead.Unreadable else memory.read(account)
+            override fun write(value: String, account: String): Boolean {
+                if (account == polaris.engine.AppSettings.TFL) replaced = true
+                return memory.write(value, account)
+            }
+        }
+    }
+
     fun startTrip(intent: Intent?): JourneyQuery? {
         if (intent?.getBooleanExtra("trip", false) != true) return null
         return JourneyQuery(

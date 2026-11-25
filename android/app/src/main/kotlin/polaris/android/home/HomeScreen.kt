@@ -99,7 +99,10 @@ fun HomeScreen(
     // The map on Home: around where the person last was, once they've allowed location, framed in
     // the part of the map left showing (beside the card when wide). No fix is asked for here.
     val shows by shell.showsLocation.collectAsStateWithLifecycle()
-    val here = remember(shows) { if (shows) graph.locator.last() else null }
+    // The last fix, read off the main thread (the platform's location service is a binder call).
+    val here by androidx.compose.runtime.produceState<polaris.engine.Coordinate?>(null, shows) {
+        value = if (shows) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.locator.last() } else null
+    }
     val content = remember(here) {
         here?.let { MapScene.Content(frame = JourneyMap.Bounds(it.latitude - 0.006, it.longitude - 0.01, it.latitude + 0.006, it.longitude + 0.01)) }
             ?: MapScene.Content()
@@ -113,7 +116,7 @@ fun HomeScreen(
             state = list,
             contentPadding = PaddingValues(
                 start = 16.dp, end = 16.dp, top = 4.dp,
-                bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                bottom = 24.dp, // the sheet already stops its pages above the navigation bar
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

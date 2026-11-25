@@ -333,7 +333,7 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
                     fontSize = (10f * minOf(1f, 1.3f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
                     color = colors.ink.copy(alpha = 0.85f),
                 ),
-                maxLines = 1,
+                // Whole, always (the terms ask for all of it): it wraps rather than being cut.
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

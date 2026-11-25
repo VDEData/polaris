@@ -168,9 +168,10 @@ class DepartureTest {
         now = now.plusSeconds(61)
         store.load(leg)
         assertEquals(2, transport.boards)
-        // Refresh straight after: the floor holds it; 15 s later it goes.
+        // Refresh straight after: the floor holds it (and says for how long); 15 s later it goes.
         store.load(leg, force = true); store.load(leg, force = true)
         assertEquals(2, transport.boards)
+        assertEquals(15, store.boardHeldFor(leg))
         now = now.plusSeconds(15)
         store.load(leg, force = true)
         assertEquals(3, transport.boards)
@@ -201,17 +202,16 @@ class DepartureTest {
         val failing = DepartureStore(DepartureProvider(HTTP(CountingTransport(fail = true), "test")))
         failing.load(northernLeg())
         assertEquals(Loadable.Failed(Loadable.Reason.notAnswering), failing.board(northernLeg()))
-        // A failed load can be tried again without the minute's wait, but not within the floor.
+        // After a failure, Try again goes at once: the floor holds only what loaded.
         val counting = CountingTransport(fail = true)
-        var now = iso("2026-10-31T18:00:00Z")
+        val now = iso("2026-10-31T18:00:00Z")
         val store = DepartureStore(DepartureProvider(HTTP(counting, "test")), clock = { now })
-        store.load(northernLeg()); store.load(northernLeg())
-        assertEquals(1, counting.boards)
-        now = now.plusSeconds(15)
-        store.load(northernLeg())
+        store.load(northernLeg()); store.load(northernLeg(), force = true)
         assertEquals(2, counting.boards)
+        assertEquals(0, store.boardHeldFor(northernLeg()))
         store.loadNearby(Coordinate(51.5308, -0.1238)); store.loadNearby(Coordinate(51.5308, -0.1238), force = true)
-        assertEquals(1, counting.nearby)
+        assertEquals(2, counting.nearby)
+        assertEquals(0, store.nearbyHeldFor())
     }
 
     /** A Refresh while the first load is on its way never sends a second request. */

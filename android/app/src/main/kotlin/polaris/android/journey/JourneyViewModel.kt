@@ -81,7 +81,13 @@ class JourneyViewModel(
         if (_ui.value.refreshing) return
         _ui.value = _ui.value.copy(refreshing = true)
         viewModelScope.launch {
-            try { graph.departures.load(leg, force = true) } finally { _ui.value = _ui.value.copy(refreshing = false) }
+            // Within the floor nothing is sent, and the spinner stays for what's left of it.
+            val held = graph.departures.boardHeldFor(leg)
+            try {
+                if (held > 0) kotlinx.coroutines.delay(held * 1000) else graph.departures.load(leg, force = true)
+            } finally {
+                _ui.value = _ui.value.copy(refreshing = false)
+            }
         }
     }
 

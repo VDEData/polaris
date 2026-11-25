@@ -40,6 +40,8 @@ class AppGraph(
     firstRun: Boolean = false,
     /** Work that must finish even if the screen that started it closes (a key typed just before back). */
     val background: kotlinx.coroutines.CoroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
+    /** The time, for the departures store's minute and floor (a test's own clock). */
+    val clock: () -> java.time.Instant = java.time.Instant::now,
 ) {
     private val setupPending = java.util.concurrent.atomic.AtomicBoolean(firstRun)
 
@@ -54,7 +56,7 @@ class AppGraph(
     fun placeSearch(scope: kotlinx.coroutines.CoroutineScope): PlaceSearch = PlaceSearch(http, scope)
 
     /** Departure boards and what's leaving nearby, each kept a minute, for the whole app. */
-    val departures: polaris.engine.DepartureStore by lazy { polaris.engine.DepartureStore(polaris.engine.DepartureProvider(http)) }
+    val departures: polaris.engine.DepartureStore by lazy { polaris.engine.DepartureStore(polaris.engine.DepartureProvider(http), clock) }
 
     /** The appearance chosen in Settings, which the activity follows at once. */
     val appearance: kotlinx.coroutines.flow.MutableStateFlow<polaris.engine.Appearance> by lazy { kotlinx.coroutines.flow.MutableStateFlow(settings.appearance) }
@@ -66,12 +68,14 @@ class AppGraph(
         fun cached(): AppGraph? = loaded
 
         /** Reads storage off the main thread the first time; later calls return the same graph. */
-        suspend fun load(context: Context, transport: HttpTransport? = null): AppGraph {
+        /** [secrets] replaces the Keystore store: debug checks only (`Variant.secrets`), null in release. */
+        suspend fun load(context: Context, transport: HttpTransport? = null, secrets: polaris.engine.SecretStore? = null): AppGraph {
             // A debug run on recorded answers never decides first-run setup (nor shows it).
             val decidesSetup = transport == null
             loaded?.let { return it }
             val app = context.applicationContext
-            val (settings, usage) = Storage.settings(app)
+            val (stored, usage) = Storage.settings(app)
+            val settings = secrets?.let { polaris.engine.AppSettings(it, Storage.buildDefaults, Storage.preferences(app)) } ?: stored
             val preferences = Storage.preferences(app)
             return withContext(Dispatchers.IO) {
                 AppGraph(

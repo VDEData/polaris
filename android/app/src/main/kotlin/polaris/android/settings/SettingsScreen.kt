@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -114,7 +115,7 @@ fun CoverPage(night: Boolean, content: @Composable androidx.compose.foundation.l
                 // Where the card under it is: the main window's safe inset, not the dialog's own, which can differ.
                 Modifier
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
-                    .padding(start = layout.safeStart + 16.dp, top = 12.dp, bottom = 12.dp)
+                    .padding(start = layout.safeStart + 16.dp, top = if (layout.short) 4.dp else 12.dp, bottom = if (layout.short) 4.dp else 12.dp)
                     .width(layout.cardWidth)
                     .fillMaxHeight()
             } else Modifier.fillMaxSize(),
@@ -193,6 +194,7 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
                             title = provider.displayName,
                             detail = stringResource(
                                 when {
+                                    needsKey && ui.googleUnreadable -> R.string.settings_google_unreadable
                                     needsKey -> R.string.settings_google_needs_key
                                     provider == ProviderID.google -> R.string.settings_source_google
                                     provider == ProviderID.tfl -> R.string.settings_source_tfl
@@ -275,7 +277,8 @@ fun LazyListScope.connectionItems(ui: SettingsViewModel.Ui, model: SettingsViewM
 @Composable
 private fun Caption(purpose: Int, source: Int, showLater: Boolean, extra: String? = null) {
     val c = polaris
-    Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    // The same left edge as the field's helper text and the Remove button: 16 dp.
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(stringResource(purpose), style = MaterialTheme.typography.bodySmall, color = c.ink)
         Text(stringResource(R.string.item_optional, stringResource(source)), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         extra?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft) }
@@ -337,10 +340,10 @@ private fun KeyItem(item: SettingsViewModel.Item, title: Int, purpose: Int, sour
 private fun KeyActions(item: SettingsViewModel.Item, field: SettingsViewModel.Field, text: String, name: String, model: SettingsViewModel, setText: (String) -> Unit) {
     when {
         field.state == SettingsViewModel.KeyState.unreadable && text.isNotBlank() ->
-            TextButton(onClick = { model.replace(item) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.key_replace)) }
+            TextButton(onClick = { model.replace(item) }, modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 16.dp)) { Text(stringResource(R.string.key_replace)) }
         field.state == SettingsViewModel.KeyState.saved && text.isNotEmpty() -> {
             val label = stringResource(R.string.key_remove_label, name)
-            TextButton(onClick = { setText(""); model.remove(item) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = label }) {
+            TextButton(onClick = { setText(""); model.remove(item) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = label }, contentPadding = PaddingValues(horizontal = 16.dp)) {
                 Text(stringResource(R.string.key_remove))
             }
         }
@@ -405,10 +408,11 @@ private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: 
 private fun Badge(provider: ProviderID) {
     Text(
         provider.badge,
+        // Decorative: the row's title already names the source, and TalkBack reads the merged row once.
         Modifier
             .badgeBackground()
             .padding(horizontal = 6.dp, vertical = 1.dp)
-            .semantics { contentDescription = provider.displayName },
+            .clearAndSetSemantics {},
         style = MaterialTheme.typography.labelMedium,
         color = polaris.ink,
         maxLines = 1,
@@ -488,10 +492,13 @@ fun DataCreditsFull(modifier: Modifier = Modifier) {
 data class NoticeBlock(val text: String, val heading: Boolean = false, val bullet: Boolean = false, val preformatted: Boolean = false)
 
 /**
- * The notices file as the app shows it: the passages marked `<!-- repo-only -->` (written for
- * someone reading the repository: paths, "this folder") left out; lines joined into paragraphs
- * and list items; headings apart, with a link's address after its words; fenced licence texts
- * kept line for line; `**` and backticks dropped. One file is kept, so the repository's notices
+ * The notices file as the app shows it: the passages between `<!-- repo-only -->` and
+ * `<!-- /repo-only -->` (written for someone reading the repository: paths, "this folder") left
+ * out, and any other comment left out up to its own `-->`; lines joined into paragraphs and list
+ * items (`- ` and `* `); headings apart; a link shown as its words and its address (once, when
+ * they are the same); `---` rules and `=====` rows taken as breaks; fenced licence texts kept line
+ * for line; `**` and backticks dropped. A repo-only block or fence still open at the end of the
+ * file is an error, never silently dropped text. One file is kept, so the repository's notices
  * and the app's can't drift apart. Plain, so it is tested.
  */
 fun noticeBlocks(lines: List<String>): List<NoticeBlock> {
@@ -499,8 +506,12 @@ fun noticeBlocks(lines: List<String>): List<NoticeBlock> {
     var current: StringBuilder? = null
     var bullet = false
     var repoOnly = false
+    var comment = false
     var fence: StringBuilder? = null
-    fun clean(t: String) = t.replace("**", "").replace("`", "").replace(Regex("""\[([^\]]+)]\(([^)]+)\)"""), "$1 ($2)").trim()
+    val link = Regex("""\[([^\]]+)]\(([^)]+)\)""")
+    fun clean(t: String) = link.replace(t.replace("**", "").replace("`", "")) { m ->
+        if (m.groupValues[1] == m.groupValues[2]) m.groupValues[1] else "${m.groupValues[1]} (${m.groupValues[2]})"
+    }.trim()
     fun flush() {
         current?.let { blocks += NoticeBlock(clean(it.toString()), bullet = bullet) }
         current = null
@@ -511,18 +522,24 @@ fun noticeBlocks(lines: List<String>): List<NoticeBlock> {
         val trimmed = line.trim()
         when {
             fence != null -> if (trimmed.startsWith("```")) { blocks += NoticeBlock(fence.toString().trimEnd(), preformatted = true); fence = null } else fence.append(line).append('\n')
+            comment -> if (trimmed.endsWith("-->")) comment = false
             trimmed == "<!-- repo-only -->" -> { flush(); repoOnly = true }
-            trimmed == "<!-- /repo-only -->" -> repoOnly = false
+            trimmed == "<!-- /repo-only -->" -> { check(repoOnly) { "a /repo-only with no repo-only before it" }; repoOnly = false }
             repoOnly -> Unit
-            trimmed.startsWith("<!--") -> { flush(); if (!trimmed.endsWith("-->")) repoOnly = true }
+            trimmed.startsWith("<!--") -> { flush(); if (!trimmed.endsWith("-->")) comment = true }
             trimmed.startsWith("```") -> { flush(); fence = StringBuilder() }
-            line.isBlank() -> flush()
+            line.isBlank() || Regex("^(-{3,}|={3,})$").matches(trimmed) -> flush()
             line.startsWith("#") -> { flush(); blocks += NoticeBlock(clean(line.trimStart('#', ' ')), heading = true) }
-            trimmed.startsWith("- ") -> { flush(); current = StringBuilder(trimmed.removePrefix("- ")); bullet = true }
+            trimmed.startsWith("- ") || trimmed.startsWith("* ") -> { flush(); current = StringBuilder(trimmed.drop(2)); bullet = true }
             current == null -> current = StringBuilder(trimmed)
+            // An entry's URL and licence each on their own line, as written.
+            trimmed.startsWith("URL:") || trimmed.startsWith("License:") -> current!!.append('\n').append(trimmed)
             else -> current!!.append(' ').append(trimmed)
         }
     }
+    check(!repoOnly) { "a repo-only block is never closed" }
+    check(fence == null) { "a fenced block is never closed" }
+    check(!comment) { "a comment is never closed" }
     flush()
     return blocks
 }
