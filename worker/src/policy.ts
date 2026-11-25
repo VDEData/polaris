@@ -30,6 +30,18 @@ export interface Told {
   gone?: number;
   /** Back soon after it was told ended: told ended again only after a longer quiet. */
   shaky?: boolean;
+  /** Last seen while followed after a time. Kept apart from `live`, so a sighting outside your
+   * times doesn't count as told for the next time. */
+  watched?: number;
+}
+
+/** What else a check knows. */
+export interface Context {
+  /** Places ("line:jubilee") asked of TfL that its answer left out: unknown, so nothing there ends. */
+  unknown?: ReadonlySet<string>;
+  /** TfL reports nothing at all wrong on the alert's lines (and stations, when asked): only then
+   * is it "good service again". Default true. */
+  calm?: boolean;
 }
 
 export interface DeviceState {
@@ -62,6 +74,13 @@ const CLEAR_WITHIN = 3 * 60 * MINUTE;
 /** After your time ends, how long a disruption told is followed to tell you it has ended. */
 export const FOLLOW_FOR = 3 * 60 * MINUTE;
 const PLANNED_MEMORY = 14 * 24 * 60 * MINUTE;
+// Cron runs come a few seconds after their mark: a span is judged to the minute, so a run 3 s
+// late or early lands on the same side of every rule.
+const SLACK = MINUTE;
+/** At least `span` has passed from `from` to `to`. */
+const passed = (from: number, to: number, span: number) => to - from >= span - SLACK;
+/** No more than `span` has passed. */
+const within = (from: number, to: number, span: number) => to - from <= span + SLACK;
 
 /** What a check knows about ways, for an alert whose times go one way or the other. */
 export interface Ways {
@@ -82,7 +101,7 @@ const BOTH: Direction[] = ["out", "back"];
  * been told about (it spread, or you ride a way it wasn't on before); the ways told are what was
  * pushed. One-way trouble told that is now only the other way is remembered, and isn't "good
  * service again" while it lasts, if some time of the alert goes that way. Without `ways`, as before. */
-export function step(previous: AlertState | undefined, issues: Issue[], now: number, ways?: Ways): { state: AlertState; push?: Decision } {
+export function step(previous: AlertState | undefined, issues: Issue[], now: number, ways?: Ways, context: Context = {}): { state: AlertState; push?: Decision } {
   const prev = previous ?? { live: {} };
   const known = remembered(prev, now);
 
@@ -102,8 +121,12 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     if (still.length) said = Object.fromEntries(still.map((i) => [i.signature, { title: i.title }]));
   }
   const fixed = recent(prev.fixed, now);
+  // Back at a place a notice still standing tells, as it was there lately (severe and minor
+  // delays taking turns, a list of stations that changes and changes back): TfL flipping, told already.
+  const flipped = (i: Issue) => !!said && !!known[i.signature] && within(known[i.signature].seen, now, FLAP_GUARD) && Object.keys(said).some((s) => place(s) === place(i.signature));
   // Not in a notice still standing: told ended, or never told.
-  const news = issues.some((i) => !known[i.signature] || rank(i.severity) > rank(known[i.signature].severity) || untold(i.signature) || (!!said && !(i.signature in said)));
+  const fresh = (i: Issue) => !!said && !(i.signature in said) && !flipped(i);
+  const news = issues.some((i) => !known[i.signature] || rank(i.severity) > rank(known[i.signature].severity) || untold(i.signature) || fresh(i));
   const pushing = issues.length > 0 && (news || prev.open === undefined);
 
   const live: AlertState["live"] = {};
@@ -123,9 +146,7 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
       away.add(signature);
     }
   }
-  for (const [signature, entry] of Object.entries(known)) {
-    if (!(signature in live) && now - entry.seen <= FLAP_GUARD) live[signature] = entry;
-  }
+  keep(known, live, said, context, now);
   const extra = { ...(Object.keys(fixed).length ? { fixed } : {}) };
 
   if (pushing) {
@@ -138,7 +159,7 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     }
     for (const [signature, entry] of Object.entries(said ?? {})) {
       if (signature in next || !(signature in known)) continue;
-      if (away.has(signature)) next[signature] = { ...entry, gone: undefined };
+      if (away.has(signature) || context.unknown?.has(place(signature))) next[signature] = { ...entry, gone: away.has(signature) ? undefined : entry.gone };
       else if (!issues.some((i) => place(i.signature) === place(signature))) next[signature] = { ...entry, gone: entry.gone ?? now };
     }
     return { state: { live, open: now, said: tidy(next), ...extra }, push: { kind: "issues", issues } };
@@ -147,15 +168,24 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
   if (prev.open === undefined) return { state: { live, ...extra } };
 
   if (!said) {
-    // State from before `said`, as it was.
-    if (issues.length) return { state: { live, open: prev.open } };
-    if (away.size) return { state: { live, open: prev.open } };
+    // State from before `said`, as it was; a line TfL left out isn't good service.
+    if (issues.length || away.size || context.unknown?.size) return { state: { live, open: prev.open, ...(prev.quietSince !== undefined ? { quietSince: prev.quietSince } : {}) } };
     const quietSince = prev.quietSince ?? now;
-    if (now - quietSince < QUIET_BEFORE_CLEAR) return { state: { live, open: prev.open, quietSince } };
-    return { state: { live }, push: now - prev.open <= CLEAR_WITHIN ? { kind: "clear", ended: [], still: [], all: true } : undefined };
+    if (!passed(quietSince, now, QUIET_BEFORE_CLEAR)) return { state: { live, open: prev.open, quietSince } };
+    return { state: { live }, push: within(prev.open, now, CLEAR_WITHIN) ? { kind: "clear", ended: [], still: [], all: context.calm ?? true } : undefined };
   }
 
-  const result = settle(said, known, live, issues, away, fixed, now, prev.open);
+  // A flip back to words told lately at the same place: the notice standing tells that place,
+  // now in these words, so it ends in them.
+  const current: Record<string, Told> = { ...said };
+  for (const issue of issues) {
+    if (issue.signature in current || !flipped(issue)) continue;
+    const before = Object.entries(current).filter(([s]) => place(s) === place(issue.signature) && !issues.some((i) => i.signature === s));
+    for (const [s] of before) delete current[s];
+    current[issue.signature] = { title: issue.title, ...(before.some(([, t]) => t.shaky) ? { shaky: true } : {}) };
+  }
+
+  const result = settle(current, known, live, issues, away, fixed, now, prev.open, context, false);
   // Followed once after a time for this notice: not again after the next time, or weeks-long
   // station works told once would be followed after every time, every day.
   if (result.state.open !== undefined && prev.following !== undefined) result.state.following = prev.following;
@@ -163,21 +193,27 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
 }
 
 /** After your time ends, while a disruption told is followed: only whether it has ended. New
- * trouble, or worse, isn't told outside your times, nor remembered as told. `complete` is false
- * when station notices weren't asked for (only line trouble was told): then "good service
- * again" isn't claimed. */
-export function follow(previous: AlertState, issues: Issue[], now: number, complete = true): { state: AlertState; push?: Decision } {
+ * trouble, or worse, isn't told outside your times, nor remembered as told, and sightings don't
+ * count as told for your next time (that's `Told.watched`). */
+export function follow(previous: AlertState, issues: Issue[], now: number, context: Context = {}): { state: AlertState; push?: Decision } {
   const known = remembered(previous, now);
   const said = previous.said ?? {};
   const live: AlertState["live"] = {};
-  for (const [signature, entry] of Object.entries(known)) {
-    if (stillThere(signature, said, issues)) live[signature] = { ...entry, seen: now };
-    else if (now - entry.seen <= FLAP_GUARD) live[signature] = entry;
-  }
-  const result = settle(said, known, live, issues, new Set(), recent(previous.fixed, now), now, previous.open);
+  keep(known, live, said, context, now);
+  const result = settle(said, known, live, issues, new Set(), recent(previous.fixed, now), now, previous.open, context, true);
   if (result.state.open !== undefined) result.state.following = previous.following ?? now;
-  if (result.push?.kind === "clear" && !complete) result.push.all = false;
   return result;
+}
+
+/** The alert was changed so it no longer covers some of what was told (a line taken off, minor
+ * delays turned off): those are settled quietly, not told ended. */
+export function forget(state: AlertState | undefined, covers: (signature: string, severity?: Severity) => boolean): AlertState | undefined {
+  if (!state?.said) return state;
+  const said = Object.fromEntries(Object.entries(state.said).filter(([s]) => covers(s, state.live[s]?.severity)));
+  if (Object.keys(said).length === Object.keys(state.said).length) return state;
+  if (Object.keys(said).length) return { ...state, said };
+  const { open: _open, following: _following, ...rest } = state;
+  return { ...rest, said };
 }
 
 /** Whether to keep checking an alert outside its times: something told is open and hasn't been
@@ -185,26 +221,40 @@ export function follow(previous: AlertState, issues: Issue[], now: number, compl
  * Once per notice: following isn't begun again after a later time until a new notice. */
 export function following(state: AlertState | undefined, now: number): boolean {
   if (!state?.said || state.open === undefined || !Object.keys(state.said).length) return false;
-  if (state.following !== undefined) return now - state.following <= FOLLOW_FOR;
+  if (state.following !== undefined) return within(state.following, now, FOLLOW_FOR);
   const seen = Math.max(...Object.keys(state.said).map((s) => state.live[s]?.seen ?? 0));
-  return now - seen <= FLAP_GUARD;
+  return within(seen, now, FLAP_GUARD);
+}
+
+/** Remembered, though not seen now: for a while (TfL flickers), and for as long as it is told
+ * and not yet settled. */
+function keep(known: AlertState["live"], live: AlertState["live"], said: Record<string, Told> | undefined, context: Context, now: number) {
+  for (const [signature, entry] of Object.entries(known)) {
+    if (signature in live) continue;
+    if (within(entry.seen, now, FLAP_GUARD) || (said && signature in said) || context.unknown?.has(place(signature))) live[signature] = entry;
+  }
 }
 
 /** What has ended of what was told, and the notice for it. */
-function settle(said: Record<string, Told>, known: AlertState["live"], live: AlertState["live"], issues: Issue[], away: Set<string>, fixed: Record<string, number>, now: number, open: number | undefined): { state: AlertState; push?: Decision } {
+function settle(said: Record<string, Told>, known: AlertState["live"], live: AlertState["live"], issues: Issue[], away: Set<string>, fixed: Record<string, number>, now: number, open: number | undefined, context: Context, watching: boolean): { state: AlertState; push?: Decision } {
   const left: Record<string, Told> = {};
   const ended: string[] = [];
   for (const [signature, entry] of Object.entries(said)) {
-    if (away.has(signature) || stillThere(signature, said, issues)) {
-      left[signature] = { ...entry, gone: undefined };
+    // TfL's answer left its line out: as it was.
+    if (context.unknown?.has(place(signature))) {
+      left[signature] = entry;
       continue;
     }
-    const seen = known[signature]?.seen;
+    if (away.has(signature) || stillThere(signature, said, issues)) {
+      left[signature] = watching ? { ...entry, gone: undefined, watched: now } : { ...entry, gone: undefined, watched: undefined };
+      continue;
+    }
+    const seen = Math.max(known[signature]?.seen ?? -Infinity, entry.watched ?? -Infinity);
     const gone = entry.gone ?? now;
     // Not watched as it ended (last seen long before it was found gone: overnight, or after
     // following stopped): settled without a notice. Yesterday's delays needn't be undone at breakfast.
-    if (seen === undefined || gone - seen > FLAP_GUARD) continue;
-    if (now - gone >= (entry.shaky ? FLAP_GUARD : QUIET_BEFORE_CLEAR)) {
+    if (!Number.isFinite(seen) || !within(seen, gone, FLAP_GUARD)) continue;
+    if (passed(gone, now, entry.shaky ? FLAP_GUARD : QUIET_BEFORE_CLEAR)) {
       ended.push(entry.title);
       fixed[signature] = now;
       continue;
@@ -216,7 +266,8 @@ function settle(said: Record<string, Told>, known: AlertState["live"], live: Ale
   const state: AlertState = Object.keys(rest).length ? { live, open, said: rest } : { live };
   if (Object.keys(fixed).length) state.fixed = fixed;
   if (!ended.length) return { state };
-  return { state, push: { kind: "clear", ended, still, all: !issues.length && !away.size && !Object.keys(rest).length } };
+  const all = !issues.length && !away.size && !Object.keys(rest).length && !context.unknown?.size && (context.calm ?? true);
+  return { state, push: { kind: "clear", ended, still, all } };
 }
 
 /** Told and still there: itself, or (for trouble that changed its words without a notice, as
@@ -226,19 +277,19 @@ function stillThere(signature: string, said: Record<string, Told>, issues: Issue
 }
 
 /** "line:jubilee" or "stop:940GZZLUCYF": where a disruption is, whatever it is. */
-const place = (signature: string) => signature.split(":").slice(0, 2).join(":");
+export const place = (signature: string) => signature.split(":").slice(0, 2).join(":");
 
 function remembered(prev: AlertState, now: number): AlertState["live"] {
   const known: AlertState["live"] = {};
   for (const [signature, entry] of Object.entries(prev.live ?? {})) {
     const memory = signature.startsWith("stop:") ? STATION_MEMORY : LINE_MEMORY;
-    if (now - entry.seen <= memory) known[signature] = entry;
+    if (within(entry.seen, now, memory)) known[signature] = entry;
   }
   return known;
 }
 
 function recent(fixed: Record<string, number> | undefined, now: number): Record<string, number> {
-  return Object.fromEntries(Object.entries(fixed ?? {}).filter(([, at]) => now - at <= FLAP_GUARD));
+  return Object.fromEntries(Object.entries(fixed ?? {}).filter(([, at]) => within(at, now, FLAP_GUARD)));
 }
 
 /** Without empty keys, so the stored state stays small. */

@@ -47,6 +47,12 @@ test("what ended is said in the words it was told, and what goes on too", () => 
   assert.deepEqual(say("Canary Wharf closed (Elizabeth line)"), { ended: "Canary Wharf has reopened (Elizabeth line).", still: "Canary Wharf is still closed (Elizabeth line)." });
   assert.deepEqual(say("Canary Wharf part closed (Elizabeth line)"), { ended: "Canary Wharf is no longer part closed (Elizabeth line).", still: "Canary Wharf is still part closed (Elizabeth line)." });
   assert.deepEqual(say("Something else"), { ended: "Ended: Something else.", still: "Still on: Something else." });
+  assert.deepEqual(say("Elizabeth line: bus service"), { ended: "The replacement bus service on the Elizabeth line has ended; trains are running again.", still: "Replacement buses are still running on the Elizabeth line." });
+  // Two told with the same words, one ended.
+  const same = clearPush(two, { kind: "clear", ended: ["Elizabeth line: part suspended"], still: ["Elizabeth line: part suspended"], all: false }, now);
+  assert.equal((same.payload as any).aps.alert.body, "One of the part suspensions on the Elizabeth line has ended. One continues.");
+  const delays = clearPush(two, { kind: "clear", ended: ["Elizabeth line: minor delays"], still: ["Elizabeth line: minor delays", "Elizabeth line: minor delays"], all: false }, now);
+  assert.equal((delays.payload as any).aps.alert.body, "Minor delays on part of the Elizabeth line have cleared. They continue elsewhere on the line.");
   const partial = clearPush(two, { kind: "clear", ended: ["Elizabeth line: severe delays"], still: ["Southeastern: minor delays"], all: false }, now);
   assert.equal((partial.payload as any).aps.alert.body, "Severe delays on the Elizabeth line have cleared. Minor delays on Southeastern continue.");
 });

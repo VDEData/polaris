@@ -16,6 +16,9 @@ const BUCKETS: Record<number, Bucket> = {
   9: "minor", 14: "minor", // minor delays, change of frequency
 };
 
+/** Whether TfL reports anything wrong on these lines, anywhere on them. */
+export const troubled = (lineIds: string[], lines: LineStatus[]) => lines.some((s) => lineIds.includes(s.lineId) && !!BUCKETS[s.severity]);
+
 export const rank = (s: Severity) => ({ minor: 1, delays: 2, closed: 3 })[s];
 
 export interface When {

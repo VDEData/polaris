@@ -4,8 +4,8 @@
 
 import { canPush, send, type ApnsEnv } from "./apns.ts";
 import { loadLineMaps } from "./linemap.ts";
-import { issuesFor, issuesInRanges, linesToPlace, type LineMaps } from "./match.ts";
-import { follow, following, MAX_RETRIES, plannedStep, step, type DeviceState, type Ways } from "./policy.ts";
+import { issuesFor, issuesInRanges, linesToPlace, troubled, type LineMaps } from "./match.ts";
+import { follow, following, forget, MAX_RETRIES, plannedStep, step, type AlertState, type Context, type DeviceState, type Ways } from "./policy.ts";
 import { clearPush, issuesPush, plannedPush, type Push } from "./push.ts";
 import { activeWindows, dateKey, during, eachWay, localTime, PLANNED_CHECK_AT, travelRanges } from "./schedule.ts";
 import { fetchTfL, lineStatusURL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL, type LineStatus, type StationDisruption } from "./tfl.ts";
@@ -104,7 +104,14 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
     /** Sends one push and keeps what it decided only once it's done with: sent, or refused for
      * good (logged loudly), or failed for a passing reason too often. A passing failure keeps the
      * previous state for that alert alone, so only that push is tried again next run. */
+    // Retries owed, by what they are for: an alert's disruption notice (its id), its ended
+    // notice (id and ":ended"), or planned works. One no longer decided is no longer owed.
+    const attempted = new Set<string>();
+    const settled = (id: string) => {
+      for (const key of [id, `${id}:ended`]) if (!attempted.has(key)) delete retries[key];
+    };
     const deliver = async (key: string, push: Push, commit: () => void): Promise<boolean> => {
+      attempted.add(key);
       const outcome = await attempt(env, device.token, device.environment, push, now);
       if (outcome === "gone") {
         gone = true;
@@ -125,18 +132,21 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
       for (const { alert, base } of active) {
         if (gone) break;
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
-        const result = step(state.alerts[alert.id], issues, now, waysFor(alert, base, lines, stations, now, maps));
+        const result = step(covered(state.alerts[alert.id], base), issues, now, waysFor(alert, base, lines, stations, now, maps), context(base, lineIds, lines, true));
         const commit = () => void (state.alerts[alert.id] = result.state);
         if (result.push?.kind === "issues") await deliver(alert.id, issuesPush(alert, result.push.issues, now), commit);
-        else if (result.push?.kind === "clear") await deliver(alert.id, clearPush(alert, result.push, now), commit);
+        else if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
         else commit();
+        settled(alert.id);
       }
       for (const alert of followedHere) {
         if (gone) break;
-        const result = follow(state.alerts[alert.id], issuesFor(alert, lines, stations, { at: now }, maps), now, followedStops.includes(alert));
+        const issues = issuesFor(alert, lines, stations, { at: now }, maps);
+        const result = follow(covered(state.alerts[alert.id], alert)!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
         const commit = () => void (state.alerts[alert.id] = result.state);
-        if (result.push?.kind === "clear") await deliver(alert.id, clearPush(alert, result.push, now), commit);
+        if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
         else commit();
+        settled(alert.id);
       }
       if (planned && !gone) {
         let allDone = true;
@@ -174,6 +184,27 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
     }
   }
   return { devices: devices.length, checked: live.length + followed.length, sent };
+}
+
+/** What a check knows besides the alert's trouble: lines asked of TfL that its answer left out
+ * (unknown, so nothing on them ends), and whether all is well on the alert's lines ("good
+ * service again" only then, and only if station notices were asked for too). */
+function context(alert: Alert, asked: string[], lines: LineStatus[], stationsAsked: boolean): Context {
+  const ids = alert.segments.map((s) => s.line.id);
+  const unknown = new Set(ids.filter((id) => asked.includes(id) && !lines.some((l) => l.lineId === id)).map((id) => `line:${id}`));
+  return { unknown, calm: stationsAsked && !troubled(ids, lines) };
+}
+
+/** Told trouble the alert no longer covers (a line taken off it, minor delays turned off) is
+ * settled quietly. */
+function covered(state: AlertState | undefined, alert: Alert): AlertState | undefined {
+  const lineIds = new Set(alert.segments.map((s) => s.line.id));
+  const stops = new Set(alert.segments.flatMap((s) => [...s.stations, s.from?.id ?? "", s.to?.id ?? ""].flatMap((id) => id.split("|"))));
+  return forget(state, (signature, severity) => {
+    if (severity === "minor" && !alert.minorDelays) return false;
+    const [kind, id] = signature.split(":");
+    return kind === "line" ? lineIds.has(id) : kind === "stop" ? stops.has(id) : true;
+  });
 }
 
 /** For an alert with any time going one way: the way ridden now, which ways each disruption on

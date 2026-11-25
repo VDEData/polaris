@@ -7,7 +7,7 @@ import { canPush, send } from "./apns.ts";
 import { emptyState, runChecks, type Env } from "./checks.ts";
 import { loadLineMaps } from "./linemap.ts";
 import { issuesFor, issuesInRanges, linesToPlace } from "./match.ts";
-import { issuesPush, lineList } from "./push.ts";
+import { collapse, issuesPush, lineList } from "./push.ts";
 import { activeWindows, during, eachWay, travelRanges } from "./schedule.ts";
 import { fetchTfL, lineStatusURL, useLocalTfL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL } from "./tfl.ts";
 import type { Alert, Issue } from "./types.ts";
@@ -102,7 +102,7 @@ app.post("/v1/devices/:token/test", async (c) => {
     { signature: "test", severity: "delays", line: "", title: "Test: alerts are on", detail: `Good service on ${lineList(alert)} now. A closure or delay will come through like this.` },
   ];
   if (!canPush(c.env)) return c.json({ error: "The alert server has no push key yet, so it can't send notifications." }, 503);
-  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: `${alert.id}-test` }, now);
+  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: collapse(alert.id, "-test") }, now);
   return c.json(result, result.status === 200 ? 200 : 502);
 });
 
@@ -156,8 +156,9 @@ async function same(a: string, b: string): Promise<boolean> {
 
 export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) => (useLocalTfL(env.TFL_BASE), app.fetch(request, env, ctx)),
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
     useLocalTfL(env.TFL_BASE);
-    ctx.waitUntil(runChecks(env).then((r) => r.checked && console.log("checked", JSON.stringify(r))));
+    // The run's own mark, not when it happened to start: the rules count in two-minute steps.
+    ctx.waitUntil(runChecks(env, event.scheduledTime).then((r) => r.checked && console.log("checked", JSON.stringify(r))));
   },
 } satisfies ExportedHandler<Env>;
