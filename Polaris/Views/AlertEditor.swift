@@ -39,6 +39,7 @@ struct AlertEditor: View {
                 }
                 .onDelete { alert.segments.remove(atOffsets: $0) }
                 Button("Add a line", systemImage: "plus") { addingLine = true }
+                    .formButton()
             } header: {
                 Text("Lines")
             } footer: {
@@ -52,7 +53,10 @@ struct AlertEditor: View {
                     }
                 }
                 Picker("Days", selection: daysChoice) {
-                    ForEach(Days.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach([Days.weekdays, .everyDay, .weekends]) { Text($0.rawValue).tag($0) }
+                    // Custom opens the days below: set apart from the ready-made sets.
+                    Divider()
+                    Text(Days.custom.rawValue).tag(Days.custom)
                 }
                 if daysChoice.wrappedValue == .custom {
                     ForEach([1, 2, 3, 4, 5, 6, 7], id: \.self) { day in
@@ -66,6 +70,8 @@ struct AlertEditor: View {
                                 if alert.days.contains(day) { Image(systemName: "checkmark").foregroundStyle(Theme.tint) }
                             }
                         }
+                        // The checkmark is drawn, so VoiceOver is told which days are on.
+                        .accessibilityAddTraits(alert.days.contains(day) ? .isSelected : [])
                     }
                 }
                 // By position, so editing a time doesn't remake its row mid-edit.
@@ -110,6 +116,7 @@ struct AlertEditor: View {
                     let last = alert.windows.last?.end ?? 8 * 60
                     alert.windows.append(RouteAlert.TimeWindow(start: min(last + 60, 22 * 60), end: min(last + 180, 23 * 60 + 45)))
                 }
+                .formButton()
             } header: {
                 Text("When you travel")
             } footer: {
@@ -140,6 +147,7 @@ struct AlertEditor: View {
                         store.delete(alert.id)
                         dismiss(or: isNew ? paneClose : nil)
                     }
+                    .formButton(destructive: true)
                 }
             }
         }
@@ -150,10 +158,10 @@ struct AlertEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if isNew {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss(or: isNew ? paneClose : nil) } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark", role: .cancel) { dismiss(or: isNew ? paneClose : nil) } }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save", systemImage: "checkmark") {
+                Button("Save", systemImage: "checkmark", role: .confirm) {
                     store.save(alert)
                     dismiss(or: isNew ? paneClose : nil)
                 }
@@ -300,7 +308,7 @@ struct LinePicker: View {
             .keepsSheetWhenUnfolded(!search.isEmpty)
             .navigationTitle("Choose a line")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss(or: paneClose) } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark", role: .cancel) { dismiss(or: paneClose) } } }
             .task { await load() }
         }
     }
@@ -332,6 +340,7 @@ struct StationPicker: View {
                         } label: {
                             Label("The whole line", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                         }
+                        .formButton()
                     } footer: {
                         Text("Or choose where you get on.")
                     }
@@ -374,6 +383,7 @@ private struct LoadProblem: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(text).foregroundStyle(.secondary)
             Button("Try again") { Task { await retry() } }
+                .formButton()
         }
     }
 }

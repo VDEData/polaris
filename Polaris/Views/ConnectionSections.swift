@@ -207,11 +207,13 @@ struct AlertServerSection: View {
                         if draft.working { Spacer(); ProgressView() }
                     }
                 }
+                .formButton()
                 .disabled(draft.working)
             } else if !store.enteredURL.isEmpty {
                 Button(AlertStore.hasBuiltInServer ? "Use the built-in server" : "Remove this server", role: .destructive) {
                     Task { await draft.apply(to: store, url: "", token: "") }
                 }
+                .formButton(destructive: true)
                 .disabled(draft.working)
             }
         } footer: {

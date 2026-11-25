@@ -16,7 +16,7 @@ struct AlertsView: View {
 
     var body: some View {
         if isSheet {
-            NavigationStack { content.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", systemImage: "checkmark") { dismiss(or: paneClose) } } } }
+            NavigationStack { content.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", systemImage: "checkmark", role: .confirm) { dismiss(or: paneClose) } } } }
         } else {
             content
         }
@@ -62,6 +62,7 @@ struct AlertsView: View {
 
             Section {
                 Button("Add a line", systemImage: "plus") { editing = RouteAlert() }
+                    .formButton()
                     .disabled(!store.isConfigured)
                     // Drawn off plainly: in a pane the disabled style alone can read as live.
                     .opacity(store.isConfigured ? 1 : 0.45)
@@ -109,6 +110,7 @@ struct AlertsView: View {
                     Button("Turn on Time Sensitive notifications") {
                         openURL(URL(string: UIApplication.openNotificationSettingsURLString)!)
                     }
+                    .formButton()
                 }
                 Button {
                     testing = true
@@ -122,9 +124,11 @@ struct AlertsView: View {
                         if testing { Spacer(); ProgressView() }
                     }
                 }
+                .formButton()
                 .disabled(testing)
             default:
                 Button("Allow notifications", systemImage: "bell") { Task { await store.enablePush() } }
+                    .formButton()
             }
         } header: {
             Text("Notifications")

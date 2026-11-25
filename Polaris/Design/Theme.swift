@@ -69,6 +69,13 @@ extension Color {
 }
 
 extension View {
+    /// The sheet sets ink as its text colour, which also overrides the colour the system gives a
+    /// button in a form. This puts the system's back: the accent for an action, red for a
+    /// destructive one.
+    func formButton(destructive: Bool = false) -> some View {
+        foregroundStyle(destructive ? AnyShapeStyle(Color.red) : AnyShapeStyle(.tint))
+    }
+
     /// A grouped surface: white on the paper with a hairline edge. Only around
     /// a group of rows or one distinct object, never nested.
     func surface(highlighted: Bool = false) -> some View {

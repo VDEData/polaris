@@ -233,7 +233,7 @@ struct BoardPanel: View {
                 .toolbarBackgroundVisibility(.visible, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Close", systemImage: "xmark") { paneClose?.run() }
+                        Button("Close", systemImage: "xmark", role: .close) { paneClose?.run() }
                     }
                 }
         }

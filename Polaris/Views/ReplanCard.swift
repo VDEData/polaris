@@ -32,7 +32,9 @@ struct ReplanCard: View {
                     .labelStyle(.iconOnly)
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 44, height: 44)
-                    .foregroundStyle(.secondary)
+                    .contentShape(.rect)
+                    .buttonStyle(.borderless)
+                    .tint(.secondary)
                 Button(action: onSwitch) {
                     Text("Switch").font(.subheadline.weight(.semibold)).padding(.horizontal, 6).frame(minHeight: 32)
                         .foregroundStyle(scheme == .dark ? Theme.navy : .white)

@@ -244,30 +244,65 @@ struct ResultsSheet: View {
     }
 
     private var controls: some View {
-        @Bindable var settings = settings
-        return HStack(spacing: 8) {
-            Menu {
-                Button("Leave now", systemImage: "clock") { query.time = .leaveNow }
-                Button("Depart at…", systemImage: "arrow.right.circle") { pickTime(.depart) }
-                Button("Arrive by…", systemImage: "flag.checkered") { pickTime(.arrive) }
-            } label: {
-                controlLabel(timeLabel, systemImage: "clock")
+        // In a row while the labels fit whole; stacked at the largest text sizes, where a row
+        // cut each one to its first letter.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                timeMenu
+                sortMenu
+                Spacer(minLength: 0)
+                filtersButton
             }
-            Menu {
-                Picker("Sort", selection: $settings.sortOrder) {
-                    ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
-                }
-            } label: {
-                controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down")
-            }
-            Spacer(minLength: 0)
-            let active = settings.routeFilter.activeCount
-            Button { showFilters = true } label: {
-                controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease")
+            VStack(alignment: .leading, spacing: 8) {
+                timeMenu
+                sortMenu
+                filtersButton
             }
         }
         .buttonStyle(.bordered)
         .tint(Theme.tint)
+    }
+
+    /// The current choice carries the menu's checkmark. Toggles rather than a picker, so
+    /// choosing Depart at or Arrive by again still opens the time to change it.
+    private var timeMenu: some View {
+        Menu {
+            Toggle("Leave now", systemImage: "clock", isOn: Binding {
+                query.time == .leaveNow
+            } set: { _ in
+                query.time = .leaveNow
+            })
+            Toggle("Depart at…", systemImage: "arrow.right.circle", isOn: Binding {
+                if case .departAt = query.time { true } else { false }
+            } set: { _ in
+                pickTime(.depart)
+            })
+            Toggle("Arrive by…", systemImage: "flag.checkered", isOn: Binding {
+                query.time.isArriveBy
+            } set: { _ in
+                pickTime(.arrive)
+            })
+        } label: {
+            controlLabel(timeLabel, systemImage: "clock")
+        }
+    }
+
+    private var sortMenu: some View {
+        @Bindable var settings = settings
+        return Menu {
+            Picker("Sort", selection: $settings.sortOrder) {
+                ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
+            }
+        } label: {
+            controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down")
+        }
+    }
+
+    private var filtersButton: some View {
+        let active = settings.routeFilter.activeCount
+        return Button { showFilters = true } label: {
+            controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease")
+        }
     }
 
     private func pickTime(_ kind: TimeKind) {
@@ -421,11 +456,11 @@ struct ResultsSheet: View {
                     Image(systemName: "chevron.down").rotationEffect(.degrees(showMore ? 180 : 0))
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.tint)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
+            .tint(Theme.tint)
             if showMore { routeGroup(more, reference: reference, leadFirst: false) }
         }
     }
@@ -688,9 +723,9 @@ private struct TimePickerSheet: View {
                 .navigationTitle(kind == .depart ? "Depart at" : "Arrive by")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel", role: .cancel) { dismiss(or: paneClose) } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark", role: .cancel) { dismiss(or: paneClose) } }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done", systemImage: "checkmark") {
+                        Button("Done", systemImage: "checkmark", role: .confirm) {
                             onDone(date)
                             dismiss(or: paneClose)
                         }
