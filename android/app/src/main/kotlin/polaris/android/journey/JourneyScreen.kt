@@ -155,6 +155,19 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
     val title = journey?.let { stringResource(R.string.journey_title, Clock.of(it.departure), Clock.of(it.arrival), durationText(it.duration)) } ?: ""
     SheetPage(key, bar = { TopRow(title, null, journey, query, onBack) }) {
         val list = rememberLazyListState()
+        // After Android stopped the app the list comes back before its route does (read from the
+        // archive), so the saved place would be clamped to the top: keep it, and go there once
+        // the route is in.
+        var savedPlace by rememberSaveable { mutableStateOf<List<Int>?>(null) }
+        val loaded by androidx.compose.runtime.rememberUpdatedState(journey != null)
+        androidx.compose.runtime.LaunchedEffect(list) {
+            androidx.compose.runtime.snapshotFlow { listOf(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
+                .collect { if (loaded) savedPlace = it }
+        }
+        androidx.compose.runtime.LaunchedEffect(journey != null) {
+            val place = savedPlace
+            if (journey != null && place != null && list.firstVisibleItemIndex == 0 && place[0] > 0) list.scrollToItem(place[0], place[1])
+        }
         LazyColumn(
             Modifier.fillMaxSize(),
             state = list,

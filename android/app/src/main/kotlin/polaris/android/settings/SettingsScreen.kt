@@ -394,7 +394,9 @@ private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (leading != null) Box(Modifier.width(40.dp), contentAlignment = Alignment.Center) { leading() }
+        // One column for every badge, growing with the text size so "TfL" is never cut.
+        val badgeColumn = 40.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+        if (leading != null) Box(Modifier.width(badgeColumn), contentAlignment = Alignment.Center) { leading() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) c.ink else c.inkSoft)
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
