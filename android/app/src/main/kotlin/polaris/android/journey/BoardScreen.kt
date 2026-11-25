@@ -131,16 +131,9 @@ fun BoardContent(
             list.scrollToItem(HEADER_ITEMS + (board?.alerts?.size ?: 0) + maxOf(0, plannedIndex - 2))
         }
     }
-    LazyColumn(
-        modifier.fillMaxWidth().then(if (narrow) Modifier else Modifier.fillMaxSize()),
-        state = list,
-        contentPadding = PaddingValues(
-            start = 16.dp, end = 16.dp,
-            bottom = 16.dp + (if (narrow) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-        ),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        item(key = "bar") {
+    Column(modifier.fillMaxWidth().then(if (narrow) Modifier else Modifier.fillMaxSize())) {
+    // The stop, its line, Refresh and Close stay put while the rows scroll (scrolled to yours).
+    Column(Modifier.padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = if (narrow) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (back != null) IconButton(onClick = back, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.journey_back_to_routes)) }
                 Text(
@@ -152,8 +145,6 @@ fun BoardContent(
                 else IconButton(onClick = refresh) { Symbol(R.drawable.sym_refresh, stringResource(R.string.board_refresh), tint = c.tint) }
                 if (close != null) IconButton(onClick = close) { Symbol(R.drawable.sym_close, stringResource(R.string.board_close), tint = c.inkSoft) }
             }
-        }
-        item(key = "line") {
             androidx.compose.foundation.layout.FlowRow(
                 Modifier.padding(start = 4.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -162,7 +153,16 @@ fun BoardContent(
                 LinePill(leg)
                 Text(stringResource(R.string.board_and_else, leg.toName), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
             }
-        }
+    }
+    LazyColumn(
+        Modifier.fillMaxWidth().weight(1f, fill = !narrow),
+        state = list,
+        contentPadding = PaddingValues(
+            start = 16.dp, end = 16.dp,
+            bottom = 16.dp + (if (narrow) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+        ),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         when {
             board != null -> {
                 board.alerts.forEachIndexed { i, alert -> item(key = "alert-$i") { Column(Modifier.padding(horizontal = 4.dp)) { AlertLine(alert) } } }
@@ -183,9 +183,10 @@ fun BoardContent(
             }
         }
     }
+    }
 }
 
-private const val HEADER_ITEMS = 2
+private const val HEADER_ITEMS = 0
 
 private fun LazyListScope.rows(board: DepartureBoard, now: java.time.Instant, destination: String, narrow: Boolean) {
     itemsIndexed(board.departures, key = { _, d -> d.id }) { index, d ->
