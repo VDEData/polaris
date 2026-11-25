@@ -103,4 +103,10 @@ fun spokenList(items: List<String>, joiner: String, separator: String = ", "): S
     else -> items.dropLast(1).joinToString(separator) + " $joiner " + items.last()
 }
 
+/**
+ * Between the parts of a detail line ("12:09 · platform 2 · 1 change"): no-break spaces on both
+ * sides, so a line never starts or ends with the dot; lines break only at spaces inside the parts.
+ */
+const val SEPARATOR = "\u00A0·\u00A0"
+
 fun RGB.toColor() = androidx.compose.ui.graphics.Color(r.toFloat(), g.toFloat(), b.toFloat())

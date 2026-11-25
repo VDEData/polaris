@@ -2,7 +2,7 @@
 <!-- The journey page, its departure strips, the board page and what's leaving near you. iOS's words where it has them. -->
 <resources>
     <!-- Header -->
-    <string name="journey_title">%1$s – %2$s · %3$s</string>
+    <string name="journey_title">%1$s – %2$s\u00A0·\u00A0%3$s</string>
     <string name="journey_direct">Direct</string>
     <string name="journey_duration_minutes">%s\u00A0min</string>
     <string name="journey_duration_hours">%1$s h %2$s</string>
@@ -11,8 +11,8 @@
         <item quantity="other">%s changes</item>
     </plurals>
     <string name="journey_walk_minutes">%s\u00A0min walk</string>
-    <string name="journey_summary">%1$s · %2$s</string>
-    <string name="journey_summary_fare">%1$s · %2$s · %3$s</string>
+    <string name="journey_summary">%1$s\u00A0·\u00A0%2$s</string>
+    <string name="journey_summary_fare">%1$s\u00A0·\u00A0%2$s\u00A0·\u00A0%3$s</string>
     <string name="journey_leave_at">Leave at %s</string>
     <string name="journey_leave_in">Leave in %s min</string>
     <string name="journey_leave_now">Leave now</string>
@@ -34,7 +34,7 @@
     <!-- Itinerary -->
     <string name="journey_start">Start</string>
     <string name="journey_walk">Walk %s</string>
-    <string name="journey_walk_distance">Walk %1$s · %2$s</string>
+    <string name="journey_walk_distance">Walk %1$s\u00A0·\u00A0%2$s</string>
     <string name="journey_metres">%s m</string>
     <string name="journey_kilometres">%s km</string>
     <string name="journey_directions">Directions</string>
@@ -44,7 +44,7 @@
         <item quantity="one">%s stop</item>
         <item quantity="other">%s stops</item>
     </plurals>
-    <string name="journey_stops_duration">%1$s · %2$s</string>
+    <string name="journey_stops_duration">%1$s\u00A0·\u00A0%2$s</string>
     <string name="journey_show_stops">Show the stops</string>
     <string name="journey_hide_stops">Hide the stops</string>
     <string name="journey_show_on_map">Show this part on the map</string>
@@ -106,16 +106,17 @@
     <string name="nearby_no_fix">Couldn\'t find where you are, so nothing near you could be looked up.</string>
     <string name="nearby_try_again">Try again</string>
     <string name="nearby_all_gone">Everything listed here has left. Refresh for what\'s leaving now.</string>
-    <string name="nearby_distance_after">" · %s\u00A0m"</string>
+    <string name="nearby_dot">·</string>
+    <string name="nearby_metres">%s\u00A0m</string>
     <string name="nearby_show_more">Show %s more</string>
     <string name="nearby_show_fewer">Show fewer</string>
     <string name="nearby_to">to %s</string>
-    <string name="nearby_stop_distance">%1$s\u00A0· %2$s\u00A0m</string>
+    <string name="nearby_stop_distance">%1$s\u00A0·\u00A0%2$s\u00A0m</string>
     <string name="nearby_now">Now</string>
     <string name="nearby_minutes_suffix">%s\u00A0min</string>
     <string name="nearby_open">Shows the next departures</string>
     <string name="line_leaving">Leaving</string>
-    <string name="line_stop_away">%1$s · %2$s m away</string>
+    <string name="line_stop_away">%1$s\u00A0·\u00A0%2$s m away</string>
     <string name="line_gone">These times weren\'t kept</string>
     <string name="line_gone_body">Android closed Polaris while it was in the background. Refresh to see what\'s leaving now.</string>
     <string name="line_all_gone">These have all left. Refresh for what\'s leaving now.</string>

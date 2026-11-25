@@ -37,7 +37,7 @@ class SettingsViewModel(
     private val handle: SavedStateHandle,
     private val graph: AppGraph,
     private val io: CoroutineDispatcher = Dispatchers.IO,
-    /** Where saves run: the app's, so one typed just before leaving still lands. */
+    /** Where saves run, on its own dispatcher (the app's IO scope): one typed just before leaving still lands. */
     private val saves: kotlinx.coroutines.CoroutineScope = graph.background,
 ) : ViewModel() {
     enum class Item(val account: String) { google(AppSettings.GOOGLE), tfl(AppSettings.TFL), contact(AppSettings.CONTACT) }
@@ -147,7 +147,7 @@ class SettingsViewModel(
     /** Ordered: each write waits for the one before, under the same lock as keys. */
     private val order = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     init {
-        saves.launch(io) { for (job in order) writes.withLock { job() } }
+        saves.launch { for (job in order) writes.withLock { job() } }
     }
     private fun write(job: suspend () -> Unit) {
         val done = kotlinx.coroutines.CompletableDeferred<Unit>()
@@ -165,7 +165,9 @@ class SettingsViewModel(
      */
     fun type(item: Item, text: String) {
         if (_ui.value.field(item).state == KeyState.unreadable && item !in replacing) {
-            if (item == Item.contact) handle[item.name] = text
+            // A draft over an unreadable value is never put in the saved state: brought back after
+            // Android stopped the app it would be taken for typed text and saved without Replace.
+            if (item == Item.contact) handle.remove<String>(item.name)
             _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
             return
         }
@@ -193,7 +195,7 @@ class SettingsViewModel(
         // Atomic: a save landing on the IO thread mid-keystroke changes only the state, never the text.
         _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(text = text))) }
         pending[item] = text
-        val job = saves.launch(io) {
+        val job = saves.launch {
             writes.withLock {
                 val latest = pending.remove(item)?.trim() ?: return@withLock
                 val result = when (item) {
@@ -206,8 +208,17 @@ class SettingsViewModel(
                     AppSettings.Save.notSaved -> KeyState.notSaved
                     AppSettings.Save.keptUnreadable -> KeyState.unreadable
                 }
-                val usable = if (item == Item.google) googleUsable() else null
-                _ui.update { ui -> ui.copy(fields = ui.fields + (item to ui.field(item).copy(state = state)), googleUsable = usable ?: ui.googleUsable) }
+                // A replace is over once its write lands, or is refused (the field is unreadable
+                // again and the next keystroke only drafts, until Replace is tapped again).
+                if (result != AppSettings.Save.notSaved) replacing -= item
+                val google = if (item == Item.google) settings.readKeys().google else null
+                _ui.update { ui ->
+                    ui.copy(
+                        fields = ui.fields + (item to ui.field(item).copy(state = state)),
+                        googleUsable = google?.let { (it as? AppSettings.Key.Use)?.value != null } ?: ui.googleUsable,
+                        googleUnreadable = google?.let { it == AppSettings.Key.Unreadable } ?: ui.googleUnreadable,
+                    )
+                }
             }
         }
         synchronized(jobs) {
@@ -218,9 +229,14 @@ class SettingsViewModel(
 
     private val jobs = mutableListOf<kotlinx.coroutines.Job>()
 
+    /** The page has gone: the writer stops once what was queued is written (it holds no reference after). */
+    override fun onCleared() {
+        order.close()
+    }
+
     /** The person has read the notice about values lost for good. */
     fun acknowledgeLost() {
-        saves.launch(io) { settings.acknowledgeLost() }
+        saves.launch { settings.acknowledgeLost() }
         _ui.update { it.copy(lost = emptySet()) }
     }
 

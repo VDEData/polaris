@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import polaris.android.app.AppGraph
@@ -38,7 +39,8 @@ class JourneyViewModel(
         val query: JourneyQuery? = null,
         /** Each ride's board by leg id; absent until asked for. */
         val boards: Map<String, Loadable<DepartureBoard>> = emptyMap(),
-        val refreshing: Boolean = false,
+        /** Legs whose board is being refreshed (or held by the floor): each board its own spinner. */
+        val refreshing: Set<String> = emptySet(),
     ) {
         /** For a change, you can't be at the stop before the ride before gets in (and the walk after it). */
         fun reachable(index: Int): Instant? {
@@ -78,15 +80,15 @@ class JourneyViewModel(
 
     /** One ride's board again (the board's Refresh). */
     fun refresh(leg: Leg) {
-        if (_ui.value.refreshing) return
-        _ui.value = _ui.value.copy(refreshing = true)
+        if (leg.id in _ui.value.refreshing) return
+        _ui.update { it.copy(refreshing = it.refreshing + leg.id) }
         viewModelScope.launch {
             // Within the floor nothing is sent, and the spinner stays for what's left of it.
             val held = graph.departures.boardHeldFor(leg)
             try {
                 if (held > 0) kotlinx.coroutines.delay(held * 1000) else graph.departures.load(leg, force = true)
             } finally {
-                _ui.value = _ui.value.copy(refreshing = false)
+                _ui.update { it.copy(refreshing = it.refreshing - leg.id) }
             }
         }
     }

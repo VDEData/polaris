@@ -183,7 +183,12 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // The map's own half starts past the fold, so its credit and framed routes never straddle it.
     // The card sits inside the safe area (a camera cutout on the leading side in landscape), so the map half starts past both.
     val safeStart = WindowInsets.safeDrawing.asPaddingValues().calculateStartPadding(direction)
-    val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
+    val besideCard: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
+    // A wide window whose fold wasn't reported (WindowManager can be late or silent): the map half
+    // still never starts within 24 dp of the middle, where a book-style fold would be, so its credit
+    // and what it frames stay clear of a hinge there. On a tablet this only nudges the map's start.
+    val middle = maxWidth / 2
+    val mapStart: Dp = if (wide && hinge == null && besideCard > middle - 24.dp && besideCard < middle + 24.dp) middle + 24.dp else besideCard
     val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom)
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(

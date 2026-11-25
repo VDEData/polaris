@@ -69,6 +69,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import polaris.android.R
+import polaris.android.ui.SEPARATOR
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalScene
 import polaris.android.shell.LocalSheet
@@ -163,7 +164,7 @@ fun ResultsScreen(
     val tight = layout.short
     // At the largest text: the status on one line (the sheet's half rest sits higher too), but the
     // trip keeps its two rows and the controls wrap, so names and Filters stay whole and in view.
-    val oneLineStatus = tight || androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f
+    val oneLineStatus = tight
     val belowFull = sheet.state?.rest != Rest.Full
     if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
@@ -729,7 +730,7 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
         if (minutes > 0) (if (arriveBy) stringResource(R.string.route_leave_earlier, minutes) else stringResource(R.string.route_later, minutes)) else null
     }
     val boarding = j.transitLegs.firstOrNull()?.let { ride ->
-        listOfNotNull(Clock.of(ride.departure), ride.platform?.let(ride::standing), ride.fromName).joinToString(" · ")
+        listOfNotNull(Clock.of(ride.departure), ride.platform?.let(ride::standing), ride.fromName).joinToString(SEPARATOR)
     }
     val details = details(j)
     val and = stringResource(R.string.list_and)
@@ -801,7 +802,7 @@ private fun details(j: Journey): String {
     val walk = (j.walkingTime / 60).roundToInt()
     if (walk > 0) parts += stringResource(R.string.route_walk, walk)
     j.fare?.let { parts += it }
-    return parts.joinToString(" · ")
+    return parts.joinToString(SEPARATOR)
 }
 
 @Composable

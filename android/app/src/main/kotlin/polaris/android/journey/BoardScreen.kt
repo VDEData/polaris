@@ -91,7 +91,7 @@ fun BoardScreen(key: BoardPage, graph: AppGraph, onBack: () -> Unit) {
                 if (!ui.loading) Text(stringResource(R.string.journey_gone_body), Modifier.padding(20.dp), style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft)
             }
         } else {
-            BoardContent(leg, ui.boards[leg.id], ui.refreshing, refresh = { model.refresh(leg) }, narrow = false, back = onBack)
+            BoardContent(leg, ui.boards[leg.id], leg.id in ui.refreshing, refresh = { model.refresh(leg) }, narrow = false, back = onBack)
         }
     }
 }

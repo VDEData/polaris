@@ -200,6 +200,68 @@ class JourneyAndSettingsTest {
         model.type(SettingsViewModel.Item.tfl, "abcd")
         model.flush(); advanceUntilIdle()
         assertEquals("abcd", store.values.last(), "the store holds what the field shows")
+        assertEquals(SettingsViewModel.KeyState.saved, model.ui.value.field(SettingsViewModel.Item.tfl).state)
+    }
+
+    /** Replace, then the field cleared before the write lands: the engine refuses the blank, and the field disarms. */
+    @Test fun aRefusedReplaceLeavesTheFieldUnarmed() = runTest(dispatcher) {
+        val store = Locked()
+        val rig = rig(secrets = store)
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        model.type(SettingsViewModel.Item.tfl, "abc")
+        model.replace(SettingsViewModel.Item.tfl)
+        model.type(SettingsViewModel.Item.tfl, "")
+        model.flush(); advanceUntilIdle()
+        assertEquals(SettingsViewModel.KeyState.unreadable, model.ui.value.field(SettingsViewModel.Item.tfl).state)
+        model.type(SettingsViewModel.Item.tfl, "x")
+        model.flush(); advanceUntilIdle()
+        assertTrue(store.values.all { it == "abc" }, "only ever the replacement asked for: ${store.values.size} writes")
+        assertEquals(SettingsViewModel.KeyState.unreadable, model.ui.value.field(SettingsViewModel.Item.tfl).state)
+    }
+
+    /** A contact draft over an unreadable value isn't brought back after Android stops the app, so it can't overwrite what the store holds. */
+    @Test fun aRestoredContactDraftNeverOverwritesTheStore() = runTest(dispatcher) {
+        var locked = true
+        val values = mutableMapOf(AppSettings.CONTACT to "old@example.org")
+        val writes = mutableListOf<String>()
+        val store = object : SecretStore {
+            override fun read(account: String) =
+                if (account == AppSettings.CONTACT && locked) SecretRead.Unreadable else values[account]?.let { SecretRead.Value(it) } ?: SecretRead.Absent
+            override fun write(value: String, account: String): Boolean { writes += value; if (value.isEmpty()) values.remove(account) else values[account] = value; return true }
+        }
+        val rig = rig(secrets = store)
+        val handle = SavedStateHandle()
+        val first = SettingsViewModel(handle, rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        first.type(SettingsViewModel.Item.contact, "x@example.org")
+        first.flush(); advanceUntilIdle()
+        // Android stops the app; on the way back the store can be read again.
+        locked = false
+        val second = SettingsViewModel(handle, rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        second.flush(); advanceUntilIdle()
+        assertTrue(writes.isEmpty(), "nothing written: $writes")
+        assertEquals("old@example.org", second.ui.value.field(SettingsViewModel.Item.contact).text)
+    }
+
+    /** Google's "can't be read" goes once its key is replaced and then removed. */
+    @Test fun googlesUnreadableStateFollowsTheKey() = runTest(dispatcher) {
+        var replaced = false
+        val memory = InMemorySecretStore()
+        val store = object : SecretStore {
+            override fun read(account: String) = if (account == AppSettings.GOOGLE && !replaced) SecretRead.Unreadable else memory.read(account)
+            override fun write(value: String, account: String): Boolean { if (account == AppSettings.GOOGLE) replaced = true; return memory.write(value, account) }
+        }
+        val rig = rig(secrets = store)
+        val model = SettingsViewModel(SavedStateHandle(), rig.graph, io = dispatcher).also { advanceUntilIdle() }
+        assertTrue(model.ui.value.googleUnreadable)
+        model.type(SettingsViewModel.Item.google, "key")
+        model.replace(SettingsViewModel.Item.google)
+        model.flush(); advanceUntilIdle()
+        assertFalse(model.ui.value.googleUnreadable)
+        assertTrue(model.ui.value.googleUsable)
+        model.remove(SettingsViewModel.Item.google)
+        model.flush(); advanceUntilIdle()
+        assertFalse(model.ui.value.googleUnreadable)
+        assertFalse(model.ui.value.googleUsable)
     }
 
     /** Switches tapped quickly in a row, written on real threads: none is lost. */
@@ -208,12 +270,17 @@ class JourneyAndSettingsTest {
             val kv = InMemoryKeyValueStore()
             val settings = AppSettings(InMemorySecretStore(), BuildDefaults(googleKey = "built-in"), kv)
             val graph = AppGraph(settings, GoogleUsage(kv), PlaceStore(kv), Transport(), MemorySearchArchive(), FakeLocator(), networkCache = NetworkStatusCache())
-            val model = SettingsViewModel(SavedStateHandle(), graph, io = Dispatchers.Default, saves = CoroutineScope(SupervisorJob() + Dispatchers.Default))
+            // Reads on the test's own dispatcher (finished before the test ends, so nothing outlives it);
+            // the writes on real threads, which is what the ordering is about.
+            val writers = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model = SettingsViewModel(SavedStateHandle(), graph, io = dispatcher, saves = writers)
+            advanceUntilIdle()
             model.setEnabled(polaris.engine.ProviderID.google, false)
             model.setEnabled(polaris.engine.ProviderID.tfl, false)
             model.setEnabled(polaris.engine.ProviderID.transitous, false)
             model.setDeepSearch(false)
             kotlinx.coroutines.withContext(Dispatchers.Default) { model.flush() }
+            writers.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
             assertEquals(polaris.engine.ProviderID.entries.filter { it != polaris.engine.ProviderID.apple }.toSet(), settings.disabledProviders, "round $it")
             assertFalse(settings.deepSearch)
         }

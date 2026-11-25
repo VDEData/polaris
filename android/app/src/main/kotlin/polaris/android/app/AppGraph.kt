@@ -70,12 +70,13 @@ class AppGraph(
         /** Reads storage off the main thread the first time; later calls return the same graph. */
         /** [secrets] replaces the Keystore store: debug checks only (`Variant.secrets`), null in release. */
         suspend fun load(context: Context, transport: HttpTransport? = null, secrets: polaris.engine.SecretStore? = null): AppGraph {
-            // A debug run on recorded answers never decides first-run setup (nor shows it).
-            val decidesSetup = transport == null
+            // A debug run on recorded answers, or on the simulated store, never decides first-run setup (nor shows it).
+            val decidesSetup = transport == null && secrets == null
             loaded?.let { return it }
             val app = context.applicationContext
             val (stored, usage) = Storage.settings(app)
-            val settings = secrets?.let { polaris.engine.AppSettings(it, Storage.buildDefaults, Storage.preferences(app)) } ?: stored
+            // The simulated store keeps its choices in memory too, so a check never writes the real preferences.
+            val settings = secrets?.let { polaris.engine.AppSettings(it, Storage.buildDefaults, polaris.engine.InMemoryKeyValueStore()) } ?: stored
             val preferences = Storage.preferences(app)
             return withContext(Dispatchers.IO) {
                 AppGraph(

@@ -333,7 +333,8 @@ sealed interface Loadable<out T> {
  *
  * Android adds two limits iOS doesn't have: a request already on its way is never sent again
  * (a Refresh during the first load waits for it), and nothing that loaded is asked again within
- * [MIN_SECONDS] of the last time it was asked. After a failure, Try again goes at once.
+ * [MIN_SECONDS] of the last time it was asked. After a failure the first Try again goes at once,
+ * further ones wait [RETRY_SECONDS]; a source that said it was busy (429, 503) gets the full floor.
  */
 class DepartureStore(
     private val provider: DepartureProvider,
@@ -344,8 +345,9 @@ class DepartureStore(
     private val fetched = java.util.concurrent.ConcurrentHashMap<String, Instant>()
     private val asked = java.util.concurrent.ConcurrentHashMap<String, Instant>()
     private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
-    /** Boards whose last request failed: the floor doesn't hold their retry. */
-    private val failedLast = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    /** Failures in a row, and whether the source said it was busy: they decide the floor before the next try. */
+    private data class Failures(val count: Int, val busy: Boolean)
+    private val failures = java.util.concurrent.ConcurrentHashMap<String, Failures>()
     private val _version = kotlinx.coroutines.flow.MutableStateFlow(0)
     /** Bumped whenever a board or the nearby list changes, for screens to read again. */
     val version: kotlinx.coroutines.flow.StateFlow<Int> = _version
@@ -355,14 +357,24 @@ class DepartureStore(
     @Volatile private var nearbyFetched: Pair<Instant, Coordinate>? = null
     @Volatile private var nearbyAsked: Instant? = null
     @Volatile private var nearbyInFlight = false
-    @Volatile private var nearbyFailedLast = false
+    @Volatile private var nearbyFailures: Failures? = null
 
     fun board(leg: Leg): Loadable<DepartureBoard>? = boards[key(leg)]
 
     /** A board's key: the stop, line and planned time, so the same ride on a restored page finds its board. */
     private fun key(leg: Leg) = "${leg.start?.pair}|${leg.line}|${leg.departure.epochSecond}|${leg.toName}"
 
-    private fun tooSoon(last: Instant?, now: Instant) = last != null && Duration.between(last, now).seconds < MIN_SECONDS
+    /** The wait before the next request: the full floor after a load or a busy answer; after other failures, none for the first retry, then a short one. */
+    private fun floor(f: Failures?): Long = when {
+        f == null || f.busy -> MIN_SECONDS
+        f.count <= 1 -> 0
+        else -> RETRY_SECONDS
+    }
+
+    private fun tooSoon(last: Instant?, now: Instant, floor: Long) = last != null && Duration.between(last, now).seconds < floor
+
+    private fun failed(previous: Failures?, e: Exception) =
+        Failures((previous?.count ?: 0) + 1, e is ProviderError.Http && (e.code == 429 || e.code == 503))
 
     suspend fun load(leg: Leg, force: Boolean = false) {
         if (!leg.mode.isTransit || leg.start == null) return
@@ -372,7 +384,7 @@ class DepartureStore(
             if (key in inFlight) return
             val at = fetched[key]
             if (!force && at != null && Duration.between(at, now).seconds < FRESH_SECONDS) return
-            if (key !in failedLast && tooSoon(asked[key], now)) return
+            if (tooSoon(asked[key], now, floor(failures[key]))) return
             asked[key] = now
             inFlight += key
         }
@@ -380,7 +392,7 @@ class DepartureStore(
             if (boards[key]?.value == null) set { boards[key] = Loadable.Loading }
             val board = provider.board(leg)
             fetched[key] = now
-            failedLast -= key
+            failures.remove(key)
             set { boards[key] = Loadable.Loaded(board) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             asked.remove(key)
@@ -388,7 +400,7 @@ class DepartureStore(
             throw e
         } catch (e: Exception) {
             // Keep a board we already have rather than blanking it on a blip.
-            failedLast += key
+            failures[key] = failed(failures[key], e)
             set { if (boards[key]?.value == null) boards[key] = Loadable.Failed(describe(e)) }
         } finally {
             inFlight -= key
@@ -402,12 +414,13 @@ class DepartureStore(
     fun nearbyIsBusy(): Boolean = nearbyInFlight || nearbyHeldFor() > 0
 
     /** Seconds until a Refresh of nearby would go (0 when it would go now, or after a failure). */
-    fun nearbyHeldFor(): Long = if (nearbyFailedLast) 0 else heldFor(nearbyAsked)
+    fun nearbyHeldFor(): Long = heldFor(nearbyAsked, floor(nearbyFailures))
 
     /** Seconds until a Refresh of [leg]'s board would go (0 when it would go now, or after a failure). */
-    fun boardHeldFor(leg: Leg): Long { val key = key(leg); return if (key in failedLast) 0 else heldFor(asked[key]) }
+    fun boardHeldFor(leg: Leg): Long { val key = key(leg); return heldFor(asked[key], floor(failures[key])) }
 
-    private fun heldFor(last: Instant?): Long = last?.let { maxOf(0L, MIN_SECONDS - Duration.between(it, clock()).seconds) } ?: 0L
+    /** Never more than the floor itself, so a clock moved backwards can't hold a spinner for long. */
+    private fun heldFor(last: Instant?, floor: Long): Long = last?.let { (floor - Duration.between(it, clock()).seconds).coerceIn(0L, floor) } ?: 0L
 
     suspend fun loadNearby(coordinate: Coordinate, force: Boolean = false) {
         val now = clock()
@@ -417,7 +430,7 @@ class DepartureStore(
             if (!force && last != null && Duration.between(last.first, now).seconds < FRESH_SECONDS &&
                 JourneyMap.metres(last.second, coordinate) < 150
             ) return
-            if (!nearbyFailedLast && tooSoon(nearbyAsked, now)) return
+            if (tooSoon(nearbyAsked, now, floor(nearbyFailures))) return
             nearbyAsked = now
             nearbyInFlight = true
         }
@@ -425,14 +438,14 @@ class DepartureStore(
             if (nearby?.value == null) set { nearby = Loadable.Loading }
             val lines = provider.nearby(coordinate, now)
             nearbyFetched = now to coordinate
-            nearbyFailedLast = false
+            nearbyFailures = null
             set { nearby = Loadable.Loaded(lines) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             nearbyAsked = null
             if (nearby == Loadable.Loading) nearby = null
             throw e
         } catch (e: Exception) {
-            nearbyFailedLast = true
+            nearbyFailures = failed(nearbyFailures, e)
             set { if (nearby?.value == null) nearby = Loadable.Failed(describe(e)) }
         } finally {
             nearbyInFlight = false
@@ -446,8 +459,10 @@ class DepartureStore(
 
     companion object {
         const val FRESH_SECONDS = 60L
-        /** The least time between two requests for the same board, or for nearby: Refresh, Try again and all. */
+        /** The least time between two requests for the same board, or for nearby, once it has loaded (or the source said it was busy). */
         const val MIN_SECONDS = 15L
+        /** Between retries after the first, when a request failed for another reason (offline, a timeout, an error). */
+        const val RETRY_SECONDS = 5L
 
         fun describe(error: Throwable): Loadable.Reason = when (error) {
             is java.net.UnknownHostException, is java.net.ConnectException -> Loadable.Reason.offline

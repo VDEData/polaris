@@ -385,4 +385,21 @@ class SettingsStorageTest {
         // A built-in address that doesn't pass is no server.
         assertNull(AlertServer.resolve("", "", "http://a.example.org", "t"))
     }
+
+    /** Switches set on several threads at once over a slow store: none is lost (the read, change and write are one step). */
+    @Test fun switchesSetAtOnceAreAllKept() {
+        val slow = object : KeyValueStore {
+            private val values = java.util.concurrent.ConcurrentHashMap<String, String>()
+            override fun getString(key: String): String? { Thread.sleep(5); return values[key] }
+            override fun putString(key: String, value: String?) { Thread.sleep(5); if (value == null) values.remove(key) else values[key] = value }
+        }
+        val settings = AppSettings(preferences = slow)
+        val providers = listOf(ProviderID.google, ProviderID.tfl, ProviderID.transitous)
+        repeat(10) {
+            providers.forEach { settings.setEnabled(it, true) }
+            val threads = providers.map { p -> Thread { settings.setEnabled(p, false) } }
+            threads.forEach { it.start() }; threads.forEach { it.join() }
+            kotlin.test.assertEquals(providers.toSet(), settings.disabledProviders, "round $it")
+        }
+    }
 }

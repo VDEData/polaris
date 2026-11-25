@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import polaris.android.R
+import polaris.android.ui.SEPARATOR
 import polaris.android.ui.Clock
 import polaris.android.ui.PolarisColors
 import polaris.android.ui.Symbol
@@ -309,7 +310,7 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
         departure.arrivalThere?.let { if (narrow) stringResource(R.string.board_arrives, Clock.of(it)) else stringResource(R.string.board_reaches, destination, Clock.of(it)) },
         departure.platform?.let { stringResource(if (departure.mode == LegMode.bus || departure.mode == LegMode.coach) R.string.board_stop else R.string.board_platform, it) },
     // The dot stays with what comes before it, so a wrapped line never starts with it.
-    ).joinToString("\u00A0· ")
+    ).joinToString(SEPARATOR)
     Row(
         Modifier.fillMaxWidth()
             .alpha(if (gone && !isPlanned) 0.5f else 1f)

@@ -123,7 +123,9 @@ fun HomeScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                     FractalStar(26.dp)
-                    Text(stringResource(R.string.app_name), style = PolarisType.wordmark, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+                    // The star and the wordmark together on the leading side, the gear at the far end, in either direction.
+                    Text(stringResource(R.string.app_name), style = PolarisType.wordmark, color = c.ink, modifier = Modifier.semantics { heading() })
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                     SettingsMenu(openSettings)
                 }
             }
@@ -293,7 +295,7 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
     }
 }
 
-/** Settings: a gear beside the wordmark (Alex's choice), a 48 dp button. */
+/** Settings: a gear beside the wordmark, a 48 dp button. */
 @Composable
 private fun SettingsMenu(openSettings: () -> Unit) {
     IconButton(onClick = openSettings) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_open), tint = polaris.inkSoft) }

@@ -207,7 +207,7 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
                         ) { model.setEnabled(provider, it) }
                     }
                     HorizontalDivider(color = c.hairline)
-                    SwitchRow(stringResource(R.string.settings_deep), stringResource(R.string.settings_deep_detail), ui.deepSearch, enabled = ui.loaded) { model.setDeepSearch(it) }
+                    SwitchRow(stringResource(R.string.settings_deep), stringResource(R.string.settings_deep_detail), ui.deepSearch, enabled = ui.loaded, badgeSpace = true) { model.setDeepSearch(it) }
                 }
             }
             item(key = "google-count") {
@@ -381,26 +381,38 @@ private fun ContactItem(ui: SettingsViewModel.Ui, model: SettingsViewModel, show
 }
 
 /**
- * A switch row: the badge in a fixed column, centred, so every title starts at the same place;
- * the whole row toggles.
+ * A switch row: the badge in a fixed column, centred, so every title starts at the same place
+ * ([badgeSpace] keeps a row without a badge, Deep search, on that edge too); the whole row
+ * toggles. At the largest text the description takes the row's full width under the title, with
+ * the badge beside the title, so it isn't squeezed to a few words a line.
  */
 @Composable
-private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, leading: (@Composable () -> Unit)? = null, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, leading: (@Composable () -> Unit)? = null, badgeSpace: Boolean = false, onChange: (Boolean) -> Unit) {
     val c = polaris
-    Row(
-        Modifier.fillMaxWidth()
-            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // One column for every badge, growing with the text size so "TfL" is never cut.
-        val badgeColumn = 40.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
-        if (leading != null) Box(Modifier.width(badgeColumn), contentAlignment = Alignment.Center) { leading() }
+    val scale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val badgeColumn = 40.dp * scale.coerceAtLeast(1f)
+    val titleText: @Composable () -> Unit = { Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) c.ink else c.inkSoft) }
+    val detailText: @Composable () -> Unit = { Text(detail, style = MaterialTheme.typography.bodyMedium, color = c.inkSoft) }
+    val rowModifier = Modifier.fillMaxWidth()
+        .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+        .heightIn(min = 56.dp)
+        .padding(horizontal = 16.dp, vertical = 10.dp)
+    if (scale >= 1.5f) {
+        Column(rowModifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) { titleText() }
+                leading?.invoke()
+                Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+            }
+            detailText()
+        }
+        return
+    }
+    Row(rowModifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (leading != null || badgeSpace) Box(Modifier.width(badgeColumn), contentAlignment = Alignment.Center) { leading?.invoke() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) c.ink else c.inkSoft)
-            Text(detail, style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+            titleText()
+            detailText()
         }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }

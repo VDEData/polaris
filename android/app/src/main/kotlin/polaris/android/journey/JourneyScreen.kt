@@ -135,7 +135,7 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
     if (docks && dockedLeg != null) {
         DisposableEffect(key, dockedLeg, ui.boards[dockedLeg.id]) {
             scene.dock(key) {
-                BoardCard(dockedLeg, ui.boards[dockedLeg.id], refreshing = ui.refreshing, refresh = { model.refresh(dockedLeg) }, close = { docked = null })
+                BoardCard(dockedLeg, ui.boards[dockedLeg.id], refreshing = dockedLeg.id in ui.refreshing, refresh = { model.refresh(dockedLeg) }, close = { docked = null })
             }
             onDispose { scene.dock(key, null) }
         }
@@ -164,9 +164,16 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
             androidx.compose.runtime.snapshotFlow { listOf(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
                 .collect { if (loaded) savedPlace = it }
         }
-        androidx.compose.runtime.LaunchedEffect(journey != null) {
+        // Restored once every ride's board has answered (or after 3 s), so the strips have their
+        // full height and the same offset lands on the same place.
+        val boardsIn = journey != null && journey.transitLegs.all { ui.boards[it.id] is Loadable.Loaded || ui.boards[it.id] is Loadable.Failed }
+        var restored by rememberSaveable { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(journey != null, boardsIn) {
             val place = savedPlace
-            if (journey != null && place != null && list.firstVisibleItemIndex == 0 && place[0] > 0) list.scrollToItem(place[0], place[1])
+            if (journey == null || restored || place == null || place[0] == 0) return@LaunchedEffect
+            if (!boardsIn) kotlinx.coroutines.delay(3_000)
+            if (!restored && list.firstVisibleItemIndex == 0) list.scrollToItem(place[0], place[1])
+            restored = true
         }
         LazyColumn(
             Modifier.fillMaxSize(),

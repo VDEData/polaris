@@ -98,10 +98,37 @@ abstract class NoticesAsset : DefaultTask() {
     @get:OutputDirectory abstract val output: DirectoryProperty
 
     @TaskAction fun copy() {
+        val file = notices.get().asFile
+        check(file.readLines())
         val dir = output.get().asFile
         dir.deleteRecursively()
         dir.mkdirs()
-        notices.get().asFile.copyTo(dir.resolve("THIRD_PARTY_NOTICES.md"))
+        file.copyTo(dir.resolve("THIRD_PARTY_NOTICES.md"))
+    }
+
+    /**
+     * The same rules the app's licences page reads the file by (`noticeBlocks`): every repo-only
+     * block, comment and fence closed, so no build, tested or not, ships a page that drops text
+     * or shows nothing.
+     */
+    private fun check(lines: List<String>) {
+        var repoOnly = false
+        var comment = false
+        var fence = false
+        lines.forEachIndexed { i, raw ->
+            val t = raw.trim()
+            when {
+                fence -> if (t.startsWith("```")) fence = false
+                comment -> if (t.endsWith("-->")) comment = false
+                t == "<!-- repo-only -->" -> { if (repoOnly) throw GradleException("THIRD_PARTY_NOTICES.md:${i + 1}: repo-only opened twice"); repoOnly = true }
+                t == "<!-- /repo-only -->" -> { if (!repoOnly) throw GradleException("THIRD_PARTY_NOTICES.md:${i + 1}: /repo-only with none open"); repoOnly = false }
+                repoOnly -> Unit
+                t.startsWith("<!--") -> if (!t.endsWith("-->")) comment = true
+                t.startsWith("```") -> fence = true
+            }
+        }
+        if (repoOnly || comment || fence) throw GradleException("THIRD_PARTY_NOTICES.md: a repo-only block, comment or fence is never closed")
+        if (lines.none { it.startsWith("### ") }) throw GradleException("THIRD_PARTY_NOTICES.md: no licence sections found")
     }
 }
 val noticesAsset = tasks.register<NoticesAsset>("noticesAsset") {

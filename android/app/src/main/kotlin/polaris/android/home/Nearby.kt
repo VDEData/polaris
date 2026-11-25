@@ -63,9 +63,12 @@ fun LazyListScope.nearbySection(graph: AppGraph, shell: ShellViewModel, wide: Bo
         val version by graph.departures.version.collectAsStateWithLifecycle()
         val state = remember(version) { graph.departures.nearby }
         SectionHeader(stringResource(R.string.nearby_title)) {
-            if (state != null && state != Loadable.Loading || noFix) {
-                if (loading) CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
-                else IconButton(onClick = { shell.refreshNearby(force = true) }) { Symbol(R.drawable.sym_refresh, stringResource(R.string.nearby_refresh), tint = polaris.tint) }
+            // One 48 dp slot, whether it holds Refresh, the spinner or nothing, so the heading never jumps.
+            androidx.compose.foundation.layout.Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                else if (state != null && state != Loadable.Loading || noFix) {
+                    IconButton(onClick = { shell.refreshNearby(force = true) }) { Symbol(R.drawable.sym_refresh, stringResource(R.string.nearby_refresh), tint = polaris.tint) }
+                }
             }
         }
     }
@@ -222,11 +225,14 @@ private fun NearbyRow(line: NearbyLine, now: Instant, pillWidth: androidx.compos
     Row(rowModifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         androidx.compose.foundation.layout.Box(Modifier.width(pillWidth)) { DeparturePill(line.mode, line.line, line.lineColor) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(toText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // The stop gives way; the distance always shows.
-            Row {
-                Text(line.stopName, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(stringResource(R.string.nearby_distance_after, metres), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, softWrap = false)
+            // Names wrap to a second line before they are shortened.
+            Text(toText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // The stop, the dot and the distance as three pieces (laid out right to left too, never
+            // run together); the stop gives way, the distance always shows.
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(line.stopName, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.nearby_dot), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1)
+                Text(stringResource(R.string.nearby_metres, metres), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 1, softWrap = false)
             }
         }
         timesView()

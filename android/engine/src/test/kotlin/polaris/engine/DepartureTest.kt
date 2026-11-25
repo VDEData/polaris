@@ -202,16 +202,32 @@ class DepartureTest {
         val failing = DepartureStore(DepartureProvider(HTTP(CountingTransport(fail = true), "test")))
         failing.load(northernLeg())
         assertEquals(Loadable.Failed(Loadable.Reason.notAnswering), failing.board(northernLeg()))
-        // After a failure, Try again goes at once: the floor holds only what loaded.
+        // A source that says it's busy (503) gets the full floor before Try again.
         val counting = CountingTransport(fail = true)
         val now = iso("2026-10-31T18:00:00Z")
         val store = DepartureStore(DepartureProvider(HTTP(counting, "test")), clock = { now })
-        store.load(northernLeg()); store.load(northernLeg(), force = true)
-        assertEquals(2, counting.boards)
-        assertEquals(0, store.boardHeldFor(northernLeg()))
-        store.loadNearby(Coordinate(51.5308, -0.1238)); store.loadNearby(Coordinate(51.5308, -0.1238), force = true)
-        assertEquals(2, counting.nearby)
-        assertEquals(0, store.nearbyHeldFor())
+        repeat(5) { store.load(northernLeg(), force = true) }
+        assertEquals(1, counting.boards)
+        assertEquals(15, store.boardHeldFor(northernLeg()))
+        repeat(5) { store.loadNearby(Coordinate(51.5308, -0.1238), force = true) }
+        assertEquals(1, counting.nearby)
+    }
+
+    /** Other failures (offline, an error): the first Try again goes at once, then 5 s between tries. */
+    @Test fun aFailedLoadIsRetriedAtOnceThenWaitsAShortWhile() = runTest {
+        var sent = 0
+        val offline = HttpTransport { sent++; throw java.io.IOException("no route") }
+        var now = iso("2026-10-31T18:00:00Z")
+        val store = DepartureStore(DepartureProvider(HTTP(offline, "test")), clock = { now })
+        repeat(5) { store.load(northernLeg(), force = true) }
+        assertEquals(2, sent, "the first and one immediate retry")
+        assertEquals(5, store.boardHeldFor(northernLeg()))
+        now = now.plusSeconds(5)
+        store.load(northernLeg(), force = true)
+        assertEquals(3, sent)
+        // A clock moved backwards never holds for longer than the floor.
+        now = now.minusSeconds(3600)
+        assertTrue(store.boardHeldFor(northernLeg()) <= 5)
     }
 
     /** A Refresh while the first load is on its way never sends a second request. */
