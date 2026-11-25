@@ -290,6 +290,9 @@ class AppSettings(
         disabledProviders = if (enabled) disabledProviders - provider else disabledProviders + provider
     }
 
+    /** Whether to show first-run setup, decided once at launch ([FirstRun.takeTurn]). */
+    fun takeFirstRunTurn(): Boolean = FirstRun.takeTurn(preferences, secrets::read)
+
     override fun toString() = "AppSettings(redacted)"
 
     companion object {
