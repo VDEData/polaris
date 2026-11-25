@@ -1,5 +1,6 @@
 package polaris.android.map
 
+import androidx.compose.ui.layout.onSizeChanged
 import android.annotation.SuppressLint
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -44,6 +45,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import polaris.android.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -223,14 +226,20 @@ fun PolarisMap(
     // the map later (a results list, the keyboard) doesn't move the camera.
     // Only a journey not fitted before: after a rotation the saved camera stays where it was.
     val currentPadding by rememberUpdatedState(padding)
+    // Whether any of the map shows inside the padding (a sheet at full height covers it all): a
+    // fit waits until it does, then happens once, so a page opened from a full sheet frames its
+    // place when the sheet comes down rather than fitting into no room at all.
+    var mapHeight by remember { mutableStateOf(0) }
+    val room = mapHeight > 0 && mapHeight - padding[1] - padding[3] >= with(density) { 120.dp.roundToPx() }
     var fitted by rememberSaveable { mutableStateOf<List<Double>?>(null) }
     // Also refitted when [refitOn] changes within this composition, but not after a rotation,
     // where the saved camera stands.
     var refitSeen by remember { mutableStateOf<Any?>(Unit) }
-    LaunchedEffect(map, frame, refitOn) {
+    LaunchedEffect(map, frame, refitOn, room) {
         val m = map ?: return@LaunchedEffect
         val padding = currentPadding
         val bounds = frame ?: return@LaunchedEffect
+        if (!room) return@LaunchedEffect
         val key = listOf(bounds.south, bounds.west, bounds.north, bounds.east)
         val refit = refitSeen != Unit && refitSeen != refitOn
         refitSeen = refitOn
@@ -272,7 +281,7 @@ fun PolarisMap(
         LocationDot.update(context, m, s, showLocation, colors)
     }
 
-    Box(modifier) {
+    Box(modifier.onSizeChanged { mapHeight = it.height }) {
         key(mapView) { AndroidView(factory = { mapView }, modifier = Modifier.matchParentSize()) }
         overlay()
         MapCredit(colors, contentPadding)
@@ -311,7 +320,7 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
         Box(
             Modifier
                 .sizeIn(minHeight = 48.dp)
-                .clickable(role = Role.Button, onClickLabel = "Show map data sources") { open = true },
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.map_show_sources)) { open = true },
             contentAlignment = Alignment.CenterStart,
         ) {
             Text(
@@ -319,7 +328,12 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
                 modifier = Modifier
                     .background(colors.paper.copy(alpha = 0.88f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = colors.ink.copy(alpha = 0.85f)),
+                // Grows with the text size up to 1.3x, then stops: past that it wrapped over the map's own labels.
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = (10f * minOf(1f, 1.3f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
+                    color = colors.ink.copy(alpha = 0.85f),
+                ),
+                // Whole, always (the terms ask for all of it): it wraps rather than being cut.
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

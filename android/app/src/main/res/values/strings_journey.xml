@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The journey page, its departure strips, the board page and what's leaving near you. iOS's words where it has them. -->
+<resources>
+    <!-- Header -->
+    <string name="journey_title">%1$s\u00A0–\u00A0%2$s ·\u00A0%3$s</string>
+    <string name="journey_direct">Direct</string>
+    <string name="journey_duration_minutes">%s\u00A0min</string>
+    <string name="journey_duration_hours">%1$s h %2$s</string>
+    <plurals name="journey_changes">
+        <item quantity="one">%s change</item>
+        <item quantity="other">%s changes</item>
+    </plurals>
+    <string name="journey_walk_minutes">%s\u00A0min walk</string>
+    <string name="journey_summary">%1$s ·\u00A0%2$s</string>
+    <string name="journey_summary_fare">%1$s ·\u00A0%2$s ·\u00A0%3$s</string>
+    <string name="journey_leave_at">Leave at %s</string>
+    <string name="journey_leave_in">Leave in %s min</string>
+    <string name="journey_leave_now">Leave now</string>
+    <string name="journey_was_due">Was due to leave at %s</string>
+    <string name="journey_share">Share</string>
+    <string name="journey_share_with">Share this journey</string>
+    <string name="journey_share_walking">On my way to %1$s, walking. Arriving about %2$s.</string>
+    <string name="journey_share_taking">On my way to %1$s, taking the %2$s. Arriving about %3$s.</string>
+    <string name="journey_list_and">%1$s and %2$s</string>
+    <string name="journey_list_comma">%1$s, %2$s</string>
+    <string name="journey_more">More for this journey</string>
+    <string name="journey_open_in">Open in %s</string>
+    <string name="journey_gone">This route wasn\'t kept</string>
+    <string name="journey_gone_body">Android closed Polaris while it was in the background. Go back to the routes and search again.</string>
+    <string name="journey_back_to_routes">Back to the routes</string>
+    <string name="journey_no_app">No app on this phone can open that.</string>
+    <string name="journey_loading">Bringing back this route…</string>
+
+    <!-- Itinerary -->
+    <string name="journey_start">Start</string>
+    <string name="journey_walk">Walk %s</string>
+    <string name="journey_walk_distance">Walk %1$s ·\u00A0%2$s</string>
+    <string name="journey_metres">%s m</string>
+    <string name="journey_kilometres">%s km</string>
+    <string name="journey_directions">Directions</string>
+    <string name="journey_directions_label">Walking directions in your maps app</string>
+    <string name="journey_towards">towards %s</string>
+    <plurals name="journey_stops">
+        <item quantity="one">%s stop</item>
+        <item quantity="other">%s stops</item>
+    </plurals>
+    <string name="journey_stops_duration">%1$s ·\u00A0%2$s</string>
+    <string name="journey_show_stops">Show the stops</string>
+    <string name="journey_hide_stops">Hide the stops</string>
+    <string name="journey_show_on_map">Show this part on the map</string>
+    <string name="journey_platform">Platform %s</string>
+    <string name="journey_stop_letter">Stop %s</string>
+    <string name="journey_live">Live</string>
+    <string name="journey_found_by">Found by</string>
+    <string name="journey_check_other">Check with another app</string>
+    <string name="journey_read_notice">Shows the full message</string>
+    <string name="journey_arrive">Arrive %s</string>
+
+    <!-- Departure strip -->
+    <string name="strip_checking">Checking departures…</string>
+    <string name="strip_none">No departure times for this stop</string>
+    <string name="strip_cancelled">cancelled</string>
+    <string name="strip_gone">gone</string>
+    <string name="strip_yours">yours</string>
+    <string name="strip_same">same</string>
+    <string name="strip_later">+%s min</string>
+    <string name="strip_sooner">−%s min</string>
+    <string name="strip_there">there</string>
+    <string name="strip_cancelled_next">Your %1$s is cancelled. The next is %2$s.</string>
+    <string name="strip_cancelled_only">Your %s is cancelled.</string>
+    <string name="strip_late">Running %s min late.</string>
+    <string name="strip_earlier">Make the %1$s and you reach %2$s %3$s min sooner.</string>
+    <string name="strip_miss">Miss it and the %1$s gets you there %2$s min later.</string>
+    <string name="strip_all">All departures from %s</string>
+    <string name="strip_open_board">Opens all departures from this stop</string>
+    <string name="strip_tile">%1$s, %2$s</string>
+
+    <!-- Board page -->
+    <string name="board_title">Departures</string>
+    <string name="board_and_else">and anything else stopping at %s</string>
+    <string name="board_nothing">Nothing in the timetable stops at %1$s from here around %2$s.</string>
+    <string name="board_source">Times from Transitous (open timetables), live where marked. Each row shows when it reaches %s.</string>
+    <string name="board_refresh">Refresh departures</string>
+    <string name="board_close">Close departures</string>
+    <string name="board_cancelled">Cancelled</string>
+    <string name="board_gone">Gone</string>
+    <string name="board_now">Now</string>
+    <string name="board_minutes">%s\u00A0min</string>
+    <string name="board_yours">Yours</string>
+    <string name="board_arrives">Arrives %s</string>
+    <string name="board_reaches">%1$s %2$s</string>
+    <string name="board_platform">platform %s</string>
+    <string name="board_stop">stop %s</string>
+    <string name="board_scheduled">Scheduled %s</string>
+    <string name="board_offline">You\'re offline</string>
+    <string name="board_not_answering">Transitous isn\'t answering right now</string>
+    <string name="board_failed">Couldn\'t load departures</string>
+
+    <!-- Leaving near you, and a line from it -->
+    <string name="nearby_title">Leaving near you</string>
+    <string name="nearby_refresh">Refresh what\'s leaving near you</string>
+    <string name="nearby_location_off">Turn on location for Polaris to see what\'s leaving near you.</string>
+    <string name="nearby_use_location">Use my location</string>
+    <string name="nearby_none">Nothing is leaving from stops within 400 m right now.</string>
+    <string name="nearby_finding">Finding departures near you…</string>
+    <string name="nearby_no_fix">Couldn\'t find where you are, so nothing near you could be looked up.</string>
+    <string name="nearby_try_again">Try again</string>
+    <string name="nearby_all_gone">Everything listed here has left. Refresh for what\'s leaving now.</string>
+    <string name="nearby_dot">·</string>
+    <string name="nearby_metres">%s\u00A0m</string>
+    <string name="nearby_show_more">Show %s more</string>
+    <string name="nearby_show_fewer">Show fewer</string>
+    <string name="nearby_to">to %s</string>
+    <string name="nearby_stop_distance">%1$s ·\u00A0%2$s\u00A0m</string>
+    <string name="nearby_now">Now</string>
+    <string name="nearby_minutes_suffix">%s\u00A0min</string>
+    <string name="nearby_open">Shows the next departures</string>
+    <string name="line_leaving">Leaving</string>
+    <string name="line_stop_away">%1$s ·\u00A0%2$s m away</string>
+    <string name="line_gone">These times weren\'t kept</string>
+    <string name="line_gone_body">Android closed Polaris while it was in the background. Refresh to see what\'s leaving now.</string>
+    <string name="line_all_gone">These have all left. Refresh for what\'s leaving now.</string>
+    <string name="line_source">Times from Transitous (open timetables), live where marked.</string>
+</resources>

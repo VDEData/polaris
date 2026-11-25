@@ -66,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalWindowLayout
@@ -151,7 +152,7 @@ fun PlaceSearchScreen(
                 ),
             ) {
                 Text(
-                    kind.title,
+                    stringResource(kind.title),
                     Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp).semantics { heading() },
                     style = MaterialTheme.typography.titleMedium, color = c.ink,
                 )
@@ -162,12 +163,12 @@ fun PlaceSearchScreen(
                     expanded = true,
                     onExpandedChange = { if (!it) onClose() },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).focusRequester(focus),
-                    placeholder = { Text("Places, addresses or stops", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    placeholder = { Text(stringResource(R.string.search_placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingIcon = {
-                        IconButton(onClick = onClose) { Symbol(R.drawable.sym_arrow_back, "Close search") }
+                        IconButton(onClick = onClose) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.search_close)) }
                     },
                     trailingIcon = if (ui.text.isNotEmpty()) ({
-                        IconButton(onClick = { model.type("") }) { Symbol(R.drawable.sym_close, "Clear text") }
+                        IconButton(onClick = { model.type("") }) { Symbol(R.drawable.sym_close, stringResource(R.string.search_clear_text)) }
                     }) else null,
                 )
                 HorizontalDivider(color = c.hairline)
@@ -179,42 +180,42 @@ fun PlaceSearchScreen(
                 ) {
                     when {
                         ui.restored -> item {
-                            PlaceRow(R.drawable.sym_refresh, c.tint, "Search again for “${ui.text}”", null) { model.searchRestored() }
+                            PlaceRow(R.drawable.sym_refresh, c.tint, stringResource(R.string.search_again_for, ui.text), null) { model.searchRestored() }
                         }
                         !ui.isQuery -> {
                             if (kind.allowsCurrentLocation) item {
-                                PlaceRow(R.drawable.sym_my_location, c.here, "Current Location", null) { shell.pickCurrentLocation(kind) }
+                                PlaceRow(R.drawable.sym_my_location, c.here, stringResource(R.string.search_current_location), null) { shell.pickCurrentLocation(kind) }
                             }
-                            places.home?.let { home -> if (kind != SearchFor.Home) item { PlaceRow(R.drawable.sym_home, c.tint, "Home", home.name) { pick(home) } } }
-                            places.work?.let { work -> if (kind != SearchFor.Work) item { PlaceRow(R.drawable.sym_work, c.tint, "Work", work.name) { pick(work) } } }
+                            places.home?.let { home -> if (kind != SearchFor.Home) item { PlaceRow(R.drawable.sym_home, c.tint, stringResource(R.string.common_home), home.name) { pick(home) } } }
+                            places.work?.let { work -> if (kind != SearchFor.Work) item { PlaceRow(R.drawable.sym_work, c.tint, stringResource(R.string.common_work), work.name) { pick(work) } } }
                             if (places.recents.isNotEmpty()) {
-                                item { SectionHeader("Recent", Modifier.padding(horizontal = 12.dp)) }
+                                item { SectionHeader(stringResource(R.string.common_recent), Modifier.padding(horizontal = 12.dp)) }
                                 items(places.recents, key = { "recent-" + it.id }) { place ->
                                     PlaceRow(R.drawable.sym_history, c.inkSoft, place.name, place.subtitle) { pick(place) }
                                 }
                             }
-                            if (ui.text.isNotBlank()) item { Note("Keep typing: places show from 3 letters.") }
+                            if (ui.text.isNotBlank()) item { Note(stringResource(R.string.search_keep_typing)) }
                         }
                         else -> {
                             ui.error?.let { error ->
                                 item { ErrorRow(error) { model.type(ui.text) } }
                             }
                             if (ui.isSearching && ui.results.isEmpty()) item { Searching() }
-                            if (ui.noResults) item { Note("No places match “${ui.text.trim()}”. Try a station, a street or a postcode.") }
+                            if (ui.noResults) item { Note(stringResource(R.string.search_no_match, ui.text.trim())) }
                             items(ui.results, key = { it.place.id }) { match ->
                                 PlaceRow(iconFor(match), if (match.kind == PlaceMatch.Kind.stop) c.tint else c.inkSoft, match.place.name, match.place.subtitle) { pick(match.place) }
                             }
                             item {
                                 // The geocoder's data is OpenStreetMap's, which asks for this credit.
                                 androidx.compose.material3.Text(
-                                    "Places from Transitous, © OpenStreetMap contributors",
+                                    stringResource(R.string.search_places_credit),
                                     Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                                     style = MaterialTheme.typography.labelSmall, color = c.inkFaint,
                                 )
                             }
                             if (hasMapsApp) item {
                                 HorizontalDivider(Modifier.padding(start = 56.dp), color = c.hairline)
-                                PlaceRow(R.drawable.sym_travel_explore, c.tint, "Search “${ui.text.trim()}” in your maps app", "For shops, chains and kinds of place") {
+                                PlaceRow(R.drawable.sym_travel_explore, c.tint, stringResource(R.string.search_in_maps_app, ui.text.trim()), stringResource(R.string.search_in_maps_app_detail)) {
                                     runCatching { context.startActivity(mapsIntent) }
                                 }
                             }
@@ -289,7 +290,7 @@ private fun Searching() {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        Text("Searching…", style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft)
+        Text(stringResource(R.string.common_searching), style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft)
     }
 }
 
@@ -303,10 +304,10 @@ private fun ErrorRow(reason: String, retry: () -> Unit) {
     ) {
         Symbol(R.drawable.sym_wifi_off, null, Modifier.size(24.dp), tint = c.warning)
         Column(Modifier.weight(1f)) {
-            Text("Couldn't search places", style = MaterialTheme.typography.bodyLarge, color = c.ink)
+            Text(stringResource(R.string.search_failed), style = MaterialTheme.typography.bodyLarge, color = c.ink)
             // "HTTP 503" alone means little: say who didn't answer, with the code for anyone who reports it.
-            Text(if (reason.startsWith("HTTP")) "Transitous isn't answering right now. Try again in a moment." else reason, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            Text(if (reason.startsWith("HTTP")) stringResource(R.string.search_transitous_down) else reason, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         }
-        TextButton(onClick = retry) { Text("Try again") }
+        TextButton(onClick = retry) { Text(stringResource(R.string.search_try_again)) }
     }
 }

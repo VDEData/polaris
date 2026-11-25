@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -165,8 +166,9 @@ fun LegStrip(legs: List<Leg>, modifier: Modifier = Modifier) {
                     LinePill(leg)
                 } else {
                     val minutes = (leg.duration / 60).roundToInt()
+                    val walk = stringResource(R.string.leg_walk_minutes, minutes)
                     Row(
-                        Modifier.semantics(mergeDescendants = true) { contentDescription = "Walk $minutes min" },
+                        Modifier.semantics(mergeDescendants = true) { contentDescription = walk },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Symbol(R.drawable.sym_directions_walk, null, Modifier.size(16.dp), tint = polaris.inkSoft)

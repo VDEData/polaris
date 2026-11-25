@@ -2,7 +2,6 @@ package polaris.android
 
 import android.content.Intent
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onFirst
@@ -16,7 +15,7 @@ import org.junit.runner.RunWith
 
 /**
  * The sheet's pages on a device, with the debug build's recorded answers (nothing is asked of TfL
- * or Transitous): a trip opens its routes, a route opens its page, and system back returns
+ * or Transitous): a trip opens its routes, a route opens its journey page, and system back returns
  * through them to Home. Run it only with ANDROID_SERIAL set to an emulator.
  */
 @RunWith(AndroidJUnit4::class)
@@ -31,7 +30,8 @@ class SheetPagesTest {
             val back = { scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() } }
             compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription("Best route", substring = true).fetchSemanticsNodes().isNotEmpty() }
             compose.onAllNodesWithContentDescription("Best route", substring = true).onFirst().performClick()
-            compose.waitUntil(5_000) { compose.onAllNodes(hasText("Journey details", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+            // The journey page: its up arrow says where it goes.
+            compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription("Back to the routes")).fetchSemanticsNodes().isNotEmpty() }
             back()
             compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription("Swap start and destination")).fetchSemanticsNodes().isNotEmpty() }
             back()

@@ -1,18 +1,26 @@
 # Third-party notices (Android app)
 
+<!-- repo-only: the app shows this file under Settings > Open-source licences, without the parts
+marked like this, and with its own opening paragraph. -->
+<!-- repo-only -->
 The Android app in this folder is MIT-licensed (see `../LICENSE`). It includes or links the
 following third-party work, under these licences.
 
-Data credits, as the app shows them today: OpenFreeMap, OpenMapTiles and OpenStreetMap on the map
+Data credits, as the app shows them: OpenFreeMap, OpenMapTiles and OpenStreetMap on the map
 itself; TfL's ("Powered by TfL Open Data" with the OS and Geomni statements) and Transitous's
 (with its transitous.org/sources link and the OpenStreetMap credit) in the Sources panel on the
-routes page; and the OpenStreetMap credit under place search results. A full credits page comes
-with Settings.
+routes page and in full under Data in Settings; and the OpenStreetMap credit under place search
+results. These notices are shown in Settings, under Open-source licences.
+<!-- /repo-only -->
 
-## Bundled in this repository
+## Bundled with the app
 
-- **Material Symbols** (Google, `google/material-design-icons`): the `sym_*.xml` vector drawables
-  in `app/src/main/res/drawable`, converted from the Rounded SVGs. Apache License 2.0 (text below).
+- **Material Symbols** (Google, `google/material-design-icons`): the app's icons. Apache License
+  2.0 (text below).
+<!-- repo-only -->
+  They are the `sym_*.xml` vector drawables in `app/src/main/res/drawable`, converted from the
+  Rounded SVGs.
+<!-- /repo-only -->
 
 ## Libraries the app is built with
 

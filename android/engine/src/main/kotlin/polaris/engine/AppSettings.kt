@@ -286,9 +286,16 @@ class AppSettings(
 
     fun isEnabled(provider: ProviderID): Boolean = provider !in disabledProviders
 
-    fun setEnabled(provider: ProviderID, enabled: Boolean) {
+    /** Read, change and write as one step, so two callers on different threads never lose a switch. */
+    fun setEnabled(provider: ProviderID, enabled: Boolean) = synchronized(this) {
         disabledProviders = if (enabled) disabledProviders - provider else disabledProviders + provider
     }
+
+    /** Whether to show first-run setup, decided once at launch ([FirstRun.takeTurn]). */
+    fun takeFirstRunTurn(): Boolean = FirstRun.takeTurn(preferences, secrets::read)
+
+    /** First-run setup is on screen ([FirstRun.markSeen]). */
+    fun markSetupSeen() = FirstRun.markSeen(preferences)
 
     override fun toString() = "AppSettings(redacted)"
 

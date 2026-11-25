@@ -23,7 +23,8 @@ import polaris.engine.TimeMode
  * What the whole window shares: the place search over everything, where a trip from Home
  * starts, and the location button. Location is asked for only when the person does something
  * that needs it (plans from where they are, taps the location button, picks Current Location),
- * never at launch. Nothing here sends a request: trips are searched by the results page.
+ * never at launch. Trips are searched by the results page; the one request sent from here is
+ * "Leaving near you" ([refreshNearby]), and only once location is allowed.
  */
 class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     val places: StateFlow<PlaceStore.Places> get() = graph.places.places
@@ -210,6 +211,49 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
     private fun push(query: JourneyQuery) {
         awaitingPage = true
         pushes.trySend(ResultsPage(query))
+    }
+
+    private val _nearbyLoading = MutableStateFlow(false)
+    /** Asking what's leaving near the person (Home's "Leaving near you" and a line's page). */
+    val nearbyLoading: StateFlow<Boolean> = _nearbyLoading.asStateFlow()
+    private val _nearbyNoFix = MutableStateFlow(false)
+    /** Location is allowed but no fix came, so nothing could be asked: Home says so, with Try again. */
+    val nearbyNoFix: StateFlow<Boolean> = _nearbyNoFix.asStateFlow()
+    private var nearbyJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * What's leaving near the person, once they've allowed location: one request, kept a minute
+     * and for 150 m by the store, so Home coming back on top or a rotation asks nothing more, and
+     * within that minute no fix is asked for either. Refresh and Try again ([force]) ask again,
+     * but never while a request is on its way or within the store's floor. Without permission it
+     * does nothing (Home offers the way to allow it).
+     */
+    fun refreshNearby(force: Boolean = false) {
+        if (!graph.locator.hasPermission || nearbyJob?.isActive == true) return
+        if (!force && graph.departures.nearbyIsFresh()) return
+        if (force && graph.departures.nearbyIsBusy()) {
+            // Held by the floor (or already on its way): the spinner stays for what's left of it,
+            // so the tap is seen to be taken, and nothing more is sent.
+            val held = graph.departures.nearbyHeldFor()
+            if (held > 0 && !_nearbyLoading.value) {
+                nearbyJob = viewModelScope.launch {
+                    _nearbyLoading.value = true
+                    try { kotlinx.coroutines.delay(held * 1000) } finally { _nearbyLoading.value = false }
+                }
+            }
+            return
+        }
+        _showsLocation.value = true
+        nearbyJob = viewModelScope.launch {
+            _nearbyLoading.value = true
+            try {
+                val here = graph.locator.current()
+                _nearbyNoFix.value = here == null
+                if (here != null) graph.departures.loadNearby(here, force)
+            } finally {
+                _nearbyLoading.value = false
+            }
+        }
     }
 
     /** The page on top changed: taps on Home count again once it is back on top. */

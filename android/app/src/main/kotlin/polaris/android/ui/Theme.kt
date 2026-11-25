@@ -11,12 +11,14 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import polaris.android.R
 import polaris.engine.RGB
 import java.time.Instant
 import java.time.ZoneId
@@ -87,16 +89,25 @@ object Clock {
 }
 
 /** "26 min", "1 h 05", as iOS's `minutesText`. */
+@Composable
+@ReadOnlyComposable
 fun minutesText(seconds: Double): String {
     val minutes = Math.round(seconds / 60).toInt()
-    return if (minutes < 60) "$minutes min" else "%d h %02d".format(minutes / 60, minutes % 60)
+    return if (minutes < 60) stringResource(R.string.duration_minutes, minutes) else stringResource(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
 }
 
-/** A list in words: "a", "a and b", "a, b and c" (or "or"). */
-fun spokenList(items: List<String>, joiner: String = "and"): String = when (items.size) {
+/** A list in words: "a", "a and b", "a, b and c" (or "or"); [joiner] is the word before the last, [separator] the one between the others. */
+fun spokenList(items: List<String>, joiner: String, separator: String = ", "): String = when (items.size) {
     0 -> ""
     1 -> items[0]
-    else -> items.dropLast(1).joinToString(", ") + " $joiner " + items.last()
+    else -> items.dropLast(1).joinToString(separator) + " $joiner " + items.last()
 }
+
+/**
+ * Between the parts of a detail line ("12:09 · platform 2 · 1 change"): the dot stays with what
+ * follows it (a no-break space after it), so a line never ends with a dot; where a line must
+ * break between parts, the next one starts with it.
+ */
+const val SEPARATOR = " ·\u00A0"
 
 fun RGB.toColor() = androidx.compose.ui.graphics.Color(r.toFloat(), g.toFloat(), b.toFloat())

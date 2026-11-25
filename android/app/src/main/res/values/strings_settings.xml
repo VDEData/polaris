@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings, first-run setup, data credits and licences. The items' words are iOS's (ConnectionSections.swift), with Android's key source. -->
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_open">Settings</string>
+    <string name="settings_close">Close Settings</string>
+
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_system">System</string>
+    <string name="settings_appearance_light">Light</string>
+    <string name="settings_appearance_dark">Dark</string>
+
+    <string name="settings_sources">Sources</string>
+    <string name="settings_source_google">Full routes. Needs an API key.</string>
+    <string name="settings_source_tfl">London\'s official planner, incl. National Rail.</string>
+    <string name="settings_source_transitous">Open timetables for all of Great Britain.</string>
+    <string name="settings_deep">Deep search</string>
+    <string name="settings_deep_detail">Ask Google and TfL several ways (fewer changes, less walking, rail or bus only) to surface routes their default ranking hides.</string>
+    <string name="settings_google_count">Google this month: %1$s of %2$s free requests. Deep search asks Google once past %3$s, and not at all past %4$s.</string>
+
+    <string name="settings_connections">Keys and contact</string>
+    <string name="item_google_title">Google Routes API key</string>
+    <string name="item_google_purpose">Adds Google\'s routes and fares to every search.</string>
+    <string name="item_google_source">From console.cloud.google.com: enable the Routes API, then create a key limited to Android apps and the Routes API, with a daily cap.</string>
+    <string name="item_google_identity">This build: package %1$s, certificate SHA-1 %2$s.</string>
+    <string name="item_tfl_title">TfL app key</string>
+    <string name="item_tfl_purpose">TfL answers without one; a key lifts its limit of 50 requests a minute.</string>
+    <string name="item_tfl_source">Free from api-portal.tfl.gov.uk.</string>
+    <string name="item_contact_title">Contact for Transitous</string>
+    <string name="item_contact_purpose">Transitous is run by volunteers and asks apps to say who to reach about their requests. Blank sends this build\'s contact, or Polaris\'s project page if it has none.</string>
+    <string name="item_contact_source">Your email address or a web page of yours.</string>
+    <string name="item_contact_hint">you@example.com or a web address</string>
+    <string name="item_contact_invalid">Not an email or web address, so the build\'s default is used.</string>
+    <string name="item_optional">Optional. %s</string>
+    <string name="item_later">You can add or change this later in Settings.</string>
+    <string name="key_built_in">Using the key built into this app</string>
+    <string name="key_not_set">Not set</string>
+    <string name="key_saved">Saved on this phone</string>
+    <string name="key_unreadable">Saved, but it can\'t be read yet. Enter it again to replace it.</string>
+    <string name="key_not_saved">Couldn\'t save that. The key before it stands.</string>
+    <string name="key_replace">Replace the saved one</string>
+    <string name="key_remove">Remove</string>
+    <string name="key_remove_label">Remove %s</string>
+    <string name="settings_google_needs_key">Needs a key: add one under Keys and contact.</string>
+    <string name="settings_google_unreadable">Its saved key can\'t be read yet, so Google is skipped for now.</string>
+    <string name="key_show">Show</string>
+    <string name="key_hide">Hide</string>
+    <string name="key_show_label">Show %s</string>
+    <string name="key_hide_label">Hide %s</string>
+    <string name="key_lost">A saved value could no longer be read on this phone and was removed: %s. Enter it again if you still want it.</string>
+    <string name="key_lost_ok">OK</string>
+
+    <string name="settings_places">Saved places</string>
+    <string name="settings_home">Home</string>
+    <string name="settings_work">Work</string>
+    <string name="settings_place_set">Add</string>
+    <string name="settings_place_change">Change %s</string>
+    <string name="settings_place_clear">Remove %s</string>
+
+    <string name="settings_data">Data</string>
+    <string name="credits_routes_start">"Route data from Google, Transport for London and Transitous ("</string>
+    <string name="credits_routes_sources">transitous.org/sources</string>
+    <string name="credits_routes_middle">") with "</string>
+    <string name="credits_routes_osm">© OpenStreetMap contributors</string>
+    <string name="credits_routes_end">.</string>
+    <string name="credits_map_start">"Map: "</string>
+    <string name="credits_map_openfreemap">OpenFreeMap</string>
+    <string name="credits_map_openmaptiles">© OpenMapTiles</string>
+    <string name="credits_map_data">Data from OpenStreetMap</string>
+    <string name="credits_places">Place search: Transitous, with © OpenStreetMap contributors.</string>
+
+    <string name="settings_about">About</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_licences_detail">MapLibre, OkHttp, AndroidX, Material Symbols and the rest, with their licence texts</string>
+    <string name="settings_version">Polaris %s</string>
+    <string name="licences_title">Open-source licences</string>
+    <string name="licences_back">Back to Settings</string>
+    <string name="licences_intro">Polaris is open source under the MIT licence. It is built with the work below, used under these licences.</string>
+    <string name="licences_missing">The licence texts couldn\'t be read from this build.</string>
+
+    <string name="setup_title">Set up</string>
+    <string name="setup_welcome">Welcome to Polaris</string>
+    <string name="setup_intro">Nothing here is needed to start. Routes from TfL and Transitous, and departure boards, work as they are.</string>
+    <string name="setup_optional">Each item below is optional and adds something. Fill in any you have, or skip.</string>
+    <string name="setup_start">Start using Polaris</string>
+    <string name="setup_skip">Skip</string>
+    <string name="setup_later">All of this can be added or changed later in Settings.</string>
+</resources>

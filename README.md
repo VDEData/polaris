@@ -201,7 +201,16 @@ the plumbing and the first screens:
   system back and predictive back return through them. Unfolded wide or on a tablet in landscape,
   the sheet is a card on the leading half and the order and filters dock on the map. Location is
   asked for only when you plan from where you are, tap the location button or pick Current
-  Location. The journey page, departure boards, Settings and Go come next.
+  Location.
+- **Journey page:** a route's times, fare and when to leave, Share, and the itinerary with a
+  departure strip under each ride (yours in gold, what missing it costs, a sooner one worth
+  running for) opening the full board; who found it and the hand-off to Citymapper or Google
+  Maps. Wide, a ride's board docks on the map beside the itinerary. Home lists what's leaving
+  near you once location is allowed, each line opening its next departures.
+- **Settings and setup:** appearance, sources, deep search, the Google and TfL keys and the
+  Transitous contact (sealed as above), saved places, the data credits in full and the
+  open-source licences. A new install sees setup once; everything in it is optional and can be
+  added later in Settings. Go, live buses and alerts come next.
 
 Debug builds add a second launcher entry, "Polaris map check", and can replay recorded answers
 instead of asking TfL or Transitous (`--es demo routes`; see `app/src/debug/.../Variant.kt`);
@@ -238,7 +247,7 @@ Build-time keys are compiled into the app (`BuildConfig`), where anyone with the
 them, just as on iOS. A Google key for Android is restricted to your application ID and the SHA-1
 of your signing certificate; the app sends both with each request, and neither is a secret, so the
 restriction only stops casual reuse. Restrict the key to the Routes API, set a daily quota cap in
-the Google Cloud console, and prefer entering keys in the app once Android has a settings screen.
+the Google Cloud console, and prefer entering keys in the app's Settings, which seals them.
 
 The engine's tests read the recordings in `PolarisTests/Fixtures` in place, and both platforms'
 tests assert against `PolarisTests/Fixtures/journey-expectations.json`: for a recorded King's Cross
@@ -313,7 +322,9 @@ keeps to these limits, and changes should too:
 
 - **Transitous** (volunteer-run): one request per search, never fanned out into variants.
   Departure boards are one stop-times request per board as it is shown, kept a minute;
-  during Go only the next ride's board refreshes, once a minute. A descriptive User-Agent
+  during Go only the next ride's board refreshes, once a minute. What's leaving near you is one
+  stop-times request within 400 m, only once location is allowed, kept a minute (and until you
+  move 150 m); Refresh asks again. A descriptive User-Agent
   with `POLARIS_CONTACT`. Android's place search asks its geocoder only once the text is 3
   characters or more and typing has paused for 300 ms; a newer keystroke cancels the request
   in flight, and the last 20 answers are reused rather than asked again.

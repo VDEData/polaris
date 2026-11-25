@@ -58,13 +58,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
+import polaris.android.ui.SEPARATOR
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalScene
 import polaris.android.shell.LocalSheet
@@ -154,6 +159,12 @@ fun ResultsScreen(
     val layout = LocalWindowLayout.current
     val docks = sheet.wide && !layout.short
     val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+    // Short windows (a phone on its side): the trip in its one-row form, the controls in one row
+    // and the status on one line, so the first route card fits beside the map with a disruption showing.
+    val tight = layout.short
+    // At the largest text: the status on one line (the sheet's half rest sits higher too), but the
+    // trip keeps its two rows and the controls wrap, so names and Filters stay whole and in view.
+    val oneLineStatus = tight
     val belowFull = sheet.state?.rest != Rest.Full
     if (docks) {
         DisposableEffect(key, ui.sort, ui.filter, ui.ranked.hidden) {
@@ -167,14 +178,14 @@ fun ResultsScreen(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 16.dp, end = 16.dp,
-                bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                bottom = 24.dp, // the sheet already stops its pages above the navigation bar
             ),
             // Tighter on a short window, so the whole first route fits beside the map.
             verticalArrangement = Arrangement.spacedBy(if (layout.short) 6.dp else 12.dp),
         ) {
             item(key = "trip") {
                 TripHeader(
-                    ui.query, ui.resolved, compact = layout.short, onBack = onBack,
+                    ui.query, ui.resolved, compact = tight, onBack = onBack,
                     edit = { isOrigin -> openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin))) },
                     swap = model::swap,
                     searchAgain = model::searchAgain,
@@ -182,7 +193,7 @@ fun ResultsScreen(
             }
             item(key = "controls") {
                 Controls(
-                    ui, wide = docks,
+                    ui, wide = docks, oneRow = tight,
                     pickTime = { kind -> if (kind == null) model.setTime(TimeMode.LeaveNow) else timeKind = kind },
                     setSort = model::setSort,
                     openFilters = { showFilters = true },
@@ -190,23 +201,23 @@ fun ResultsScreen(
             }
             item(key = "status") {
                 Column {
-                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain)
+                    StatusLine(ui, showSources = { showSources = true }, searchAgain = model::searchAgain, oneLine = oneLineStatus, showSearchAgain = !tight)
                     // While sources are still answering: a quiet line, as well as the star's points.
                     if (ui.isSearching) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 4.dp), color = c.tint, trackColor = c.hairline)
                 }
             }
             when {
                 ui.noFix -> item(key = "nofix") {
-                    Message("Can't find where you are", "Location is off or no fix came. Pick a start instead.", "Choose a start") {
+                    Message(stringResource(R.string.location_no_fix_title), stringResource(R.string.results_no_fix_body), stringResource(R.string.location_choose_start)) {
                         val isOrigin = ui.query.origin.isCurrentLocation
                         openSearch(SearchFor.ResultsEnd(key.id, isOrigin, near = otherEnd(ui.query, isOrigin)))
                     }
                 }
                 ui.stale -> item(key = "stale") {
-                    Message("These routes weren't kept", "Android closed Polaris while it was in the background.", "Search again", model::searchAgain)
+                    Message(stringResource(R.string.results_stale_title), stringResource(R.string.results_stale_body), stringResource(R.string.common_search_again), model::searchAgain)
                 }
                 ui.old -> item(key = "old") {
-                    Message("These routes are from ${ui.restoredFrom?.let { Clock.of(it) }}", "Times may have changed since. Search again for the latest.", "Search again", model::searchAgain)
+                    Message(stringResource(R.string.results_old_title, ui.restoredFrom?.let { Clock.of(it) }.toString()), stringResource(R.string.results_old_body), stringResource(R.string.common_search_again), model::searchAgain)
                 }
             }
             val notices = ui.notices
@@ -236,8 +247,11 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
     }
     if (ranked.more.isNotEmpty()) {
         item(key = "more") {
-            TextButton(onClick = model::toggleMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(if (ui.showMore) "Show fewer" else moreLabel(ranked.more), fontWeight = FontWeight.SemiBold)
+            // The group's own heading ("4 slower or longer routes") stays in view when it is open, so
+            // the cards under it read as their own group, not as more of the order above.
+            val action = stringResource(if (ui.showMore) R.string.common_show_fewer else R.string.results_show_more_routes)
+            TextButton(onClick = model::toggleMore, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { onClick(label = action) { model.toggleMore(); true } }) {
+                Text(moreLabel(ranked.more), fontWeight = FontWeight.SemiBold)
                 Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(20.dp).graphicsLayer { rotationZ = if (ui.showMore) 180f else 0f })
             }
         }
@@ -250,7 +264,7 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
     }
     if (ranked.top.isEmpty() && ranked.more.isEmpty() && (ui.isSearching || ui.restoring)) item(key = "waiting") {
         Text(
-            if (ui.restoring) "Bringing back your routes…" else "Routes appear here as each source answers.",
+            if (ui.restoring) stringResource(R.string.results_restoring) else stringResource(R.string.results_waiting),
             Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
             style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft,
         )
@@ -264,13 +278,14 @@ private fun LazyListScope.routeCards(ui: ResultsViewModel.Ui, model: ResultsView
 private fun reference(ui: ResultsViewModel.Ui) =
     if (ui.query.time.isArriveBy) ui.ranked.top.maxOfOrNull { it.journey.departure } else ui.ranked.top.minOfOrNull { it.journey.arrival }
 
+@Composable
 private fun moreLabel(more: List<RouteOption>): String {
     val blocked = more.count { it.journey.isBlocked }
     val n = more.size
     return when (blocked) {
-        0 -> "$n slower or longer route${if (n == 1) "" else "s"}"
-        n -> "$n route${if (n == 1) "" else "s"} through a closure"
-        else -> "$n more routes, $blocked through a closure"
+        0 -> pluralStringResource(R.plurals.results_more_slower, n, n)
+        n -> pluralStringResource(R.plurals.results_more_closed, n, n)
+        else -> stringResource(R.string.results_more_mixed, n, blocked)
     }
 }
 
@@ -297,9 +312,9 @@ private fun otherEnd(q: JourneyQuery, isOrigin: Boolean): String? = (if (isOrigi
 private fun Bar(query: JourneyQuery, onBack: () -> Unit) {
     val c = polaris
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, "Back") }
+        IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.common_back)) }
         Text(
-            "${placeName(query.origin)} → ${placeName(query.destination)}",
+            stringResource(R.string.results_trip_title, placeName(query.origin), placeName(query.destination)),
             Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -316,27 +331,27 @@ private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, compact: Bo
     val context = LocalContext.current
     var menu by rememberSaveable { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(top = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, "Back") }
+        IconButton(onClick = onBack, modifier = Modifier.padding(start = 0.dp)) { Symbol(R.drawable.sym_arrow_back, stringResource(R.string.common_back)) }
         // A short window (a phone on its side): from and to on one row, as iOS's compact trip editor,
         // so the first route card fits under it.
         if (compact) Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { End("From", query.origin, isStart = true, oneLine = true) { edit(true) } }
+            Box(Modifier.weight(1f)) { End(stringResource(R.string.trip_from), query.origin, isStart = true, oneLine = true) { edit(true) } }
             Symbol(R.drawable.sym_arrow_forward, null, Modifier.size(16.dp).padding(horizontal = 2.dp), tint = c.inkFaint)
-            Box(Modifier.weight(1f)) { End("To", query.destination, isStart = false, oneLine = true) { edit(false) } }
+            Box(Modifier.weight(1f)) { End(stringResource(R.string.trip_to), query.destination, isStart = false, oneLine = true) { edit(false) } }
         } else Column(Modifier.weight(1f)) {
-            End("From", query.origin, isStart = true) { edit(true) }
-            End("To", query.destination, isStart = false) { edit(false) }
+            End(stringResource(R.string.trip_from), query.origin, isStart = true) { edit(true) }
+            End(stringResource(R.string.trip_to), query.destination, isStart = false) { edit(false) }
         }
         IconButton(
             onClick = swap,
             enabled = !(query.origin.isCurrentLocation && query.destination.isCurrentLocation),
-        ) { Symbol(R.drawable.sym_swap_vert, "Swap start and destination", tint = c.tint) }
+        ) { Symbol(R.drawable.sym_swap_vert, stringResource(R.string.results_swap), tint = c.tint) }
         Box {
-            IconButton(onClick = { menu = true }) { Symbol(R.drawable.sym_more_vert, "More options") }
+            IconButton(onClick = { menu = true }) { Symbol(R.drawable.sym_more_vert, stringResource(R.string.common_more_options)) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Search again") }, leadingIcon = { Symbol(R.drawable.sym_refresh, null) }, onClick = { menu = false; searchAgain() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.common_search_again)) }, leadingIcon = { Symbol(R.drawable.sym_refresh, null) }, onClick = { menu = false; searchAgain() })
                 HorizontalDivider()
-                Text("Open this trip in", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium, color = c.inkSoft)
+                Text(stringResource(R.string.results_open_trip_in), Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium, color = c.inkSoft)
                 OpenIn.entries.forEach { app ->
                     DropdownMenuItem(text = { Text(app.label) }, leadingIcon = { Symbol(R.drawable.sym_open_in_new, null) }, onClick = {
                         menu = false
@@ -351,11 +366,12 @@ private fun TripHeader(query: JourneyQuery, resolved: JourneyQuery?, compact: Bo
 @Composable
 private fun End(label: String, place: Place, isStart: Boolean, oneLine: Boolean = false, onClick: () -> Unit) {
     val c = polaris
+    val description = stringResource(R.string.common_label_value, label, place.name)
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClickLabel = "Change") { onClick() }
-            .semantics(mergeDescendants = true) { contentDescription = "$label: ${place.name}" }
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.results_change)) { onClick() }
+            .semantics(mergeDescendants = true) { contentDescription = description }
             .heightIn(min = 48.dp)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -381,27 +397,33 @@ enum class TimeKind { Depart, Arrive }
  * never a wrapping cloud of chips. Wide, the order and filters are docked on the map instead.
  */
 @Composable
-private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind?) -> Unit, setSort: (SortOrder) -> Unit, openFilters: () -> Unit) {
+private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, oneRow: Boolean, pickTime: (TimeKind?) -> Unit, setSort: (SortOrder) -> Unit, openFilters: () -> Unit) {
     val c = polaris
     var timeMenu by rememberSaveable { mutableStateOf(false) }
     var sortMenu by rememberSaveable { mutableStateOf(false) }
-    // Wraps onto a second line rather than hiding a control off the edge (long sort names, large text).
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps onto a second line rather than hiding a control off the edge (long sort names); where
+    // height is short (a short window, the largest text) one row that scrolls sideways instead.
+    val row: @Composable (@Composable () -> Unit) -> Unit = { content ->
+        if (oneRow) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        else FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+    row {
         Box {
             OutlinedButton(onClick = { timeMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(timeLabel(ui.query.time), maxLines = 1)
                 Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(18.dp))
             }
             DropdownMenu(expanded = timeMenu, onDismissRequest = { timeMenu = false }) {
-                DropdownMenuItem(text = { Text("Leave now") }, leadingIcon = { Symbol(R.drawable.sym_schedule, null) }, onClick = { timeMenu = false; pickTime(null) })
-                DropdownMenuItem(text = { Text("Depart at…") }, leadingIcon = { Symbol(R.drawable.sym_arrow_forward, null) }, onClick = { timeMenu = false; pickTime(TimeKind.Depart) })
-                DropdownMenuItem(text = { Text("Arrive by…") }, leadingIcon = { Symbol(R.drawable.sym_location_on, null) }, onClick = { timeMenu = false; pickTime(TimeKind.Arrive) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.results_leave_now)) }, leadingIcon = { Symbol(R.drawable.sym_schedule, null) }, onClick = { timeMenu = false; pickTime(null) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.results_depart_at_menu)) }, leadingIcon = { Symbol(R.drawable.sym_arrow_forward, null) }, onClick = { timeMenu = false; pickTime(TimeKind.Depart) })
+                DropdownMenuItem(text = { Text(stringResource(R.string.results_arrive_by_menu)) }, leadingIcon = { Symbol(R.drawable.sym_location_on, null) }, onClick = { timeMenu = false; pickTime(TimeKind.Arrive) })
             }
         }
         if (!wide) {
+            val sortLabel = stringResource(R.string.results_sort, ui.sort.label)
             Box {
-                OutlinedButton(onClick = { sortMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Sort: ${ui.sort.label}" }) {
-                    Text("Sort: ${ui.sort.label}", maxLines = 1)
+                OutlinedButton(onClick = { sortMenu = true }, colors = tinted(), modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = sortLabel }) {
+                    Text(sortLabel, maxLines = 1)
                     Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(18.dp))
                 }
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
@@ -416,12 +438,14 @@ private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind
                 }
             }
             val active = ui.filter.activeCount
+            val filtersLabel = stringResource(R.string.results_filters)
+            val filtersDescription = if (active > 0) stringResource(R.string.results_filters_on, active) else filtersLabel
             OutlinedButton(
                 onClick = openFilters,
                 colors = tinted(),
-                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = if (active > 0) "Filters, $active on" else "Filters" },
+                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = filtersDescription },
             ) {
-                Text("Filters", maxLines = 1)
+                Text(filtersLabel, maxLines = 1)
                 if (active > 0) {
                     Spacer(Modifier.width(6.dp))
                     Badge(containerColor = c.tint, contentColor = if (c.isNight) c.navy else Color.White) { Text("$active") }
@@ -434,51 +458,104 @@ private fun Controls(ui: ResultsViewModel.Ui, wide: Boolean, pickTime: (TimeKind
 @Composable
 private fun tinted() = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = polaris.tint)
 
+@Composable
 private fun timeLabel(time: TimeMode) = when (time) {
-    TimeMode.LeaveNow -> "Leave now"
-    is TimeMode.DepartAt -> "Depart ${Clock.of(time.at)}"
-    is TimeMode.ArriveBy -> "Arrive by ${Clock.of(time.at)}"
+    TimeMode.LeaveNow -> stringResource(R.string.results_leave_now)
+    is TimeMode.DepartAt -> stringResource(R.string.results_depart_time, Clock.of(time.at))
+    is TimeMode.ArriveBy -> stringResource(R.string.results_arrive_by_time, Clock.of(time.at))
 }
 
 /** Who has answered (the star's points fill in as each source does), what was found, and who didn't answer. */
 @Composable
-private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit) {
+private fun StatusLine(ui: ResultsViewModel.Ui, showSources: () -> Unit, searchAgain: () -> Unit, oneLine: Boolean = false, showSearchAgain: Boolean = true) {
     val c = polaris
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier
                 .weight(1f)
-                .clickable(role = Role.Button, onClickLabel = "Show sources") { showSources() }
-                .heightIn(min = 48.dp)
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.results_show_sources)) { showSources() }
+                .heightIn(min = if (oneLine) 40.dp else 48.dp)
                 .padding(horizontal = 4.dp)
                 .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FractalStar(22.dp, lit = listOf(ProviderID.google, ProviderID.tfl, ProviderID.transitous, ProviderID.apple).map { ui.statuses[it] is ProviderStatus.Done })
-            Text(summary(ui), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            // One line where height is short; the whole of it is in the sources panel it opens.
+            Text(summary(ui, rememberSummaryWords()), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
+                maxLines = if (oneLine) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Symbol(R.drawable.sym_info, null, Modifier.size(18.dp), tint = c.inkFaint)
         }
-        if (!ui.isSearching && !ui.stale) {
-            IconButton(onClick = searchAgain) { Symbol(R.drawable.sym_refresh, "Search again", tint = c.tint) }
+        // Search again is in the overflow too, so a short window leaves it there (2x keeps it).
+        if (!ui.isSearching && !ui.stale && showSearchAgain) {
+            IconButton(onClick = searchAgain) { Symbol(R.drawable.sym_refresh, stringResource(R.string.common_search_again), tint = c.tint) }
         }
     }
 }
 
 /** As iOS's summary line: "3 routes so far · asking TfL", "5 routes from Google and TfL · Transitous didn't answer". */
-fun summary(ui: ResultsViewModel.Ui): String {
-    if (ui.locating) return "Finding where you are…"
+fun summary(ui: ResultsViewModel.Ui, words: SummaryWords = SummaryWords.English): String {
+    if (ui.locating) return words.finding
     val routes = ui.ranked.top.size + ui.ranked.more.size
-    val found = "$routes route${if (routes == 1) "" else "s"}"
+    val found = words.routes(routes)
     val order = ProviderID.entries
     val asking = order.filter { ui.statuses[it] == ProviderStatus.Loading }.map { it.displayName }
-    if (asking.isNotEmpty()) return if (routes > 0) "$found so far · asking ${spokenList(asking)}" else "Asking ${spokenList(asking)}"
+    if (asking.isNotEmpty()) return if (routes > 0) words.soFarAsking(found, spokenList(asking, words.and, words.separator)) else words.asking(spokenList(asking, words.and, words.separator))
     val answered = order.filter { it != ProviderID.apple && ui.statuses[it] is ProviderStatus.Done }.map { it.displayName }
     val failed = order.filter { ui.statuses[it] is ProviderStatus.Failed }.map { it.displayName }
-    if (ui.statuses.isEmpty()) return "Not searched"
-    var text = if (answered.isEmpty()) "No source answered" else "$found from ${spokenList(answered)}"
-    if (failed.isNotEmpty()) text += " · ${spokenList(failed)} didn't answer"
+    if (ui.statuses.isEmpty()) return words.notSearched
+    var text = if (answered.isEmpty()) words.noSourceAnswered else words.foundFrom(found, spokenList(answered, words.and, words.separator))
+    if (failed.isNotEmpty()) text = words.didntAnswer(text, spokenList(failed, words.and, words.separator))
     return text
+}
+
+/** The words [summary] is made of. The screen's come from strings.xml ([rememberSummaryWords]). */
+interface SummaryWords {
+    val finding: String
+    /** The word before a list's last item. */
+    val and: String
+    /** Between the items of a list but the last two. */
+    val separator: String get() = ", "
+    fun routes(count: Int): String
+    fun soFarAsking(found: String, sources: String): String
+    fun asking(sources: String): String
+    val notSearched: String
+    val noSourceAnswered: String
+    fun foundFrom(found: String, sources: String): String
+    fun didntAnswer(text: String, sources: String): String
+
+    /** For code with no resources (the JVM tests): the only place [summary]'s English stays in code, kept the same as strings.xml. */
+    object English : SummaryWords {
+        override val finding = "Finding where you are…"
+        override val and = "and"
+        override fun routes(count: Int) = "$count route${if (count == 1) "" else "s"}"
+        override fun soFarAsking(found: String, sources: String) = "$found so far ·\u00A0asking $sources"
+        override fun asking(sources: String) = "Asking $sources"
+        override val notSearched = "Not searched"
+        override val noSourceAnswered = "No source answered"
+        override fun foundFrom(found: String, sources: String) = "$found from $sources"
+        override fun didntAnswer(text: String, sources: String) = "$text ·\u00A0$sources didn't answer"
+    }
+}
+
+/** [SummaryWords] from the app's resources, in the phone's language. */
+@Composable
+fun rememberSummaryWords(): SummaryWords {
+    val resources = LocalResources.current
+    return remember(resources) {
+        object : SummaryWords {
+            override val finding get() = resources.getString(R.string.common_finding_you)
+            override val and get() = resources.getString(R.string.list_and)
+            override val separator get() = resources.getString(R.string.list_separator)
+            override fun routes(count: Int) = resources.getQuantityString(R.plurals.summary_routes, count, count.toString())
+            override fun soFarAsking(found: String, sources: String) = resources.getString(R.string.summary_so_far_asking, found, sources)
+            override fun asking(sources: String) = resources.getString(R.string.summary_asking, sources)
+            override val notSearched get() = resources.getString(R.string.summary_not_searched)
+            override val noSourceAnswered get() = resources.getString(R.string.summary_no_source)
+            override fun foundFrom(found: String, sources: String) = resources.getString(R.string.summary_found_from, found, sources)
+            override fun didntAnswer(text: String, sources: String) = resources.getString(R.string.summary_didnt_answer, text, sources)
+        }
+    }
 }
 
 /** Who answered, who didn't, and why: iOS's sources panel. */
@@ -487,8 +564,8 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, routes: Int
     val c = polaris
     HalfDialog(
         onDismissRequest = onDismiss,
-        title = "Sources",
-        confirmButton = { TextButton(onDismiss) { Text("Done") } },
+        title = stringResource(R.string.sources_title),
+        confirmButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_done)) } },
     ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ProviderID.entries.filter { it != ProviderID.apple }.forEach { id ->
@@ -497,8 +574,8 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, routes: Int
                         Text(id.displayName, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
                         Text(
                             when (status) {
-                                ProviderStatus.Loading -> "Searching…"
-                                is ProviderStatus.Done -> "${status.count} journey${if (status.count == 1) "" else "s"}"
+                                ProviderStatus.Loading -> stringResource(R.string.common_searching)
+                                is ProviderStatus.Done -> pluralStringResource(R.plurals.sources_journeys, status.count, status.count)
                                 is ProviderStatus.Failed -> plainFailure(status.reason)
                                 is ProviderStatus.Off -> status.reason
                             },
@@ -513,9 +590,7 @@ private fun SourcesDialog(statuses: Map<ProviderID, ProviderStatus>, routes: Int
                     }
                 }
                 Text(
-                    "Each source's journeys are counted as it sent them. The list shows $routes route${if (routes == 1) "" else "s"}: " +
-                        "departures on the same lines are one route (\"Or leave at\"), and a route several sources found shows once, " +
-                        "with each one's badge. The star's points fill in as Google, TfL and Transitous answer.",
+                    pluralStringResource(R.plurals.sources_note, routes, routes),
                     style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
                 )
                 DataCredits()
@@ -529,23 +604,28 @@ fun DataCredits(modifier: Modifier = Modifier) {
     val c = polaris
     val link = androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = c.tint))
     fun url(text: String, href: String) = androidx.compose.ui.text.LinkAnnotation.Url(href, link)
+    val tfl = stringResource(R.string.sources_credits_tfl)
+    val timetablesFrom = stringResource(R.string.sources_credits_timetables_from)
+    val withCredit = stringResource(R.string.sources_credits_with)
+    val osm = stringResource(R.string.sources_credits_osm)
     val credits = androidx.compose.ui.text.buildAnnotatedString {
-        append("Powered by TfL Open Data. Contains OS data © Crown copyright and database rights 2016 and Geomni UK Map data © and database rights [2019]. ")
-        append("Timetables and places from ")
+        append(tfl)
+        append(timetablesFrom)
         withLink(url("Transitous", "https://transitous.org/sources")) { append("Transitous") }
         append(" (")
         withLink(url("sources", "https://transitous.org/sources")) { append("transitous.org/sources") }
-        append(") with © ")
-        withLink(url("OpenStreetMap", "https://www.openstreetmap.org/copyright")) { append("OpenStreetMap contributors") }
+        append(withCredit)
+        withLink(url("OpenStreetMap", "https://www.openstreetmap.org/copyright")) { append(osm) }
         append(".")
     }
     Text(credits, modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
 }
 
 /** "HTTP 503" means little to anyone: say it plainly. Offline and timed out already read well. */
+@Composable
 fun plainFailure(reason: String): String = when {
-    reason.startsWith("HTTP") -> "Didn't answer"
-    reason == "Interrupted" -> "Interrupted"
+    reason.startsWith("HTTP") -> stringResource(R.string.sources_didnt_answer)
+    reason == "Interrupted" -> stringResource(R.string.sources_interrupted)
     else -> reason
 }
 
@@ -575,17 +655,18 @@ private fun NoticeList(notices: List<ServiceNotice>, summarised: Boolean = false
     if (summarised && !all) {
         val worst = notices.first()
         val minor = worst.severity == ServiceNotice.Severity.minor
+        val description = if (notices.size > 1) pluralStringResource(R.plurals.notices_summary_description, notices.size - 1, worst.title, notices.size - 1) else worst.title
         Row(
             Modifier.fillMaxWidth().surface(c)
-                .clickable(role = Role.Button, onClickLabel = "Show the notices") { all = true }
-                .semantics(mergeDescendants = true) { contentDescription = if (notices.size > 1) "${worst.title}, and ${notices.size - 1} more reported" else worst.title }
+                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.notices_show)) { all = true }
+                .semantics(mergeDescendants = true) { contentDescription = description }
                 .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Symbol(if (minor) R.drawable.sym_info else R.drawable.sym_warning, null, Modifier.size(18.dp), tint = if (minor) c.inkSoft else c.warning)
             Text(worst.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (notices.size > 1) Text("+${notices.size - 1}", style = MaterialTheme.typography.labelMedium, color = c.inkSoft)
+            if (notices.size > 1) Text(stringResource(R.string.notices_plus, notices.size - 1), style = MaterialTheme.typography.labelMedium, color = c.inkSoft)
         }
         return
     }
@@ -601,7 +682,7 @@ private fun NoticeList(notices: List<ServiceNotice>, summarised: Boolean = false
             val expanded = id in open
             Row(
                 Modifier.fillMaxWidth()
-                    .clickable(role = Role.Button, onClickLabel = if (expanded) "Show less" else "Show TfL's full notice") { open = if (expanded) open - id else open + id }
+                    .clickable(role = Role.Button, onClickLabel = if (expanded) stringResource(R.string.notices_show_less) else stringResource(R.string.notices_show_full)) { open = if (expanded) open - id else open + id }
                     .heightIn(min = 48.dp)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -614,12 +695,12 @@ private fun NoticeList(notices: List<ServiceNotice>, summarised: Boolean = false
                         SourceBadge(notice.source)
                     }
                     if (notice.severity == ServiceNotice.Severity.closed) {
-                        Text("Routes through it are under the others, below.", style = MaterialTheme.typography.bodySmall, color = c.warning)
+                        Text(stringResource(R.string.notices_closed_note), style = MaterialTheme.typography.bodySmall, color = c.warning)
                     }
                     if (notice.detail.isNotEmpty()) {
                         Text(notice.detail, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
                         // A visible cue that TfL's full words are a tap away.
-                        Text(if (expanded) "Show less" else "Read TfL's notice", style = MaterialTheme.typography.labelMedium, color = c.tint)
+                        Text(if (expanded) stringResource(R.string.notices_show_less) else stringResource(R.string.notices_read_tfl), style = MaterialTheme.typography.labelMedium, color = c.tint)
                     }
                 }
             }
@@ -627,7 +708,7 @@ private fun NoticeList(notices: List<ServiceNotice>, summarised: Boolean = false
         if (notices.size > 3) {
             HorizontalDivider(Modifier.padding(start = 40.dp), color = c.hairline)
             TextButton(onClick = { all = !all }, modifier = Modifier.padding(start = 28.dp).heightIn(min = 48.dp)) {
-                Text(if (all) "Show fewer" else "${notices.size - 3} more reported", fontWeight = FontWeight.SemiBold)
+                Text(if (all) stringResource(R.string.common_show_fewer) else pluralStringResource(R.plurals.notices_more_reported, notices.size - 3, notices.size - 3), fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -646,26 +727,29 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
     val j = option.journey
     val delta = reference?.let {
         val minutes = (((if (arriveBy) it.epochSecond - j.departure.epochSecond else j.arrival.epochSecond - it.epochSecond)) / 60.0).roundToInt()
-        if (minutes > 0) (if (arriveBy) "leave $minutes min earlier" else "+$minutes min") else null
+        if (minutes > 0) (if (arriveBy) stringResource(R.string.route_leave_earlier, minutes) else stringResource(R.string.route_later, minutes)) else null
     }
     val boarding = j.transitLegs.firstOrNull()?.let { ride ->
-        listOfNotNull(Clock.of(ride.departure), ride.platform?.let(ride::standing), ride.fromName).joinToString(" · ")
+        listOfNotNull(Clock.of(ride.departure), ride.platform?.let(ride::standing), ride.fromName).joinToString(SEPARATOR)
     }
     val details = details(j)
+    val and = stringResource(R.string.list_and)
+    val or = stringResource(R.string.list_or)
+    val otherTimes = spokenList(option.otherDepartures.take(3).map { Clock.of(it) }, or, stringResource(R.string.list_separator))
     val spoken = listOfNotNull(
-        if (isBest) "Best route" else null, j.worstNotice?.title, minutesText(j.duration),
-        "leave ${Clock.of(j.departure)}, arrive ${Clock.of(j.arrival)}",
-        spokenList(j.transitLegs.mapNotNull { it.line }), boarding, details,
-        "found by ${spokenList(option.providers.map { it.displayName })}",
-        if (option.otherDepartures.isNotEmpty()) "or leave at ${spokenList(option.otherDepartures.take(3).map { Clock.of(it) }, "or")}" else null,
-        if (j.isRealtime) "live times" else null,
+        if (isBest) stringResource(R.string.route_best) else null, j.worstNotice?.title, minutesText(j.duration),
+        stringResource(R.string.route_leave_arrive, Clock.of(j.departure), Clock.of(j.arrival)),
+        spokenList(j.transitLegs.mapNotNull { it.line }, and, stringResource(R.string.list_separator)), boarding, details,
+        stringResource(R.string.route_found_by, spokenList(option.providers.map { it.displayName }, and, stringResource(R.string.list_separator))),
+        if (option.otherDepartures.isNotEmpty()) stringResource(R.string.route_or_leave_at_spoken, otherTimes) else null,
+        if (j.isRealtime) stringResource(R.string.route_live_times) else null,
     ).joinToString(", ")
 
     Column(
         Modifier
             .fillMaxWidth()
             .surface(c, highlighted = isBest, selected = isShown)
-            .clickable(role = Role.Button, onClickLabel = "Show this route") { onClick() }
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.route_show)) { onClick() }
             .clearAndSetSemantics { contentDescription = spoken }
             .padding(horizontal = 16.dp, vertical = if (LocalWindowLayout.current.short) 10.dp else 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -674,7 +758,7 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (isBest) FractalStar(18.dp)
-                Text("${Clock.of(j.departure)}\u00A0–\u00A0${Clock.of(j.arrival)}", style = MaterialTheme.typography.titleMedium, color = c.ink, softWrap = false)
+                Text(stringResource(R.string.route_time_range, Clock.of(j.departure), Clock.of(j.arrival)), style = MaterialTheme.typography.titleMedium, color = c.ink, softWrap = false)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(minutesText(j.duration).replace(' ', '\u00A0'), style = MaterialTheme.typography.titleMedium, color = c.ink, softWrap = false)
@@ -699,25 +783,26 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
             if (j.hasDisruption && j.notices.isEmpty()) {
                 // The source said something is wrong on this route without saying what.
                 Symbol(R.drawable.sym_warning, null, Modifier.size(14.dp), tint = c.warning)
-                Text("Disruption reported", style = MaterialTheme.typography.bodySmall, color = c.warning)
+                Text(stringResource(R.string.route_disruption), style = MaterialTheme.typography.bodySmall, color = c.warning)
             }
             option.providers.forEach { SourceBadge(it) }
         }
         if (option.otherDepartures.isNotEmpty()) {
             Text(
-                "Or leave at ${spokenList(option.otherDepartures.take(3).map { Clock.of(it) }, "or")}",
+                stringResource(R.string.route_or_leave_at, otherTimes),
                 style = MaterialTheme.typography.bodySmall, color = c.inkFaint,
             )
         }
     }
 }
 
+@Composable
 private fun details(j: Journey): String {
-    val parts = mutableListOf(if (j.changes == 0) "Direct" else if (j.changes == 1) "1 change" else "${j.changes} changes")
+    val parts = mutableListOf(if (j.changes == 0) stringResource(R.string.route_direct) else pluralStringResource(R.plurals.route_changes, j.changes, j.changes))
     val walk = (j.walkingTime / 60).roundToInt()
-    if (walk > 0) parts += "$walk min walk"
+    if (walk > 0) parts += stringResource(R.string.route_walk, walk)
     j.fare?.let { parts += it }
-    return parts.joinToString(" · ")
+    return parts.joinToString(SEPARATOR)
 }
 
 @Composable
@@ -725,10 +810,10 @@ private fun HiddenNote(count: Int, all: Boolean, clear: () -> Unit) {
     val c = polaris
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (all) "Every route is hidden by your filters" else "$count route${if (count == 1) "" else "s"} hidden by your filters",
+            if (all) stringResource(R.string.results_all_hidden) else pluralStringResource(R.plurals.results_hidden, count, count),
             Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = c.inkSoft,
         )
-        TextButton(onClick = clear, modifier = Modifier.heightIn(min = 48.dp)) { Text("Clear filters", fontWeight = FontWeight.SemiBold) }
+        TextButton(onClick = clear, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.results_clear_filters), fontWeight = FontWeight.SemiBold) }
     }
 }
 
@@ -737,9 +822,9 @@ private fun EmptyState() {
     val c = polaris
     Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FractalStar(44.dp, lit = listOf(false, false, false, false))
-        Text("No routes found", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.semantics { heading() })
+        Text(stringResource(R.string.results_empty_title), style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.semantics { heading() })
         Text(
-            "None of the sources came back with a journey. Try another app from the menu above.",
+            stringResource(R.string.results_empty_body),
             style = MaterialTheme.typography.bodyMedium, color = c.inkSoft, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }

@@ -88,13 +88,58 @@ abstract class DebugRecordings : DefaultTask() {
 val mapCheckAssets = tasks.register<DebugRecordings>("mapCheckAssets") {
     val fixtures = rootProject.layout.projectDirectory.dir("../PolarisTests/Fixtures")
     recordings.from(
-        listOf("transitous-plan.json", "tfl-journeys.json").map { fixtures.file(it) },
+        listOf("transitous-plan.json", "tfl-journeys.json", "transitous-departures.json", "transitous-nearby.json").map { fixtures.file(it) },
         listOf("transitous-geocode-kings-cross.json", "transitous-geocode-trafalgar-square.json").map { rootProject.layout.projectDirectory.file("engine/src/test/resources/$it") },
     )
+}
+// Every build: the third-party notices (android/THIRD_PARTY_NOTICES.md), shown in Settings' licences page.
+abstract class NoticesAsset : DefaultTask() {
+    @get:InputFile abstract val notices: RegularFileProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val file = notices.get().asFile
+        check(file.readLines())
+        val dir = output.get().asFile
+        dir.deleteRecursively()
+        dir.mkdirs()
+        file.copyTo(dir.resolve("THIRD_PARTY_NOTICES.md"))
+    }
+
+    /**
+     * The same rules the app's licences page reads the file by (`noticeBlocks`): every repo-only
+     * block, comment and fence closed, so no build, tested or not, ships a page that drops text
+     * or shows nothing.
+     */
+    private fun check(lines: List<String>) {
+        var repoOnly = false
+        var comment = false
+        var fence = false
+        lines.forEachIndexed { i, raw ->
+            val t = raw.trim()
+            when {
+                fence -> if (t.startsWith("```")) fence = false
+                comment -> if (t.endsWith("-->")) comment = false
+                t == "<!-- repo-only -->" -> { if (repoOnly) throw GradleException("THIRD_PARTY_NOTICES.md:${i + 1}: repo-only opened twice"); repoOnly = true }
+                t == "<!-- /repo-only -->" -> { if (!repoOnly) throw GradleException("THIRD_PARTY_NOTICES.md:${i + 1}: /repo-only with none open"); repoOnly = false }
+                repoOnly -> Unit
+                t.startsWith("<!--") -> if (!t.endsWith("-->")) comment = true
+                t.startsWith("```") -> fence = true
+            }
+        }
+        if (repoOnly || comment || fence) throw GradleException("THIRD_PARTY_NOTICES.md: a repo-only block, comment or fence is never closed")
+        if (lines.none { it.startsWith("### ") }) throw GradleException("THIRD_PARTY_NOTICES.md: no licence sections found")
+    }
+}
+val noticesAsset = tasks.register<NoticesAsset>("noticesAsset") {
+    notices.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
 }
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(mapCheckAssets, DebugRecordings::output)
+    }
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(noticesAsset, NoticesAsset::output)
     }
 }
 

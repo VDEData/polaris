@@ -56,6 +56,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.shell.JourneyPage
@@ -84,8 +86,12 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-private val changeChoices = listOf<Pair<Int?, String>>(null to "Any", 1 to "Up to 1", 0 to "Direct only")
-private val walkChoices = listOf<Pair<Int?, String>>(null to "Any", 10 to "Up to 10 min", 5 to "Up to 5 min")
+private val changeChoices = listOf<Pair<Int?, Int>>(null to R.string.filters_any, 1 to R.string.filters_up_to_one_change, 0 to R.string.filters_direct_only)
+private val walkChoices = listOf<Pair<Int?, Int>>(null to R.string.filters_any, 10 to R.string.filters_up_to_10_min, 5 to R.string.filters_up_to_5_min)
+
+/** A filter's choices with their words. */
+@Composable
+private fun List<Pair<Int?, Int>>.resolved(): List<Pair<Int?, String>> = map { (value, words) -> value to stringResource(words) }
 
 /**
  * Rules that take routes off the list (iOS's `FilterSheet`). Remembered between searches, because
@@ -96,11 +102,11 @@ private val walkChoices = listOf<Pair<Int?, String>>(null to "Any", 10 to "Up to
 fun FilterContent(filter: RouteFilter, onChange: (RouteFilter) -> Unit, modifier: Modifier = Modifier) {
     val c = polaris
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Label("Changes")
-        Choices(changeChoices, filter.maxChanges) { onChange(filter.copy(maxChanges = it)) }
-        Label("Walking")
-        Choices(walkChoices, filter.maxWalkMinutes) { onChange(filter.copy(maxWalkMinutes = it)) }
-        Label("Avoid")
+        Label(stringResource(R.string.filters_changes))
+        Choices(changeChoices.resolved(), filter.maxChanges) { onChange(filter.copy(maxChanges = it)) }
+        Label(stringResource(R.string.filters_walking))
+        Choices(walkChoices.resolved(), filter.maxWalkMinutes) { onChange(filter.copy(maxWalkMinutes = it)) }
+        Label(stringResource(R.string.filters_avoid))
         Column(Modifier.surface(c)) {
             ModeGroup.entries.forEach { group ->
                 val on = group in filter.avoided
@@ -155,9 +161,9 @@ fun FilterSheet(filter: RouteFilter, onChange: (RouteFilter) -> Unit, onDismiss:
                 .padding(start = 16.dp, end = 16.dp, bottom = 16.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { onChange(RouteFilter()) }, enabled = filter.activeCount > 0, modifier = Modifier.heightIn(min = 48.dp)) { Text("Reset") }
-                Text("Filters", Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Done", fontWeight = FontWeight.SemiBold) }
+                TextButton(onClick = { onChange(RouteFilter()) }, enabled = filter.activeCount > 0, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_reset)) }
+                Text(stringResource(R.string.results_filters), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_done), fontWeight = FontWeight.SemiBold) }
             }
             FilterContent(filter, onChange)
         }
@@ -176,13 +182,13 @@ fun SortAndFilterCard(sort: SortOrder, filter: RouteFilter, hidden: Int, setSort
     Surface(shape = MaterialTheme.shapes.extraLarge, color = c.paper, shadowElevation = 6.dp) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Sort and filter", Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink)
-                TextButton(onClick = { setFilter(RouteFilter()) }, enabled = filter.activeCount > 0) { Text("Reset") }
+                Text(stringResource(R.string.filters_sort_and_filter), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink)
+                TextButton(onClick = { setFilter(RouteFilter()) }, enabled = filter.activeCount > 0) { Text(stringResource(R.string.common_reset)) }
             }
             // Four segments across fit at ordinary sizes; at large text a menu, so no word breaks.
             val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
             if (large) Column(Modifier.surface(c)) {
-                MenuRow("Sort", sort.label, SortOrder.entries.map { it.label }, keepCase = true) { i -> setSort(SortOrder.entries[i]) }
+                MenuRow(stringResource(R.string.filters_sort), sort.label, SortOrder.entries.map { it.label }, keepCase = true) { i -> setSort(SortOrder.entries[i]) }
             } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 val orders = SortOrder.entries
                 orders.forEachIndexed { index, order ->
@@ -195,14 +201,16 @@ fun SortAndFilterCard(sort: SortOrder, filter: RouteFilter, hidden: Int, setSort
                     )
                 }
             }
+            val changes = changeChoices.resolved()
+            val walks = walkChoices.resolved()
             Column(Modifier.surface(c)) {
-                MenuRow("Changes", changeChoices.first { it.first == filter.maxChanges }.second, changeChoices.map { it.second }) { i -> setFilter(filter.copy(maxChanges = changeChoices[i].first)) }
+                MenuRow(stringResource(R.string.filters_changes), changes.first { it.first == filter.maxChanges }.second, changes.map { it.second }) { i -> setFilter(filter.copy(maxChanges = changeChoices[i].first)) }
                 HorizontalDivider(color = c.hairline)
-                MenuRow("Walking", walkChoices.first { it.first == filter.maxWalkMinutes }.second, walkChoices.map { it.second }) { i -> setFilter(filter.copy(maxWalkMinutes = walkChoices[i].first)) }
+                MenuRow(stringResource(R.string.filters_walking), walks.first { it.first == filter.maxWalkMinutes }.second, walks.map { it.second }) { i -> setFilter(filter.copy(maxWalkMinutes = walkChoices[i].first)) }
                 HorizontalDivider(color = c.hairline)
                 AvoidRow(filter, setFilter)
             }
-            if (hidden > 0) Text("$hidden route${if (hidden == 1) "" else "s"} hidden by your filters", style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            if (hidden > 0) Text(pluralStringResource(R.plurals.results_hidden, hidden, hidden), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         }
     }
 }
@@ -216,7 +224,7 @@ private fun MenuRow(label: String, value: String, choices: List<String>, keepCas
             Modifier.fillMaxWidth().clickable(role = Role.DropdownList) { open = true }.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("$label: ${if (keepCase) value else value.replaceFirstChar { it.lowercase() }}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
+            Text(stringResource(R.string.common_label_value, label, if (keepCase) value else value.replaceFirstChar { it.lowercase() }), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
             Symbol(R.drawable.sym_keyboard_arrow_down, null, tint = c.inkSoft)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -242,7 +250,7 @@ private fun AvoidRow(filter: RouteFilter, setFilter: (RouteFilter) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Avoid: " + if (avoided.isEmpty()) "nothing" else avoided.joinToString(", ") { it.label.lowercase() },
+                stringResource(R.string.filters_avoid_value, if (avoided.isEmpty()) stringResource(R.string.filters_avoid_nothing) else avoided.joinToString(", ") { it.label.lowercase() }),
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink,
             )
             Symbol(R.drawable.sym_keyboard_arrow_down, null, tint = c.inkSoft)
@@ -262,12 +270,13 @@ private fun AvoidRow(filter: RouteFilter, setFilter: (RouteFilter) -> Unit) {
 }
 
 /** The order's name in a segment, short enough for four across. */
-private fun shortSort(order: SortOrder) = when (order) {
-    SortOrder.best -> "Best"
-    SortOrder.fastest -> "Fastest"
-    SortOrder.fewestChanges -> "Fewest changes"
-    SortOrder.leastWalking -> "Least walking"
-}
+@Composable
+private fun shortSort(order: SortOrder) = stringResource(when (order) {
+    SortOrder.best -> R.string.sort_best
+    SortOrder.fastest -> R.string.sort_fastest
+    SortOrder.fewestChanges -> R.string.sort_fewest_changes
+    SortOrder.leastWalking -> R.string.sort_least_walking
+})
 
 /**
  * Depart at or arrive by: Material's time picker in a dialog, with a date row for another day
@@ -286,21 +295,21 @@ fun TimeDialog(kind: TimeKind, current: TimeMode, onDismiss: () -> Unit, onDone:
     val c = polaris
     HalfDialog(
         onDismissRequest = onDismiss,
-        title = if (kind == TimeKind.Depart) "Depart at" else "Arrive by",
+        title = if (kind == TimeKind.Depart) stringResource(R.string.time_depart_at) else stringResource(R.string.time_arrive_by),
         confirmButton = {
             TextButton(onClick = {
                 val at = date.atTime(LocalTime.of(time.hour, time.minute)).atZone(zone).toInstant()
                 onDone(if (kind == TimeKind.Depart) TimeMode.DepartAt(at) else TimeMode.ArriveBy(at))
-            }) { Text("Done") }
+            }) { Text(stringResource(R.string.common_done)) }
         },
-        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     ) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(
-                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Change the day") { pickingDay = true }.heightIn(min = 48.dp),
+                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = stringResource(R.string.time_change_day)) { pickingDay = true }.heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Day", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.inkSoft)
+                    Text(stringResource(R.string.time_day), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.inkSoft)
                     Text(dayLabel(date), style = MaterialTheme.typography.bodyLarge, color = c.tint, fontWeight = FontWeight.SemiBold)
                 }
                 // The dial's numbers crowd at large text sizes: typed hours and minutes there.
@@ -317,64 +326,19 @@ fun TimeDialog(kind: TimeKind, current: TimeMode, onDismiss: () -> Unit, onDone:
                 TextButton(onClick = {
                     picker.selectedDateMillis?.let { day = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay() }
                     pickingDay = false
-                }) { Text("Done") }
+                }) { Text(stringResource(R.string.common_done)) }
             },
-            dismissButton = { TextButton({ pickingDay = false }) { Text("Cancel") } },
+            dismissButton = { TextButton({ pickingDay = false }) { Text(stringResource(R.string.common_cancel)) } },
         ) { DatePicker(picker, colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)) }
     }
 }
 
+@Composable
 private fun dayLabel(date: LocalDate): String {
     val today = LocalDate.now()
     return when (date) {
-        today -> "Today"
-        today.plusDays(1) -> "Tomorrow"
+        today -> stringResource(R.string.time_today)
+        today.plusDays(1) -> stringResource(R.string.time_tomorrow)
         else -> date.format(DateTimeFormatter.ofPattern("EEE d MMM"))
-    }
-}
-
-/**
- * The route's page. The journey page (itinerary, departures, Go) is the next update; for now this
- * says so, and the map shows the route alone. Up and system back return to the routes.
- */
-@Composable
-fun JourneyPlaceholder(key: JourneyPage, graph: AppGraph, onBack: () -> Unit) {
-    val c = polaris
-    val sheet = LocalSheet.current
-    // Read off the main thread (from memory at once, or from the file after a restart).
-    val search by androidx.compose.runtime.produceState<polaris.engine.Snapshot.Search?>(null, key) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.archive.load(key.searchId) }
-    }
-    val journey = search?.journeys?.firstOrNull { it.id == key.journeyId }
-    val night = c.isNight
-    val drawing = remember(journey, night) {
-        journey?.let { j ->
-            val q = search?.query
-            JourneyMap.drawing(j, night, q?.origin?.takeUnless { it.isCurrentLocation }?.coordinate, q?.destination?.takeUnless { it.isCurrentLocation }?.coordinate)
-        }
-    }
-    SceneEffect(key, MapScene.Content(drawing))
-    val title = journey?.let { "${Clock.of(it.departure)} – ${Clock.of(it.arrival)} · ${minutesText(it.duration)}" } ?: "Route"
-    val bar: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, "Back") }
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-    SheetPage(key, bar = bar) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(PaddingValues(start = 0.dp, end = 0.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            bar()
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                journey?.let { LegStrip(it.legs) }
-                Text(
-                    "Journey details (the stops, departures and Go) come in the next update. Back returns to the routes.",
-                    style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
-                )
-            }
-        }
     }
 }

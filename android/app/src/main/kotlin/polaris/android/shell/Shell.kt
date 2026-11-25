@@ -1,5 +1,11 @@
 package polaris.android.shell
 
+import polaris.android.settings.SettingsScreen
+import polaris.android.settings.LicencesScreen
+import polaris.android.settings.SetupScreen
+import polaris.android.journey.JourneyScreen
+import polaris.android.journey.BoardScreen
+import polaris.android.journey.LineScreen
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,11 +81,11 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import polaris.android.app.AppGraph
 import polaris.android.home.HomeScreen
 import polaris.android.map.PolarisMap
-import polaris.android.results.JourneyPlaceholder
 import polaris.android.results.ResultsScreen
 import polaris.android.search.PlaceSearchScreen
 import polaris.android.ui.HalfDialog
@@ -90,6 +96,10 @@ import polaris.engine.Snapshot
 /** The window's pages: the map with its sheet, and a place search over it. */
 @Serializable data object MainWindow : NavKey
 @Serializable data class SearchWindow(val kind: SearchFor) : NavKey
+/** Settings, the licences under it, and first-run setup: cover pages over the map (over the leading card when wide). */
+@Serializable data object SettingsWindow : NavKey
+@Serializable data object LicencesWindow : NavKey
+@Serializable data object SetupWindow : NavKey
 
 /** Builds the app's view models from the graph; every screen's model takes its dependencies directly. */
 inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: (androidx.lifecycle.SavedStateHandle) -> T) =
@@ -105,9 +115,10 @@ inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: 
  * use the sheet.
  */
 @Composable
-fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null) {
+fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null, showSetup: Boolean = false) {
     val shell: ShellViewModel = viewModel(factory = factory { ShellViewModel(graph) })
-    val window = rememberNavBackStack(MainWindow)
+    // First-run setup is over everything on a fresh start; after that the saved stack decides.
+    val window = rememberNavBackStack(*(if (showSetup) arrayOf<NavKey>(MainWindow, SetupWindow) else arrayOf<NavKey>(MainWindow)))
     val pages = rememberNavBackStack(HomePage)
     val scene = remember { MapScene() }
 
@@ -146,6 +157,8 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     }
 
     val openSearch: (SearchFor) -> Unit = { kind -> if (window.lastOrNull() !is SearchWindow) window.add(SearchWindow(kind)) }
+    val openSettings: () -> Unit = { if (window.lastOrNull() == MainWindow) window.add(SettingsWindow) }
+    val cover = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))
 
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
@@ -155,22 +168,34 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // A fold running across the window (an unfolded book-style phone turned tall): the phone
     // layout with more room, as the proposal decides for tall-open, not a card above the fold.
     val foldAcross = hinges.any { !it.isVertical }
+    val foldBottom = hinges.firstOrNull { !it.isVertical }?.bounds?.bottom
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Wide: an unfolded phone held wide, a tablet in landscape, and a phone in landscape (under
     // 480 dp tall a sheet leaves no room for a route card; a card beside the map does).
     val wide = !foldAcross && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
     val widthPx = constraints.maxWidth.toFloat()
     // Up to the fold, 48 dp short of it; with no fold, 400 dp (less on a short landscape phone). The card starts 16 dp in.
+    // A book-style foldable held open wide whose fold WindowManager didn't report (it can be late
+    // or silent): a near-square wide window up to 1000 dp is laid out as if the fold were in the
+    // middle, so the card's width and the map half are the same whether or not it was reported.
+    val unreportedFold = hinge == null && maxWidth >= 840.dp && maxWidth <= 1000.dp && maxHeight >= maxWidth * 0.8f
     val foldStart = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.left else widthPx - it.right }
+        ?: if (unreportedFold) widthPx / 2 else null
     val foldEnd = hinge?.bounds?.let { if (direction == LayoutDirection.Ltr) it.right else widthPx - it.left }
+        ?: if (unreportedFold) widthPx / 2 else null
     val cardWidth: Dp = if (!wide) Dp.Unspecified else with(density) {
         if (foldStart != null) (foldStart.toDp() - 48.dp - 16.dp).coerceIn(320.dp, 560.dp) else minOf(400.dp, maxWidth * 0.45f)
     }
     // The map's own half starts past the fold, so its credit and framed routes never straddle it.
     // The card sits inside the safe area (a camera cutout on the leading side in landscape), so the map half starts past both.
     val safeStart = WindowInsets.safeDrawing.asPaddingValues().calculateStartPadding(direction)
-    val mapStart: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
-    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart)
+    val besideCard: Dp = if (!wide) 0.dp else with(density) { maxOf(safeStart + 16.dp + cardWidth + 16.dp, (foldEnd?.toDp() ?: 0.dp) + 16.dp) }
+    // A wide window whose fold wasn't reported (WindowManager can be late or silent): the map half
+    // still never starts within 24 dp of the middle, where a book-style fold would be, so its credit
+    // and what it frames stay clear of a hinge there. On a tablet this only nudges the map's start.
+    val middle = maxWidth / 2
+    val mapStart: Dp = if (wide && hinge == null && besideCard > middle - 24.dp && besideCard < middle + 24.dp) middle + 24.dp else besideCard
+    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom)
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -180,7 +205,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
         entryProvider = entryProvider {
             entry<MainWindow> {
                 CompositionLocalProvider(LocalScene provides scene) {
-                    MapAndSheet(graph, shell, pages, night, openSearch)
+                    MapAndSheet(graph, shell, pages, night, openSearch, openSettings)
                 }
             }
             entry<SearchWindow>(metadata = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))) { key ->
@@ -193,23 +218,36 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
                     onClose = { window.removeAll { it == key } },
                 )
             }
+            entry<SettingsWindow>(metadata = cover) {
+                SettingsScreen(
+                    graph, shell, night, openSearch,
+                    openLicences = { if (window.lastOrNull() == SettingsWindow) window.add(LicencesWindow) },
+                    onClose = { window.removeAll { it == SettingsWindow || it == LicencesWindow } },
+                )
+            }
+            entry<LicencesWindow>(metadata = cover) {
+                LicencesScreen(night) { window.removeAll { it == LicencesWindow } }
+            }
+            entry<SetupWindow>(metadata = cover) {
+                SetupScreen(graph, night) { window.removeAll { it == SetupWindow } }
+            }
         },
     )
     when (val n = need) {
         is ShellViewModel.Need.Stranded -> CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
-                title = "Can't find where you are",
-                confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text("Choose a start") } },
-                dismissButton = { TextButton(shell::dismissNeed) { Text("Cancel") } },
-            ) { Text(if (n.locationOff) "Location is off for Polaris. Pick where you're starting from instead." else "Pick where you're starting from instead.") }
+                title = stringResource(R.string.location_no_fix_title),
+                confirmButton = { TextButton({ openSearch(shell.chooseStart(n.destination)) }) { Text(stringResource(R.string.location_choose_start)) } },
+                dismissButton = { TextButton(shell::dismissNeed) { Text(stringResource(R.string.common_cancel)) } },
+            ) { Text(if (n.locationOff) stringResource(R.string.location_off_pick_start) else stringResource(R.string.location_pick_start)) }
         }
         ShellViewModel.Need.LocationOff -> {
             val context = androidx.compose.ui.platform.LocalContext.current
             CompositionLocalProvider(LocalWindowLayout provides layout) {
             HalfDialog(
                 onDismissRequest = shell::dismissNeed,
-                title = "Location is off for Polaris",
+                title = stringResource(R.string.location_off_title),
                 confirmButton = {
                     TextButton({
                         shell.dismissNeed()
@@ -218,10 +256,10 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
                                 android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)),
                             )
                         }
-                    }) { Text("Open settings") }
+                    }) { Text(stringResource(R.string.location_open_settings)) }
                 },
-                dismissButton = { TextButton(shell::dismissNeed) { Text("Not now") } },
-            ) { Text("Allow location in Settings to use where you are, or pick a place instead.") }
+                dismissButton = { TextButton(shell::dismissNeed) { Text(stringResource(R.string.location_not_now)) } },
+            ) { Text(stringResource(R.string.location_off_body)) }
             }
         }
         else -> Unit
@@ -244,6 +282,7 @@ private fun MapAndSheet(
     pages: androidx.navigation3.runtime.NavBackStack<NavKey>,
     night: Boolean,
     openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
 ) {
     val scene = LocalScene.current
     val density = LocalDensity.current
@@ -257,7 +296,7 @@ private fun MapAndSheet(
     val bars = remember { mutableStateMapOf<NavKey, Int>() }
     val movablePages = remember(graph, shell, pages) {
         movableContentOf { host: SheetHost ->
-            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch) }
+            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch, openSettings) }
         }
     }
     var dockHeight by remember { mutableStateOf(0) }
@@ -293,7 +332,11 @@ private fun MapAndSheet(
             val handlePx = with(density) { 28.dp.toPx() }
             val anchors = buildMap {
                 put(Rest.Low, heightPx - (barPx + handlePx + with(density) { navBottom.toPx() }))
-                put(Rest.Half, heightPx * if (short) 0.42f else 0.52f)
+                // At the largest text the half rest sits higher, so a route card fits under the page's controls.
+                // Open tall, the half rest is 48 dp below the fold, so neither the sheet's edge nor the map's
+                // credit sits on it.
+                val foldRest = layout.foldBottomPx?.let { it + with(density) { 48.dp.toPx() } }?.takeIf { it < heightPx * 0.7f }
+                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
@@ -381,6 +424,8 @@ private fun MapAndSheet(
                 shape = RoundedCornerShape(28.dp),
                 color = polaris.paper,
                 shadowElevation = 6.dp,
+                // At night a shadow doesn't show on the dark map: a hairline edge does.
+                border = if (polaris.isNight) androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)) else null,
             ) { sheetContent() }
         } else {
             val fullHeight = with(density) { (heightPx - (sheet.anchors[Rest.Full] ?: sheet.anchors[Rest.Half] ?: 0f)).toDp() }
@@ -398,6 +443,7 @@ private fun SheetPages(
     shell: ShellViewModel,
     pages: androidx.navigation3.runtime.NavBackStack<NavKey>,
     openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
 ) {
     // Pages slide in from the end; going back, the page on top slides away over the one under it
     // (and follows the finger during predictive back). Each page is opaque, so they never overlap.
@@ -413,7 +459,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, shell, openSearch) } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) } } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->
@@ -421,7 +467,15 @@ private fun SheetPages(
                     }
                 }
             }
-            entry<JourneyPage> { key -> page { JourneyPlaceholder(key, graph, onBack = { pages.removeLastOrNull() }) } }
+            entry<JourneyPage> { key ->
+                page {
+                    JourneyScreen(key, graph, onBack = { pages.removeLastOrNull() }) { leg ->
+                        if (pages.lastOrNull() == key) pages.add(BoardPage(key.searchId, key.journeyId, leg.id))
+                    }
+                }
+            }
+            entry<BoardPage> { key -> page { BoardScreen(key, graph, onBack = { pages.removeLastOrNull() }) } }
+            entry<LinePage> { key -> page { LineScreen(key, graph, shell, onBack = { pages.removeLastOrNull() }) } }
         },
     )
 }
@@ -429,8 +483,9 @@ private fun SheetPages(
 /** The one floating control, top right, clear of the sheet at every rest. */
 @Composable
 private fun LocationButton(modifier: Modifier, onClick: () -> Unit) {
+    val description = stringResource(R.string.location_show_mine)
     Surface(modifier.size(48.dp), shape = CircleShape, color = polaris.surface, shadowElevation = 3.dp) {
-        IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = "Show my location" }) {
+        IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = description }) {
             Symbol(R.drawable.sym_my_location, null, tint = polaris.tint)
         }
     }

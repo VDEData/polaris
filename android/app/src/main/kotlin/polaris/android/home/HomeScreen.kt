@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -54,7 +55,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import androidx.compose.ui.res.stringResource
 import polaris.android.R
+import polaris.android.shell.MapScene
+import polaris.android.shell.SceneEffect
+import polaris.engine.JourneyMap
 import polaris.android.shell.LocalSheet
 import polaris.android.shell.MeasuredBar
 import polaris.android.shell.SheetPage
@@ -69,21 +74,41 @@ import polaris.android.ui.surface
 import polaris.engine.Place
 
 /**
- * Home, the sheet's root (iOS's `HomeSheet`): the wordmark, where to, Home and Work, and recent
- * places. Nothing here asks for location or sends a request until the person picks somewhere.
+ * Home, the sheet's root (iOS's `HomeSheet`): the wordmark with the Settings gear, where
+ * to, Home and Work, recent places, and "Leaving near you". Location is never asked for here
+ * unasked: what's leaving nearby is asked for (one request, kept a minute) only once the person
+ * has allowed location, and offers a button to allow it otherwise.
  *
- * Not here yet: "Leaving near you", which needs departure boards (not ported to Android yet), and
- * "Your lines", which comes with alerts. Settings comes in the next update, so there is no
- * Settings button yet.
+ * Not here yet: "Your lines", which comes with alerts.
  */
 @Composable
-fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Unit) {
+fun HomeScreen(
+    key: NavKey,
+    graph: polaris.android.app.AppGraph,
+    shell: ShellViewModel,
+    openSearch: (SearchFor) -> Unit,
+    openSettings: () -> Unit,
+    openLine: (polaris.engine.NearbyLine) -> Unit,
+) {
     val places by shell.places.collectAsStateWithLifecycle()
     val finding by shell.finding.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
     val c = polaris
 
     // The one-row bar shows at the sheet's low rest, over the list, which stays as it was.
+    // The map on Home: around where the person last was, once they've allowed location, framed in
+    // the part of the map left showing (beside the card when wide). No fix is asked for here.
+    val shows by shell.showsLocation.collectAsStateWithLifecycle()
+    // The last fix, read off the main thread (the platform's location service is a binder call).
+    val here by androidx.compose.runtime.produceState<polaris.engine.Coordinate?>(null, shows) {
+        value = if (shows) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.locator.last() } else null
+    }
+    val content = remember(here) {
+        here?.let { MapScene.Content(frame = JourneyMap.Bounds(it.latitude - 0.006, it.longitude - 0.01, it.latitude + 0.006, it.longitude + 0.01)) }
+            ?: MapScene.Content()
+    }
+    SceneEffect(key, content)
+
     SheetPage(key, bar = { Bar(openSearch) }) {
         val list = rememberLazyListState()
         LazyColumn(
@@ -91,14 +116,17 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
             state = list,
             contentPadding = PaddingValues(
                 start = 16.dp, end = 16.dp, top = 4.dp,
-                bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                bottom = 24.dp, // the sheet already stops its pages above the navigation bar
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                     FractalStar(26.dp)
-                    Text("Polaris", style = PolarisType.wordmark, color = c.ink, modifier = Modifier.semantics { heading() })
+                    // The star and the wordmark together on the leading side, the gear at the far end, in either direction.
+                    Text(stringResource(R.string.app_name), style = PolarisType.wordmark, color = c.ink, modifier = Modifier.semantics { heading() })
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    SettingsMenu(openSettings)
                 }
             }
             item { WhereTo(Modifier.fillMaxWidth()) { openSearch(SearchFor.Destination) } }
@@ -109,16 +137,16 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text("Finding where you are…", style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+                    Text(stringResource(R.string.common_finding_you), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
                 }
             }
             item {
                 val home: @Composable (Modifier) -> Unit = { m ->
-                    SavedTile("Home", R.drawable.sym_home, places.home, m,
+                    SavedTile(stringResource(R.string.common_home), R.drawable.sym_home, places.home, m,
                         go = { shell.planTo(it) }, set = { openSearch(SearchFor.Home) }, clear = { shell.setHome(null) })
                 }
                 val work: @Composable (Modifier) -> Unit = { m ->
-                    SavedTile("Work", R.drawable.sym_work, places.work, m,
+                    SavedTile(stringResource(R.string.common_work), R.drawable.sym_work, places.work, m,
                         go = { shell.planTo(it) }, set = { openSearch(SearchFor.Work) }, clear = { shell.setWork(null) })
                 }
                 // Side by side; stacked at large text sizes, where two would cut the names short.
@@ -129,7 +157,7 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
                 }
             }
             if (places.recents.isNotEmpty()) {
-                item { SectionHeader("Recent") }
+                item { SectionHeader(stringResource(R.string.common_recent)) }
                 item {
                     Column(Modifier.surface(c)) {
                         places.recents.take(5).forEachIndexed { index, place ->
@@ -140,6 +168,8 @@ fun HomeScreen(key: NavKey, shell: ShellViewModel, openSearch: (SearchFor) -> Un
                     }
                 }
             }
+            // "Leaving near you" is a nice extra, so it sits last and shows only a few rows (as on iOS).
+            nearbySection(graph, shell, wide = sheet.wide, openLine = openLine)
         }
     }
 }
@@ -160,19 +190,20 @@ private fun Bar(openSearch: (SearchFor) -> Unit) {
 @Composable
 fun WhereTo(modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = polaris
+    val description = stringResource(R.string.home_search_description)
     Row(
         modifier
             .clip(RoundedCornerShape(28.dp))
             .background(c.surface, RoundedCornerShape(28.dp))
-            .clickable(role = Role.Button, onClickLabel = "Search") { onClick() }
-            .semantics(mergeDescendants = true) { contentDescription = "Search for where to go" }
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.home_search_click_label)) { onClick() }
+            .semantics(mergeDescendants = true) { contentDescription = description }
             .heightIn(min = 56.dp)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Symbol(R.drawable.sym_search, null, tint = c.inkSoft)
-        Text("Where to?", style = MaterialTheme.typography.bodyLarge, color = c.inkSoft)
+        Text(stringResource(R.string.home_where_to), style = MaterialTheme.typography.bodyLarge, color = c.inkSoft)
     }
 }
 
@@ -193,6 +224,7 @@ private fun SavedTile(
 ) {
     val c = polaris
     var menu by rememberSaveable { mutableStateOf(false) }
+    val moreFor = stringResource(R.string.home_more_for, title)
     Box(modifier) {
         Row(
             Modifier
@@ -200,8 +232,8 @@ private fun SavedTile(
                 .surface(c)
                 .combinedClickable(
                     role = Role.Button,
-                    onClickLabel = if (place == null) "Set $title" else "Plan a trip to $title",
-                    onLongClickLabel = if (place != null) "Change or remove $title" else null,
+                    onClickLabel = if (place == null) stringResource(R.string.home_set_place, title) else stringResource(R.string.home_plan_trip_to, title),
+                    onLongClickLabel = if (place != null) stringResource(R.string.home_change_or_remove, title) else null,
                     onLongClick = if (place != null) ({ menu = true }) else null,
                 ) { if (place != null) go(place) else set() }
                 .heightIn(min = 56.dp)
@@ -215,17 +247,17 @@ private fun SavedTile(
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // Three lines in a half-width tile before a name is shortened, so it ends at a word.
-                Text(place?.name ?: "Add", style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(place?.name ?: stringResource(R.string.home_add), style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             if (place != null) {
-                IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More for $title" }) {
+                IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = moreFor }) {
                     Symbol(R.drawable.sym_more_vert, null, tint = c.inkSoft)
                 }
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text("Change $title") }, leadingIcon = { Symbol(R.drawable.sym_edit, null) }, onClick = { menu = false; set() })
-            DropdownMenuItem(text = { Text("Remove $title") }, leadingIcon = { Symbol(R.drawable.sym_delete, null) }, onClick = { menu = false; clear() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.home_change_place, title)) }, leadingIcon = { Symbol(R.drawable.sym_edit, null) }, onClick = { menu = false; set() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.home_remove_place, title)) }, leadingIcon = { Symbol(R.drawable.sym_delete, null) }, onClick = { menu = false; clear() })
         }
     }
 }
@@ -235,11 +267,12 @@ private fun SavedTile(
 private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork: () -> Unit, forget: () -> Unit) {
     val c = polaris
     var menu by rememberSaveable { mutableStateOf(false) }
+    val moreFor = stringResource(R.string.home_more_for, place.name)
     Box {
         Row(
             Modifier
                 .fillMaxWidth()
-                .combinedClickable(role = Role.Button, onClickLabel = "Plan a trip here", onLongClickLabel = "More options", onLongClick = { menu = true }, onClick = go)
+                .combinedClickable(role = Role.Button, onClickLabel = stringResource(R.string.home_plan_trip_here), onLongClickLabel = stringResource(R.string.common_more_options), onLongClick = { menu = true }, onClick = go)
                 .heightIn(min = 56.dp)
                 .padding(start = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -250,14 +283,20 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
                 Text(place.name, style = MaterialTheme.typography.bodyLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 place.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
-            IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = "More for ${place.name}" }) {
+            IconButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = moreFor }) {
                 Symbol(R.drawable.sym_more_vert, null, tint = c.inkSoft)
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text("Set as Home") }, leadingIcon = { Symbol(R.drawable.sym_home, null) }, onClick = { menu = false; setHome() })
-            DropdownMenuItem(text = { Text("Set as Work") }, leadingIcon = { Symbol(R.drawable.sym_work, null) }, onClick = { menu = false; setWork() })
-            DropdownMenuItem(text = { Text("Remove") }, leadingIcon = { Symbol(R.drawable.sym_delete, null) }, onClick = { menu = false; forget() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.home_set_as_home)) }, leadingIcon = { Symbol(R.drawable.sym_home, null) }, onClick = { menu = false; setHome() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.home_set_as_work)) }, leadingIcon = { Symbol(R.drawable.sym_work, null) }, onClick = { menu = false; setWork() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.common_remove)) }, leadingIcon = { Symbol(R.drawable.sym_delete, null) }, onClick = { menu = false; forget() })
         }
     }
+}
+
+/** Settings: a gear beside the wordmark, a 48 dp button. */
+@Composable
+private fun SettingsMenu(openSettings: () -> Unit) {
+    IconButton(onClick = openSettings) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_open), tint = polaris.inkSoft) }
 }

@@ -9,4 +9,5 @@ import polaris.engine.JourneyQuery
 object Variant {
     fun transport(context: Context, intent: Intent?): HttpTransport? = null
     fun startTrip(intent: Intent?): JourneyQuery? = null
+    fun secrets(intent: Intent?): polaris.engine.SecretStore? = null
 }
