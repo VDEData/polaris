@@ -36,6 +36,34 @@ class AlertModelTest {
         assertTrue(route.stations.size > 35)
     }
 
+    /** TfL can give a stop its hub in one list and not in another: still one station, and no two with the same id (the picker's rows are keyed by it). */
+    @Test fun aStopWithItsParentInOneListOnlyIsOneStation() {
+        val json = """{"orderedLineRoutes":[{"naptanIds":["A1","B1","C1"]}],
+          "stopPointSequences":[{"stopPoint":[{"id":"A1","name":"Alpha Underground Station"},{"id":"B1","name":"Beta Underground Station","topMostParentId":"HUBBET"},{"id":"C1","name":"Gamma"}]}],
+          "stations":[{"id":"A1","name":"Alpha Underground Station","topMostParentId":"HUBALP"},{"id":"A2","name":"Alpha Rail Station","topMostParentId":"HUBALP"},{"id":"B1","name":"Beta Underground Station"},{"id":"C1","name":"Gamma"}]}"""
+        val route = TfLLines.parseRoute(json.encodeToByteArray())
+        assertEquals(listOf("Alpha", "Beta", "Gamma"), route.stations.map { it.name })
+        assertEquals(route.stations.size, route.stations.map { it.id }.toSet().size, "ids are unique")
+        assertEquals(listOf("A1", "A2"), route.stations[0].ids, "the hub's other id is kept as an alias")
+        // And every recorded line: no id twice.
+        for (fixture in listOf("tfl-route-elizabeth.json", "tfl-sequence-circle.json", "tfl-sequence-district.json", "tfl-sequence-northern.json", "tfl-sequence-elizabeth.json")) {
+            val stations = TfLLines.parseRoute(Fixtures.bytes(fixture)).stations
+            assertEquals(stations.size, stations.map { it.id }.toSet().size, fixture)
+        }
+    }
+
+    /** Two stations on different branches (the Northern line's Edgware and High Barnet): no one stretch joins them, so the alert is for the whole line, as on iOS. The app says so when it happens. */
+    @Test fun twoBranchesHaveNoStretchBetweenThem() {
+        val route = TfLLines.parseRoute(Fixtures.bytes("tfl-sequence-northern.json"))
+        val edgware = assertNotNull(route.station("Edgware"))
+        val barnet = assertNotNull(route.station("High Barnet"))
+        val line = TfLLines.Line("northern", "Northern", "tube")
+        val segment = route.segment(line, edgware, barnet)
+        assertTrue(segment.isWholeLine)
+        assertFalse(route.joins(edgware, barnet))
+        assertTrue(route.joins(edgware, assertNotNull(route.station("Camden Town"))))
+    }
+
     @Test fun theStretchYouRideAlongTheLine() {
         val route = elizabeth()
         fun station(name: String) = assertNotNull(route.station(name), name)

@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,13 @@ interface PushRegistrar {
 
     /** This install's push address (a Firebase installation ID), asked for now. Throws when it can't be had. */
     suspend fun register(): String
+
+    /**
+     * Gives the address up and registers under a new one (Firebase: the installation is deleted
+     * and made again). For a phone the server holds under a secret this install has lost: the
+     * old address can no longer be changed or removed from here, and stops being reachable.
+     */
+    suspend fun reset(): String = register()
 
     /** A build with no push service. */
     object None : PushRegistrar {
@@ -107,7 +115,16 @@ class AlertStore(
         val registered: Boolean = false,
         /** What the server said when it took the registration: whether it can push to this phone. Null until it has. */
         val serverCanPush: Boolean? = null,
-    )
+        /**
+         * The server held this phone under a secret this install no longer has (the secure
+         * store's key was lost), so the phone was registered afresh under a new address. Said
+         * once, until [acknowledgeReRegistered].
+         */
+        val reRegistered: Boolean = false,
+    ) {
+        /** No more alerts can be added: the server takes [RouteAlert.MAX_ALERTS] a phone. */
+        val isFull: Boolean get() = alerts.size >= RouteAlert.MAX_ALERTS
+    }
 
     private val _state = MutableStateFlow(
         State(alerts = RouteAlert.decodeList(values.getString(ALERTS)), push = push.availability),
@@ -149,17 +166,24 @@ class AlertStore(
 
     // Editing
 
-    fun save(alert: RouteAlert) {
+    /**
+     * Saves an alert, cut to what the server takes (its lines, times and name), so one alert too
+     * big can't make the server refuse them all. False, and nothing saved, for one alert more
+     * than the server keeps for a phone.
+     */
+    fun save(alert: RouteAlert): Boolean {
         val list = alerts.toMutableList()
         val index = list.indexOfFirst { it.id == alert.id }
-        if (index >= 0) list[index] = alert else list += alert
+        if (index < 0 && list.size >= RouteAlert.MAX_ALERTS) return false
+        val kept = alert.withinLimits
+        if (index >= 0) list[index] = kept else list += kept
         setAlerts(list)
         _state.update { it.copy(status = it.status - alert.id) }
-        scope.launch {
-            enablePush()
-            refreshStatus(force = true)
-        }
+        // Each by itself: a push service slow to answer doesn't hold back what TfL says.
+        scope.launch { enablePush() }
+        scope.launch { refreshStatus(force = true) }
         sync()
+        return true
     }
 
     fun delete(id: String) {
@@ -184,6 +208,8 @@ class AlertStore(
             val id = kotlinx.coroutines.withTimeoutOrNull(registerTimeoutMillis) { push.register() }
             if (id == null) {
                 _state.update { it.copy(pushFailed = true) }
+                // The address from last time still stands until the service says otherwise: the alerts go to the server under it.
+                if (pushId != null) sync()
                 return
             }
             _state.update { it.copy(pushFailed = false) }
@@ -192,12 +218,14 @@ class AlertStore(
             throw e
         } catch (e: Exception) {
             _state.update { it.copy(pushFailed = true) }
+            if (pushId != null) sync()
         }
     }
 
     /** The push service gave (or changed) this phone's address. */
     fun didRegister(id: String) {
-        if (alerts.isEmpty()) return
+        // With no alerts there is nothing to register, unless the server still has the phone from before.
+        if (alerts.isEmpty() && registered == null) return
         if (id != pushId) {
             pushId = id
             _state.update { it.copy(registered = registered != null && registered == id) }
@@ -232,9 +260,40 @@ class AlertStore(
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(syncTrouble = trouble(e)) }
+                if (e is AlertError.Server && e.status == 403) registerAfresh()
             }
         }
     }
+
+    private var registeredAfresh = false
+
+    /**
+     * The server refuses this phone as another install's: it holds the phone's address under a
+     * secret this install no longer has (the secure store's key was lost; the address itself
+     * outlives that). Nothing sent from here can change or remove that registration, so the
+     * address is given up and the phone registered under a new one. The old one stops being
+     * reachable, and the server forgets it when the push service says so. Once a process: a
+     * server that refuses the new address too is not asked for ever.
+     */
+    private suspend fun registerAfresh() {
+        if (registeredAfresh || push.availability != PushAvailability.ready) return
+        registeredAfresh = true
+        val id = try {
+            kotlinx.coroutines.withTimeoutOrNull(registerTimeoutMillis) { push.reset() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return
+        if (id == pushId) return
+        pushId = id
+        registered = null
+        _state.update { it.copy(reRegistered = true, serverCanPush = null) }
+        if (alerts.isNotEmpty()) sync()
+    }
+
+    /** The person has read that the phone was registered afresh. */
+    fun acknowledgeReRegistered() = _state.update { it.copy(reRegistered = false) }
 
     private fun trouble(e: Exception): Trouble = when (e) {
         is AlertError.Server -> Trouble.Said(e.said)
@@ -249,9 +308,31 @@ class AlertStore(
      * server. Once a process: the screen being made anew (a rotation, a fold) asks nothing more.
      */
     fun resume() {
-        if (resumed || alerts.isEmpty()) return
+        if (resumed) return
         resumed = true
+        if (alerts.isEmpty()) {
+            // The last alert was deleted while the server couldn't be told: it is told now, so it stops watching.
+            if (registered != null) sync()
+            return
+        }
         scope.launch { enablePush() }
+    }
+
+    private var lastRetry: Instant? = null
+
+    /**
+     * Polaris came back to the front, or the network came back: whatever the server is still
+     * owed (a change it never got, a phone it should forget, an address the push service hadn't
+     * given) is tried again. At most once every [RETRY_SECONDS], and nothing when nothing is owed.
+     */
+    fun retryIfOwed() {
+        val now = _state.value
+        val owed = now.syncTrouble != null || now.pushFailed || (alerts.isNotEmpty() && !now.registered && now.push == PushAvailability.ready) || (alerts.isEmpty() && registered != null)
+        if (!owed) return
+        val at = clock()
+        lastRetry?.let { if (Duration.between(it, at).seconds in 0 until RETRY_SECONDS) return }
+        lastRetry = at
+        if (alerts.isNotEmpty() && (pushId == null || now.pushFailed)) scope.launch { enablePush() } else sync()
     }
 
     sealed interface TestResult {
@@ -320,7 +401,11 @@ class AlertStore(
      * own token and secret, so it stops pushing; nothing of the old server's goes to the new one.
      * Alerts stay on the phone and are registered with the new server.
      */
-    suspend fun useServer(url: String, token: String): UseResult {
+    suspend fun useServer(url: String, token: String): UseResult =
+        // In the store's own scope: once begun it finishes (the old server told, the new one given the alerts), whatever becomes of the screen that asked.
+        scope.async { switchServer(url, token) }.await()
+
+    private suspend fun switchServer(url: String, token: String): UseResult {
         val address = url.trim()
         val appToken = token.trim()
         val next: String? = if (address.isEmpty()) null else try {
@@ -365,7 +450,7 @@ class AlertStore(
 
     sealed class AlertError(message: String) : Exception(message) {
         /** The server's own words, kept short: it is whatever address was entered. */
-        class Server(val said: String) : AlertError(said)
+        class Server(val said: String, val status: Int = 0) : AlertError(said)
         class Locked : AlertError("The secure store can't be read just now")
         class TooLarge : AlertError("The reply was larger than allowed")
     }
@@ -381,7 +466,9 @@ class AlertStore(
         when (val read = secrets.read(account)) {
             is SecretRead.Value -> if (read.text.length >= 32) return read.text
             SecretRead.Unreadable -> throw AlertError.Locked()
-            else -> Unit
+            // Lost for good, or never made. A lost one's notice is this store's to clear: what
+            // follows from the loss (the server refusing the phone, and registering afresh) is handled in sync.
+            else -> secrets.forgetLost(account)
         }
         val bytes = ByteArray(32).also(random)
         val secret = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
@@ -413,7 +500,7 @@ class AlertStore(
             val said = problem?.get("error")?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
                 ?: problem?.get("reason")?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }?.let { "The push service refused it: $it" }
                 ?: "The alert server said ${response.status}."
-            throw AlertError.Server(said.take(200))
+            throw AlertError.Server(said.take(200), response.status)
         }
         response.body
     }
@@ -426,6 +513,8 @@ class AlertStore(
         const val ENVIRONMENT = "production"
         /** The most a reply may be: a status for 30 alerts is a few KB. */
         const val MAX_RESPONSE = 512 * 1024
+        /** The least time between two retries of what the server is owed. */
+        const val RETRY_SECONDS = 30L
 
         /** The secret-store account of this install's device secret for a server: by its address alone. */
         fun secretAccount(server: AlertServer): String {

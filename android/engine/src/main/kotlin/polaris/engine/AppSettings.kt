@@ -43,6 +43,8 @@ interface SecretStore {
     /** Accounts whose value was lost for good and the person hasn't been told yet (kept across launches). */
     fun lostAccounts(): Set<String> = emptySet()
     fun acknowledgeLost() {}
+    /** Clears the lost-for-good notice of one account, for an account whose loss is handled without a screen. */
+    fun forgetLost(account: String) {}
 }
 
 class InMemorySecretStore : SecretStore {

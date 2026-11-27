@@ -67,6 +67,9 @@ class TfLLines(private val http: HTTP) {
             return best
         }
 
+        /** Whether one of the line's routes runs between the two (else an alert for them can only be for the whole line). */
+        fun joins(from: Station, to: Station): Boolean = stretch(from, to) != null
+
         fun segment(line: Line, from: Station?, to: Station?): RouteAlert.Segment {
             val run = if (from != null && to != null) stretch(from, to) else null
             if (from == null || to == null || run == null) return RouteAlert.Segment(line.alertLine, line.mode)
@@ -135,12 +138,16 @@ class TfLLines(private val http: HTTP) {
             val onRoutes = sequences.flatten().toSet()
             val stops = (dto.stopPointSequences ?: emptyList()).flatMap { it.stopPoint } + (dto.stations ?: emptyList())
 
-            // Group by TfL's hub, so one station's several ids are one choice.
+            // Group by TfL's hub, so one station's several ids are one choice. A stop's hub is
+            // taken from wherever TfL gives it: the same stop can come with its parent in one
+            // list and without in another, and must still be one station, not two with one id.
+            val parentOf = HashMap<String, String>()
+            for (stop in stops) stop.topMostParentId?.let { parentOf.putIfAbsent(stop.id, it) }
             val groups = LinkedHashMap<String, MutableList<Stop>>()
             // The station list includes the hubs themselves ("HUBLST"), which no disruption names.
             for (stop in stops) {
                 if (stop.id.startsWith("HUB")) continue
-                val group = groups.getOrPut(stop.topMostParentId ?: stop.id) { mutableListOf() }
+                val group = groups.getOrPut(parentOf[stop.id] ?: stop.id) { mutableListOf() }
                 if (group.none { it.id == stop.id }) group += stop
             }
             val stations = groups.entries.mapNotNull { (key, group) ->
@@ -151,7 +158,8 @@ class TfLLines(private val http: HTTP) {
                 // The shortest spelling: "Liverpool Street" over "London Liverpool Street".
                 Station(ids, names.minByOrNull { it.length } ?: key, names)
             }
-            return Route(stations.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }), sequences)
+            // One row a station: ids are what the picker's list is keyed by.
+            return Route(stations.distinctBy { it.id }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }), sequences)
         }
 
         /** TfL's line for a ride another source found, by name ("Elizabeth line", "Central", "Mildmay"). */

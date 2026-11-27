@@ -4,6 +4,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -46,12 +47,16 @@ class AlertStoreTest {
         val requests = mutableListOf<HttpRequest>()
         val failing = mutableSetOf<String>()
         var status = 200
+        /** What each request is answered with, when a test says: the status for it (else [status]). */
+        var statusFor: (HttpRequest) -> Int? = { null }
         var reply = """{"checkedAt":"2026-11-24T12:00:00Z","alerts":[]}"""
         var putReply = """{"ok":true,"alerts":1,"pushes":true}"""
         override suspend fun send(request: HttpRequest): HttpResponse {
             requests += request
             if (request.host in failing) throw java.net.ConnectException("refused")
-            return HttpResponse(status, (if (request.method == "PUT") putReply else reply).encodeToByteArray())
+            val code = statusFor(request) ?: status
+            val said = if (code == 403) """{"error":"This phone is registered by another install of Polaris"}""" else if (request.method == "PUT") putReply else reply
+            return HttpResponse(code, said.encodeToByteArray())
         }
         fun to(host: String) = requests.filter { it.host == host }
         fun said(host: String) = to(host).map { "${it.method} ${URI(it.url).path}" }
@@ -59,9 +64,18 @@ class AlertStoreTest {
 
     class Push(override var availability: PushAvailability = PushAvailability.ready, var id: String? = ID) : PushRegistrar {
         var asked = 0
+        var resets = 0
+        /** Held until completed, for a push service slow to answer. */
+        var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
         override suspend fun register(): String {
             asked++
+            gate?.await()
             return id ?: throw IllegalStateException("no address")
+        }
+        override suspend fun reset(): String {
+            resets++
+            id = AFRESH
+            return AFRESH
         }
     }
 
@@ -164,6 +178,176 @@ class AlertStoreTest {
         advanceUntilIdle()
         assertEquals(1, empty.push.asked)
         assertEquals(1, empty.wire.requests.count { it.method == "PUT" })
+    }
+
+    /** Deleted with no network: the server must still be told, or it goes on watching and pushing. */
+    @Test fun theLastAlertDeletedOfflineIsToldToTheServerLater() = runTest {
+        val values = InMemoryKeyValueStore()
+        val wire = Wire()
+        val first = Rig(this, wire = wire, values = values, alerts = listOf(district)).also { advanceUntilIdle() }
+        wire.failing += "built.example.com"
+        first.store.delete(district.id)
+        advanceUntilIdle()
+        assertEquals(AlertStore.Trouble.Unreachable, first.store.state.value.syncTrouble)
+        assertEquals(ID, values.getString(AlertStore.REGISTERED), "still owed")
+        // The next launch, online: no alerts, but the phone is removed.
+        wire.failing.clear()
+        wire.requests.clear()
+        val next = Rig(this, wire = wire, values = values, alerts = emptyList(), registered = false).also { advanceUntilIdle() }
+        next.store.resume()
+        advanceUntilIdle()
+        assertEquals(listOf("DELETE /v1/devices/$ID"), wire.said("built.example.com"))
+        assertNull(values.getString(AlertStore.REGISTERED))
+        assertEquals(0, next.push.asked, "nothing is asked of the push service for that")
+    }
+
+    @Test fun whatTheServerIsOwedIsTriedAgainOnComingBack() = runTest {
+        var now = iso("2026-11-24T12:00:30Z")
+        val wire = Wire()
+        val values = InMemoryKeyValueStore().apply { putString(AlertStore.ALERTS, RouteAlert.encode(listOf(district))) }
+        val secrets = Secrets()
+        val push = Push()
+        val store = AlertStore(
+            AppSettings(secrets, BuildDefaults(alertsUrl = "https://built.example.com", alertsToken = "built-token"), values), secrets, values, wire,
+            { "Polaris/test" }, push, this, clock = { now }, syncDelayMillis = 0, io = StandardTestDispatcher(testScheduler),
+        )
+        wire.failing += "built.example.com"
+        store.resume()
+        advanceUntilIdle()
+        assertEquals(AlertStore.Trouble.Unreachable, store.state.value.syncTrouble)
+        val failed = wire.requests.size
+        // Back to the front, the network back: sent again, without waiting for the next launch.
+        wire.failing.clear()
+        store.retryIfOwed()
+        advanceUntilIdle()
+        assertTrue(store.state.value.registered)
+        assertNull(store.state.value.syncTrouble)
+        assertEquals(failed + 1, wire.requests.size)
+        // Nothing owed: nothing sent, however often it is called.
+        store.retryIfOwed(); store.retryIfOwed()
+        advanceUntilIdle()
+        assertEquals(failed + 1, wire.requests.size)
+        // Owed again, but within half a minute of the last try: held.
+        wire.failing += "built.example.com"
+        store.delete(district.id)
+        advanceUntilIdle()
+        val before = wire.requests.size
+        store.retryIfOwed()
+        advanceUntilIdle()
+        assertEquals(before, wire.requests.size, "not hammered")
+        now = now.plusSeconds(31)
+        wire.failing.clear()
+        store.retryIfOwed()
+        advanceUntilIdle()
+        assertEquals("DELETE", wire.requests.last().method)
+        assertFalse(store.state.value.registered)
+    }
+
+    /** The push service doesn't answer in time, but the address from last time is known: the alerts still go to the server under it. */
+    @Test fun aSlowPushServiceDoesNotStopTheAlertsBeingSent() = runTest {
+        val push = Push().apply { gate = kotlinx.coroutines.CompletableDeferred() }
+        val rig = rig(push = push)
+        rig.store.resume()
+        advanceUntilIdle()
+        assertTrue(rig.store.state.value.pushFailed)
+        assertEquals(listOf("PUT /v1/devices/$ID"), rig.wire.said("built.example.com"))
+    }
+
+    /** What TfL says isn't held back by the push service. */
+    @Test fun savingAsksTfLWithoutWaitingForThePushService() = runTest {
+        val push = Push().apply { gate = kotlinx.coroutines.CompletableDeferred() }
+        val rig = rig(alerts = emptyList(), registered = false, push = push)
+        rig.store.save(district)
+        testScheduler.advanceTimeBy(1_000)
+        assertEquals(listOf("POST /v1/status"), rig.wire.said("built.example.com"), "asked at once")
+        assertNotNull(rig.store.state.value.checkedAt)
+        push.gate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(rig.store.state.value.registered)
+    }
+
+    /** The secure store's key was lost: a new secret, the same push address, and the server refuses the phone for good. The address is given up for a new one, and the person is told. */
+    @Test fun aLostSecretRegistersThePhoneAfresh() = runTest {
+        val wire = Wire()
+        // The server knows ID under the old secret: anything for it is refused.
+        wire.statusFor = { request -> if ("/v1/devices/$ID" in request.url) 403 else null }
+        val rig = rig(wire = wire)
+        rig.store.resume()
+        advanceUntilIdle()
+        assertEquals(1, rig.push.resets, "the installation is given up and made again")
+        assertEquals(listOf("PUT /v1/devices/$ID", "PUT /v1/devices/$AFRESH"), wire.said("built.example.com").filter { it.startsWith("PUT") })
+        val state = rig.store.state.value
+        assertTrue(state.registered)
+        assertTrue(state.reRegistered, "said to the person")
+        assertNull(state.syncTrouble)
+        assertEquals(AFRESH, rig.values.getString(AlertStore.REGISTERED))
+        rig.store.acknowledgeReRegistered()
+        assertFalse(rig.store.state.value.reRegistered)
+        // A server that refuses the new address too isn't asked for ever.
+        wire.statusFor = { request -> if ("/v1/devices/" in request.url) 403 else null }
+        rig.store.didRegister(AFRESH)
+        advanceUntilIdle()
+        assertEquals(1, rig.push.resets)
+        assertEquals(AlertStore.Trouble.Said("This phone is registered by another install of Polaris"), rig.store.state.value.syncTrouble)
+    }
+
+    @Test fun aLostSecretsNoticeIsCleared() = runTest {
+        val secrets = object : SecretStore {
+            val forgotten = mutableListOf<String>()
+            val items = mutableMapOf<String, String>()
+            override fun read(account: String): SecretRead = items[account]?.let { SecretRead.Value(it) } ?: if (account.startsWith("alerts.secret.")) SecretRead.Lost else SecretRead.Absent
+            override fun write(value: String, account: String): Boolean { items[account] = value; return true }
+            override fun forgetLost(account: String) { forgotten += account }
+        }
+        val store = AlertStore(AppSettings(secrets), secrets, InMemoryKeyValueStore(), Wire(), { "Polaris/test" }, Push(), this, io = StandardTestDispatcher(testScheduler))
+        val server = AlertServer("https://built.example.com", "t", true)
+        val made = store.deviceSecret(server)
+        assertEquals(listOf(AlertStore.secretAccount(server)), secrets.forgotten)
+        assertEquals(made, store.deviceSecret(server))
+        advanceUntilIdle()
+    }
+
+    /** Changing server is the store's own work: it finishes though the screen that asked has gone. */
+    @Test fun changingServerFinishesThoughTheScreenThatAskedIsGone() = runTest {
+        val rig = rig()
+        val screen = kotlinx.coroutines.CoroutineScope(StandardTestDispatcher(testScheduler) + kotlinx.coroutines.Job())
+        screen.launch { rig.store.useServer("https://mine.example.org", "my-token") }
+        testScheduler.runCurrent()
+        screen.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+        advanceUntilIdle()
+        assertEquals("DELETE", rig.wire.to("built.example.com").single().method, "the server left is told")
+        assertTrue(rig.wire.to("mine.example.org").any { it.method == "PUT" }, "and the new one given the alerts")
+        assertEquals("mine.example.org", rig.store.state.value.serverLabel)
+    }
+
+    /** One alert over the server's limits makes it refuse every alert of the phone: nothing over them is saved or sent. */
+    @Test fun whatIsSavedAndSentKeepsToTheServersLimits() = runTest {
+        val rig = rig(alerts = emptyList(), registered = false)
+        val line = district.segments[0]
+        val big = RouteAlert(
+            id = "BIG", name = "n".repeat(300),
+            segments = (1..12).map { line.copy(line = RouteAlert.Line("line$it", "Line $it")) },
+            windows = (0 until 12).map { RouteAlert.TimeWindow(it * 60, it * 60 + 30) },
+        )
+        assertTrue(rig.store.save(big))
+        advanceUntilIdle()
+        val saved = rig.store.state.value.alerts.single()
+        assertEquals(RouteAlert.MAX_SEGMENTS, saved.segments.size)
+        assertEquals(RouteAlert.MAX_WINDOWS, saved.windows.size)
+        assertEquals(RouteAlert.MAX_NAME, saved.name.length)
+        // A default name made of many long line names is cut as it is sent.
+        val long = RouteAlert(id = "LONG", segments = (1..8).map { line.copy(line = RouteAlert.Line("l$it", "A very long line name number $it")) })
+        assertTrue(long.displayName.length > RouteAlert.MAX_NAME)
+        assertEquals(RouteAlert.MAX_NAME, long.wire.name.length)
+        // Thirty alerts a phone: the thirty-first isn't saved; an edit to one of the thirty is.
+        (2..RouteAlert.MAX_ALERTS).forEach { assertTrue(rig.store.save(district.copy(id = "A$it"))) }
+        assertTrue(rig.store.state.value.isFull)
+        assertFalse(rig.store.save(district.copy(id = "ONE-TOO-MANY")))
+        assertTrue(rig.store.save(district.copy(id = "A2", name = "Edited")))
+        advanceUntilIdle()
+        assertEquals(RouteAlert.MAX_ALERTS, rig.store.state.value.alerts.size)
+        val sent = HTTP.json.parseToJsonElement(rig.wire.requests.last { it.method == "PUT" }.body!!.decodeToString()).jsonObject.getValue("alerts").jsonArray
+        assertEquals(RouteAlert.MAX_ALERTS, sent.size)
     }
 
     @Test fun deletingTheLastAlertRemovesThePhoneFromTheServer() = runTest {
@@ -422,5 +606,6 @@ class AlertStoreTest {
     companion object {
         /** A Firebase installation ID's shape. */
         const val ID = "cXk3Tm9wQl9aLWFiY2RlZg"
+        const val AFRESH = "YWZyZXNoLWFkZHJlc3MtMDE"
     }
 }

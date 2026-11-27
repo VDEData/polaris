@@ -166,8 +166,17 @@ data class RouteAlert(
     /** Complete enough to save: a line, a day, and times that each start and end apart. */
     val isValid: Boolean get() = segments.isNotEmpty() && days.isNotEmpty() && windows.isNotEmpty() && windows.all { it.start != it.end }
 
-    /** As it is sent: the name always filled in, so the notification says it. */
-    val wire: RouteAlert get() = copy(name = displayName)
+    /** As it is sent: the name always filled in, so the notification says it, and within the server's length for one. */
+    val wire: RouteAlert get() = withinLimits.let { it.copy(name = it.displayName.take(MAX_NAME)) }
+
+    /**
+     * Cut to what the server takes for one alert ([MAX_SEGMENTS] lines, [MAX_WINDOWS] times, a
+     * name of [MAX_NAME] characters). The server refuses a whole registration for one alert over
+     * any of them, and then none of the phone's alerts is updated.
+     */
+    val withinLimits: RouteAlert
+        get() = if (segments.size <= MAX_SEGMENTS && windows.size <= MAX_WINDOWS && name.length <= MAX_NAME) this
+        else copy(segments = segments.take(MAX_SEGMENTS), windows = windows.take(MAX_WINDOWS), name = name.take(MAX_NAME))
 
     /** A body the server takes (`PUT /v1/devices/:token`). */
     @Serializable
@@ -178,6 +187,12 @@ data class RouteAlert(
     data class StatusRequest(val alerts: List<RouteAlert>, val timeZone: String)
 
     companion object {
+        /** The server's limits (`worker/src/validate.ts`): alerts a phone, lines and times an alert, a name's length. */
+        const val MAX_ALERTS = 30
+        const val MAX_SEGMENTS = 8
+        const val MAX_WINDOWS = 8
+        const val MAX_NAME = 120
+
         val SHORT_DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
         val DAYS = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
