@@ -164,13 +164,14 @@ fun PolarisApp(
             pages.add(GoPage)
         }
     }
-    // A trip that ended by itself (arrived, or past its time): back to Home, where the message shows.
+    // A trip that ended by itself (arrived, or past its time): only the trip's own page goes, and
+    // whatever was open under it (the route, its routes, Home) is where the message shows.
     val endedItself by graph.trips.endedItself.collectAsStateLifecycle()
     var endingsSeen by rememberSaveable { mutableStateOf(endedItself) }
     LaunchedEffect(endedItself) {
         if (endedItself == endingsSeen) return@LaunchedEffect
         endingsSeen = endedItself
-        pages.removeAll { it !is HomePage }
+        pages.removeAll { it == GoPage }
     }
     LaunchedEffect(tripOpens) {
         if (!tripOpens) return@LaunchedEffect
