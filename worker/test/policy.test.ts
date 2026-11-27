@@ -89,7 +89,7 @@ test("ways told: what was pushed, read from older memory as the alert's own way,
 
 test("what was told is kept with its words, and told ended once it has gone a few minutes", () => {
   let r = step(undefined, [issue("line:a"), { ...issue("line:b", "minor"), title: "B: minor delays" }], t0);
-  assert.deepEqual(r.state.said, { "line:a": { title: "t", at: t0 }, "line:b": { title: "B: minor delays", at: t0 } });
+  assert.deepEqual(r.state.said, { "line:a": { title: "t", at: t0, severity: "delays" }, "line:b": { title: "B: minor delays", at: t0, severity: "minor" } });
   r = step(r.state, [issue("line:a")], t0 + 2 * MIN);
   assert.equal(r.push, undefined);
   assert.equal(r.state.said!["line:b"].gone, t0 + 2 * MIN);

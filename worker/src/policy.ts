@@ -31,6 +31,8 @@ export interface Told {
   title: string;
   /** When a notice told it (absent in state from before it was kept). */
   at?: number;
+  /** How bad the notice said it was; kept when TfL's words flip without a notice. */
+  severity?: Severity;
   /** The first check it wasn't there. */
   gone?: number;
   /** Back soon after it was told ended: told ended again only after a longer quiet. */
@@ -131,7 +133,7 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
   const standing = (i: Issue) => Object.keys(said ?? {}).filter((s) => place(s) === place(i.signature));
   const recentlySeen = (i: Issue) => !!known[i.signature] && within(known[i.signature].seen, now, FLAP_GUARD);
   // How bad the standing notice says that place is.
-  const toldRank = (i: Issue) => Math.max(...standing(i).map((s) => rank(known[s]?.severity ?? "closed")));
+  const toldRank = (i: Issue) => Math.max(...standing(i).map((s) => rank(said![s].severity ?? known[s]?.severity ?? "closed")));
   const flipped = (i: Issue) => !!said && recentlySeen(i) && standing(i).length > 0 && rank(i.severity) <= toldRank(i);
   // Back to worse than the notice standing says (severe, eased to minor, severe again): news, but
   // once in half an hour at most for that place, or a line taking turns would buzz at every turn.
@@ -168,7 +170,7 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     const next: Record<string, Told> = {};
     for (const issue of issues) {
       const shaky = issue.signature in fixed || said?.[issue.signature]?.shaky;
-      next[issue.signature] = shaky ? { title: issue.title, at: now, shaky: true } : { title: issue.title, at: now };
+      next[issue.signature] = shaky ? { title: issue.title, at: now, severity: issue.severity, shaky: true } : { title: issue.title, at: now, severity: issue.severity };
     }
     for (const [signature, entry] of Object.entries(said ?? {})) {
       if (signature in next || !(signature in known)) continue;
@@ -196,7 +198,10 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
     const before = Object.entries(current).filter(([s]) => place(s) === place(issue.signature) && !issues.some((i) => i.signature === s));
     for (const [s] of before) delete current[s];
     const at = Math.max(...before.map(([, t]) => t.at ?? -Infinity));
-    current[issue.signature] = { title: issue.title, ...(Number.isFinite(at) ? { at } : {}), ...(before.some(([, t]) => t.shaky) ? { shaky: true } : {}) };
+    // What the notice said stays what was told: the worst of what it replaces.
+    const told = before.map(([s, t]) => t.severity ?? known[s]?.severity).filter((x): x is Severity => !!x);
+    const severity = told.length ? told.reduce((a, b) => (rank(b) > rank(a) ? b : a)) : undefined;
+    current[issue.signature] = { title: issue.title, ...(Number.isFinite(at) ? { at } : {}), ...(severity ? { severity } : {}), ...(before.some(([, t]) => t.shaky) ? { shaky: true } : {}) };
   }
 
   const result = settle(current, known, live, issues, away, fixed, now, prev.open, context, false);

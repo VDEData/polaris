@@ -582,6 +582,38 @@ test("round 2, 8: an ended notice refused for a passing reason on following's la
   assert.equal(state().retries, undefined);
 });
 
+
+// Review of PR #9, third round.
+
+test("round 3, 1: severe and minor taking turns all morning: the severe notice isn't repeated every half hour", async () => {
+  const allDay = { ...commute, windows: [{ start: 420, end: 720 }] };
+  const lines = (at: string) => {
+    const m = Number(at.slice(14)) + 60 * Number(at.slice(11, 13));
+    return m >= 660 ? [JUB_GOOD, CEN_GOOD] : [Math.floor((m - 450) / 6) % 2 === 0 ? JUB_SEVERE : JUB_MINOR, CEN_GOOD];
+  };
+  const { sent } = await simulate("07:30", "11:30", lines, [allDay]);
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30", "07:36", "08:06", "11:04"]);
+  assert.match(seen(sent)[3], /cleared/);
+});
+
+test("round 3, 2: way turned round, two disruptions on one line, the one-way one still on: settled quietly", async () => {
+  const twoOn = [{ id: "elizabeth", name: "Elizabeth line", lineStatuses: [
+    { statusSeverity: 6, statusSeverityDescription: "Severe Delays", reason: "Severe delays eastbound between Liverpool Street and Abbey Wood.", validityPeriods: [], disruption: { category: "RealTime", affectedStops: [] } },
+    { statusSeverity: 9, statusSeverityDescription: "Minor Delays", reason: "Minor delays due to a shortage of trains.", validityPeriods: [], disruption: { category: "RealTime", affectedStops: [] } },
+  ] }];
+  const { sent } = await simulate("07:30", "08:20", () => twoOn, [outOnly], { edit: (at) => (at.slice(11) >= "07:40" ? [{ ...outOnly, direction: "back" }] : undefined) });
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30"]);
+});
+
+test("round 3, 3: an edit just after a disruption cleared: the ended notice still comes", async () => {
+  const later = { ...commute, windows: [{ start: 420, end: 570 }] };
+  const { sent } = await simulate("07:30", "08:10", until("07:50", [JUB_MINOR, CEN_GOOD], [JUB_GOOD, CEN_GOOD]), [commute], { edit: (at) => (at.slice(11) >= "07:52" ? [later] : undefined) });
+  assert.deepEqual(seen(sent), [
+    "07:30 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
+    "07:54 Minor delays on the Jubilee line have cleared. Good service again.",
+  ]);
+});
+
 });
 
 /** Enough of D1 for the checks, as in checks.test.ts. */

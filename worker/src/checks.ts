@@ -165,7 +165,7 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
         const ways = waysFor(alert, base, lines, stations, now, maps);
         const matched = new Set([...issues.map((i) => i.signature), ...(ways?.holds ? ways.on.keys() : [])]);
-        const result = step(covered(state.alerts[alert.id], base, matched), issues, now, ways, context(base, lineIds, lines, true));
+        const result = step(covered(state.alerts[alert.id], base, matched, lines), issues, now, ways, context(base, lineIds, lines, true));
         const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
         if (result.push?.kind === "issues") await deliver(alert.id, issuesPush(alert, result.push.issues, now), commit);
         else if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
@@ -175,7 +175,7 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
       for (const { alert, base } of followedHere) {
         if (gone) break;
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
-        const result = follow(covered(state.alerts[alert.id], base, new Set(issues.map((i) => i.signature)))!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
+        const result = follow(covered(state.alerts[alert.id], base, new Set(issues.map((i) => i.signature)), lines)!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
         const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
         if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
         else commit();
@@ -236,15 +236,19 @@ export function fingerprint(alert: Alert): string {
 
 /** Told trouble the alert no longer covers is settled quietly: a line taken off it, minor delays
  * turned off, or (after any edit to what it matches: its way, a time's way, its stations) what it
- * no longer matches now, `matched`. */
-function covered(state: AlertState | undefined, alert: Alert, matched: ReadonlySet<string>): AlertState | undefined {
+ * no longer matches now, `matched`. Not on a line the alert still covers that TfL shows with
+ * nothing wrong: that has ended, and is told so. */
+function covered(state: AlertState | undefined, alert: Alert, matched: ReadonlySet<string>, lines: LineStatus[]): AlertState | undefined {
   const edited = state?.matches !== undefined && state.matches !== fingerprint(alert);
   const lineIds = new Set(alert.segments.map((s) => s.line.id));
   const stops = new Set(alert.segments.flatMap((s) => [...s.stations, s.from?.id ?? "", s.to?.id ?? ""].flatMap((id) => id.split("|"))));
   return forget(state, (signature, severity) => {
     if (severity === "minor" && !alert.minorDelays) return false;
-    if (edited && !matched.has(signature) && ![...matched].some((m) => place(m) === place(signature))) return false;
     const [kind, id] = signature.split(":");
+    const good = kind === "line" && lineIds.has(id) && lines.some((l) => l.lineId === id) && !troubled([id], lines);
+    // Still matched: itself, or something new (not itself told) in the same place.
+    const still = matched.has(signature) || [...matched].some((m) => !(m in (state?.said ?? {})) && place(m) === place(signature));
+    if (edited && !still && !good) return false;
     return kind === "line" ? lineIds.has(id) : kind === "stop" ? stops.has(id) : true;
   });
 }
