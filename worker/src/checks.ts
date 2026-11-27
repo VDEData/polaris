@@ -57,7 +57,8 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
   const reachable = devices.filter((d) => canPush(env, platform(d.token)));
   if (reachable.length < devices.length) {
     if (devices.some((d) => platform(d.token) === "apns") && !canPush(env, "apns")) console.error("pushes not configured: set APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID and APNS_TOPIC");
-    if (devices.some((d) => platform(d.token) === "fcm") && !canPush(env, "fcm")) console.error("Android pushes not configured: set FCM_SERVICE_ACCOUNT");
+    // A server run for iPhones only may never set this: said once an hour, not every run.
+    if (devices.some((d) => platform(d.token) === "fcm") && !canPush(env, "fcm") && new Date(now).getUTCMinutes() < 2) console.error("Android pushes not configured: set FCM_SERVICE_ACCOUNT");
   }
   if (!reachable.length) return { devices: devices.length, checked: 0, sent: 0 };
   const work = reachable.flatMap((device) => {

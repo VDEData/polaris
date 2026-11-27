@@ -115,7 +115,7 @@ app.post("/v1/devices/:token/test", async (c) => {
 
 app.onError((error, c) => {
   if (error instanceof valid.Invalid) return c.json({ error: error.message }, 400);
-  if (error instanceof NotOwner) return c.json({ error: "This phone is registered by another install of Polaris" }, 403);
+  if (error instanceof NotOwner) return c.json({ error: "This phone is registered by another install of Polaris", code: "not_owner" }, 403); // the code tells the app this 403 is the server's own, not a proxy's
   console.error(error);
   return c.json({ error: "Something went wrong" }, 500);
 });

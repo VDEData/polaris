@@ -44,7 +44,7 @@ export const canPush = (env: FcmEnv) => serviceAccount(env) !== undefined;
 export interface Sent {
   status: number;
   reason?: string;
-  /** The phone is gone (app removed, or registered with another Firebase project): forget it. */
+  /** The phone is gone (FCM's `UNREGISTERED`: the app was removed, or its installation deleted): forget it. */
   gone: boolean;
   /** Worth trying again next run: FCM busy, or an access token it no longer takes (dropped). */
   retry?: boolean;

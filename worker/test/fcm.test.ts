@@ -253,6 +253,20 @@ test("no Firebase service account: the iPhone is still told; nothing is judged f
   assert.ok(told(ANDROID));
 });
 
+test("no Firebase service account: said once an hour, not every run", async () => {
+  const { env } = await setup({ fcm: false });
+  const hour = Math.ceil(now / 3_600_000) * 3_600_000;
+  const said: string[] = [];
+  const error = console.error;
+  console.error = (...words: unknown[]) => void said.push(words.join(" "));
+  try {
+    for (let minute = 0; minute < 60; minute += 2) await runChecks(env, hour + minute * 60_000);
+  } finally {
+    console.error = error;
+  }
+  assert.deepEqual(said.filter((line) => line.includes("FCM_SERVICE_ACCOUNT")), ["Android pushes not configured: set FCM_SERVICE_ACCOUNT"]);
+});
+
 test("no APNs key: the Android phone is still told; nothing is judged for the iPhone", async () => {
   const { env, db, apnsSends, fcmSends, told } = await setup({ apns: false });
   const before = db.rows[0].state;
@@ -397,7 +411,10 @@ test("an Android phone registers, is kept under its installation ID exactly, and
   assert.deepEqual(await put.json(), { ok: true, alerts: 2, pushes: true });
   assert.ok(db.rows.get(ANDROID), "case kept");
   assert.equal(db.rows.get(ANDROID.toLowerCase()), undefined);
-  assert.equal((await call(env, "PUT", `/v1/devices/${ANDROID}`, theirs, body)).status, 403);
+  const refused = await call(env, "PUT", `/v1/devices/${ANDROID}`, theirs, body);
+  assert.equal(refused.status, 403);
+  // The words are what an iPhone shows; the code lets the Android app tell this 403 from a proxy's.
+  assert.deepEqual(await refused.json(), { error: "This phone is registered by another install of Polaris", code: "not_owner" });
   assert.equal((await call(env, "DELETE", `/v1/devices/${ANDROID}`, theirs)).status, 403);
   assert.equal((await call(env, "DELETE", `/v1/devices/${ANDROID}`, mine)).status, 200);
   assert.equal(db.rows.size, 0);
