@@ -244,28 +244,36 @@ struct ResultsSheet: View {
     }
 
     private var controls: some View {
-        // In a row while the labels fit whole; stacked at the largest text sizes, where a row
-        // cut each one to its first letter.
+        // In a row while the labels fit whole; stacked, full width, where they don't. The row is
+        // measured with the widest time label under it, so changing the time doesn't flip the
+        // layout back and forth.
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                timeMenu
-                sortMenu
-                Spacer(minLength: 0)
-                filtersButton
+            ZStack(alignment: .leading) {
+                controlRow(timeLabel: "Arrive by 00:00").hidden().accessibilityHidden(true)
+                controlRow(timeLabel: timeLabel)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                timeMenu
-                sortMenu
-                filtersButton
+            VStack(spacing: 8) {
+                timeMenu(stacked: true)
+                sortMenu(stacked: true)
+                filtersButton(stacked: true)
             }
         }
         .buttonStyle(.bordered)
         .tint(Theme.tint)
     }
 
+    private func controlRow(timeLabel: String) -> some View {
+        HStack(spacing: 8) {
+            timeMenu(label: timeLabel)
+            sortMenu()
+            Spacer(minLength: 0)
+            filtersButton()
+        }
+    }
+
     /// The current choice carries the menu's checkmark. Toggles rather than a picker, so
     /// choosing Depart at or Arrive by again still opens the time to change it.
-    private var timeMenu: some View {
+    private func timeMenu(label: String? = nil, stacked: Bool = false) -> some View {
         Menu {
             Toggle("Leave now", systemImage: "clock", isOn: Binding {
                 query.time == .leaveNow
@@ -283,25 +291,25 @@ struct ResultsSheet: View {
                 pickTime(.arrive)
             })
         } label: {
-            controlLabel(timeLabel, systemImage: "clock")
+            controlLabel(label ?? timeLabel, systemImage: "clock", stacked: stacked)
         }
     }
 
-    private var sortMenu: some View {
+    private func sortMenu(stacked: Bool = false) -> some View {
         @Bindable var settings = settings
         return Menu {
             Picker("Sort", selection: $settings.sortOrder) {
                 ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
             }
         } label: {
-            controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down")
+            controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down", stacked: stacked)
         }
     }
 
-    private var filtersButton: some View {
+    private func filtersButton(stacked: Bool = false) -> some View {
         let active = settings.routeFilter.activeCount
         return Button { showFilters = true } label: {
-            controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease")
+            controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease", stacked: stacked)
         }
     }
 
@@ -310,10 +318,13 @@ struct ResultsSheet: View {
         timeSheet = kind
     }
 
-    private func controlLabel(_ title: String, systemImage: String) -> some View {
+    /// One line in the row; stacked, as wide as the column and free to wrap.
+    private func controlLabel(_ title: String, systemImage: String, stacked: Bool = false) -> some View {
         Label(title, systemImage: systemImage)
             .font(.subheadline.weight(.medium))
-            .lineLimit(1)
+            .lineLimit(stacked ? nil : 1)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: stacked ? .infinity : nil, alignment: .leading)
     }
 
     private var timeLabel: String {

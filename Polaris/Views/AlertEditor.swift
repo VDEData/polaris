@@ -53,7 +53,7 @@ struct AlertEditor: View {
                     }
                 }
                 Picker("Days", selection: daysChoice) {
-                    ForEach([Days.weekdays, .everyDay, .weekends]) { Text($0.rawValue).tag($0) }
+                    ForEach(Days.allCases.filter { $0 != .custom }) { Text($0.rawValue).tag($0) }
                     // Custom opens the days below: set apart from the ready-made sets.
                     Divider()
                     Text(Days.custom.rawValue).tag(Days.custom)

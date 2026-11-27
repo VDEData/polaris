@@ -73,7 +73,7 @@ extension View {
     /// button in a form. This puts the system's back: the accent for an action, red for a
     /// destructive one.
     func formButton(destructive: Bool = false) -> some View {
-        foregroundStyle(destructive ? AnyShapeStyle(Color.red) : AnyShapeStyle(.tint))
+        modifier(FormButtonColour(destructive: destructive))
     }
 
     /// A grouped surface: white on the paper with a hairline edge. Only around
@@ -82,6 +82,17 @@ extension View {
         background(Theme.surface, in: .rect(cornerRadius: Theme.radius))
             .overlay(RoundedRectangle(cornerRadius: Theme.radius)
                 .strokeBorder(highlighted ? Theme.goldInk.opacity(0.55) : Theme.hairline, lineWidth: highlighted ? 1 : 0.75))
+    }
+}
+
+/// `formButton`'s colour, dimmed as the system dims a form button that can't be used.
+private struct FormButtonColour: ViewModifier {
+    var destructive: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(!isEnabled ? AnyShapeStyle(.tertiary)
+                                : destructive ? AnyShapeStyle(Color.red) : AnyShapeStyle(.tint))
     }
 }
 
