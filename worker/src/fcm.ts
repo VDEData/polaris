@@ -98,9 +98,10 @@ export async function send(env: FcmEnv, fid: string, push: Push, now = Date.now(
   const unauthenticated = response.status === 401 || reason === "UNAUTHENTICATED";
   if (unauthenticated) await env.DB.prepare("DELETE FROM meta WHERE key = 'fcm_token'").run();
   // Only what FCM says means this phone: unregistered, or registered with another project (as
-  // APNs' DeviceTokenNotForTopic). A 400 is not: it also covers a payload FCM won't take, and
-  // one bad payload mustn't remove every phone.
-  const gone = response.status === 404 || reason === "UNREGISTERED" || reason === "SENDER_ID_MISMATCH";
+  // APNs' DeviceTokenNotForTopic). A 400 is not: it also covers a payload FCM won't take. Nor a
+  // 404 that doesn't say UNREGISTERED: a wrong project in the service account answers 404 for
+  // every phone. One mistake in the setup mustn't remove every phone.
+  const gone = reason === "UNREGISTERED" || reason === "SENDER_ID_MISMATCH";
   return { status: response.status, reason, gone, retry: unauthenticated || response.status === 429 || response.status >= 500 };
 }
 

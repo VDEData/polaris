@@ -386,7 +386,8 @@ keeps to these limits, and changes should too:
 
 - **Transitous** (volunteer-run): one request per search, never fanned out into variants.
   Departure boards are one stop-times request per board as it is shown, kept a minute;
-  during Go only the next ride's board refreshes, once a minute. What's leaving near you is one
+  during Go only the next ride's board refreshes, once a minute, and on Android the board of
+  the ride you are on too, for as long as you're on it, so a train held on the way is seen. What's leaving near you is one
   stop-times request within 400 m, only once location is allowed, kept a minute (and until you
   move 150 m); Refresh asks again. A descriptive User-Agent
   with `POLARIS_CONTACT`. Android's place search asks its geocoder only once the text is 3

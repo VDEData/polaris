@@ -283,6 +283,18 @@ test("a 400 is not a dead phone: refused for good, kept, and not sent again", as
   assert.ok(told(ANDROID), "recorded as handled");
 });
 
+test("a 404 that doesn't say the phone is unregistered (a wrong project) removes nobody", async () => {
+  const notFound = () => new Response(JSON.stringify({ error: { code: 404, message: "Requested entity was not found.", status: "NOT_FOUND" } }), { status: 404 });
+  const { env, db, fcmSends } = await setup({ tokens: [ANDROID, "QW5vdGhlclBob25lXzAwMQ"], answer: notFound });
+  await runChecks(env, now);
+  assert.equal(db.rows.length, 2, "one mistake in the setup mustn't remove every phone");
+  assert.equal(fcmSends().length, 2);
+  // And with nothing readable at all in the answer.
+  const empty = await setup({ tokens: [ANDROID], answer: () => new Response("", { status: 404 }) });
+  await runChecks(empty.env, now);
+  assert.equal(empty.db.rows.length, 1);
+});
+
 test("FCM busy: tried again next run, a bounded number of times, then once it goes through, no more", async () => {
   const busy = await setup({ tokens: [ANDROID], answer: () => fcmError(503, "UNAVAILABLE") });
   for (let i = 0; i < 6; i++) await runChecks(busy.env, now + i * 120_000);
