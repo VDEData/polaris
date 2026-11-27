@@ -4,6 +4,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonArray
@@ -51,11 +52,16 @@ class AlertStoreTest {
         var statusFor: (HttpRequest) -> Int? = { null }
         var reply = """{"checkedAt":"2026-11-24T12:00:00Z","alerts":[]}"""
         var putReply = """{"ok":true,"alerts":1,"pushes":true}"""
+        /** What a 403 says: the server's own, unless a test makes it something in front of the server. */
+        var refusal = """{"error":"This phone is registered by another install of Polaris","code":"not_owner"}"""
+        /** Held until completed, for a request that is slow to be answered. */
+        var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
         override suspend fun send(request: HttpRequest): HttpResponse {
             requests += request
             if (request.host in failing) throw java.net.ConnectException("refused")
+            gate?.await()
             val code = statusFor(request) ?: status
-            val said = if (code == 403) """{"error":"This phone is registered by another install of Polaris"}""" else if (request.method == "PUT") putReply else reply
+            val said = if (code == 403) refusal else if (request.method == "PUT") putReply else reply
             return HttpResponse(code, said.encodeToByteArray())
         }
         fun to(host: String) = requests.filter { it.host == host }
@@ -72,11 +78,19 @@ class AlertStoreTest {
             gate?.await()
             return id ?: throw IllegalStateException("no address")
         }
+        var released = 0
+        /** What happens while the installation is being made again (the service telling the app its new address, the app coming to the front). */
+        var duringReset: suspend () -> Unit = {}
         override suspend fun reset(): String {
             resets++
+            // As Firebase does it: the old installation goes, time passes, the new address is announced, and only then is it returned.
+            kotlinx.coroutines.delay(1_000)
             id = AFRESH
+            duringReset()
+            kotlinx.coroutines.delay(1_000)
             return AFRESH
         }
+        override fun release() { released++ }
     }
 
     private val district = RouteAlert(id = "DISTRICT", segments = listOf(RouteAlert.Segment(RouteAlert.Line("district", "District line"), "tube")))
@@ -601,6 +615,126 @@ class AlertStoreTest {
         advanceUntilIdle()
         assertTrue(rig.store.state.value.statusFailed)
         assertNotNull(rig.store.state.value.status["DISTRICT"])
+    }
+
+    /** While the phone is being registered afresh, the push service announces the new address and the app comes to the front: neither may leave it stuck. */
+    @Test fun registeringAfreshSurvivesWhatHappensMeanwhile() = runTest {
+        val wire = Wire()
+        wire.statusFor = { request -> if ("/v1/devices/$ID" in request.url) 403 else null }
+        val push = Push()
+        val rig = rig(wire = wire, push = push)
+        push.duringReset = {
+            rig.store.didRegister(AFRESH) // PushService.onRegistered
+            rig.store.retryIfOwed()       // the app in front, the network back
+        }
+        rig.store.resume()
+        advanceUntilIdle()
+        assertEquals(1, push.resets)
+        val state = rig.store.state.value
+        assertTrue(state.registered, "the new address is registered")
+        assertNull(state.syncTrouble)
+        assertTrue(state.reRegistered)
+        assertEquals(AFRESH, rig.values.getString(AlertStore.PUSH_ID))
+        assertEquals(AFRESH, rig.values.getString(AlertStore.REGISTERED))
+        assertEquals("PUT /v1/devices/$AFRESH", wire.said("built.example.com").last { !it.endsWith("/status") })
+    }
+
+    /** The push service gave a new address by itself and the secret was lost too: the old address can't be removed, and that doesn't stop the new one being registered. */
+    @Test fun anOldAddressThatCannotBeRemovedDoesNotBlockTheNewOne() = runTest {
+        val wire = Wire()
+        wire.statusFor = { request -> if ("/v1/devices/$ID" in request.url) 403 else null }
+        val rig = rig(wire = wire)
+        rig.store.didRegister(AFRESH)
+        advanceUntilIdle()
+        assertEquals(listOf("DELETE /v1/devices/$ID", "PUT /v1/devices/$AFRESH"), wire.said("built.example.com"))
+        assertTrue(rig.store.state.value.registered)
+        assertNull(rig.store.state.value.syncTrouble)
+        assertEquals(0, rig.push.resets)
+    }
+
+    /** A 403 from something in front of the server (a proxy, a firewall) is not the server saying the phone is another install's. */
+    @Test fun a403ThatIsNotTheServersOwnChangesNothing() = runTest {
+        val wire = Wire().apply { refusal = "<html>Forbidden</html>"; statusFor = { request -> if ("/v1/devices/" in request.url) 403 else null } }
+        val rig = rig(wire = wire)
+        rig.store.resume()
+        advanceUntilIdle()
+        assertEquals(0, rig.push.resets, "the Firebase installation is kept")
+        assertEquals(ID, rig.values.getString(AlertStore.PUSH_ID))
+        assertEquals(AlertStore.Trouble.Said("The alert server said 403."), rig.store.state.value.syncTrouble)
+        // A server from before the code says it in its words alone.
+        val old = Wire().apply { refusal = """{"error":"This phone is registered by another install of Polaris"}"""; statusFor = { request -> if ("/v1/devices/$ID" in request.url) 403 else null } }
+        val before = rig(wire = old)
+        before.store.resume()
+        advanceUntilIdle()
+        assertEquals(1, before.push.resets)
+    }
+
+    /** One request out at a time, and what is sent last is the latest. */
+    @Test fun changesWhileARequestIsOutAreSentAfterItInOrder() = runTest {
+        val wire = Wire()
+        val rig = rig(wire = wire)
+        wire.gate = kotlinx.coroutines.CompletableDeferred()
+        rig.store.save(district.copy(name = "One"))
+        advanceUntilIdle()
+        rig.store.save(district.copy(name = "Two"))
+        rig.store.save(district.copy(name = "Three"))
+        advanceUntilIdle()
+        assertEquals(1, wire.requests.count { it.method == "PUT" }, "the first is still out; nothing else is sent beside it")
+        wire.gate!!.complete(Unit)
+        advanceUntilIdle()
+        val puts = wire.requests.filter { it.method == "PUT" }
+        assertEquals(2, puts.size, "the two changes made meanwhile are one send")
+        assertTrue("\"Three\"" in puts.last().body!!.decodeToString())
+        assertNull(rig.store.state.value.syncTrouble)
+    }
+
+    /** More alerts saved than the server keeps: the first 30 are sent, so it doesn't refuse them all, and the rest are said. */
+    @Test fun alertsBeyondTheServersCountAreNotSent() = runTest {
+        val many = (1..33).map { district.copy(id = "A$it") }
+        val rig = rig(alerts = many)
+        rig.store.resume()
+        rig.store.refreshStatus(force = true)
+        advanceUntilIdle()
+        val put = rig.wire.requests.last { it.method == "PUT" }
+        assertEquals(30, HTTP.json.parseToJsonElement(put.body!!.decodeToString()).jsonObject["alerts"]!!.jsonArray.size)
+        val status = rig.wire.requests.last { it.url.endsWith("/status") }
+        assertEquals(30, HTTP.json.parseToJsonElement(status.body!!.decodeToString()).jsonObject["alerts"]!!.jsonArray.size)
+        assertEquals(listOf("A31", "A32", "A33"), rig.store.state.value.notWatched.map { it.id })
+        assertTrue(rig.store.state.value.isFull)
+    }
+
+    /** The last alert deleted and the server told: the push address is let go, and the push service isn't set up at the next start. */
+    @Test fun theLastAlertGoneLetsThePushAddressGo() = runTest {
+        val rig = rig()
+        rig.store.delete(district.id)
+        advanceUntilIdle()
+        assertEquals(listOf("DELETE /v1/devices/$ID"), rig.wire.said("built.example.com"))
+        assertEquals(1, rig.push.released)
+        assertNull(rig.values.getString(AlertStore.PUSH_ID))
+        // Not while the server couldn't be told.
+        val offline = rig(wire = Wire().apply { failing += "built.example.com" })
+        offline.store.delete(district.id)
+        advanceUntilIdle()
+        assertEquals(0, offline.push.released)
+        assertEquals(ID, offline.values.getString(AlertStore.PUSH_ID))
+        // An alert saved again registers again.
+        rig.store.save(district)
+        advanceUntilIdle()
+        assertTrue(rig.store.state.value.registered)
+    }
+
+    /** Two switches asked for at once run one after the other; the second starts from what the first left. */
+    @Test fun twoServerSwitchesAtOnceRunInTurn() = runTest {
+        val rig = rig()
+        val first = async { rig.store.useServer("https://one.example.org", "t1") }
+        val second = async { rig.store.useServer("https://two.example.org", "t2") }
+        advanceUntilIdle()
+        assertEquals(AlertStore.UseResult.Used(), first.await())
+        assertEquals(AlertStore.UseResult.Used(), second.await())
+        assertEquals("two.example.org", rig.store.state.value.serverLabel)
+        assertEquals(listOf("DELETE /v1/devices/$ID"), rig.wire.said("built.example.com"))
+        assertEquals(1, rig.wire.said("one.example.org").count { it.startsWith("DELETE") }, "the first server is left by the second switch")
+        assertEquals("PUT /v1/devices/$ID", rig.wire.said("two.example.org").last { !it.endsWith("/status") })
     }
 
     companion object {
