@@ -381,6 +381,7 @@ class TripNotifier(
         /** A launch with no trip to pick up, or End with the process gone: whatever the last trip left in the shade, and its alarms, go. */
         fun removeLeftovers(context: Context) {
             polaris.engine.TripAlerts.allIds.forEach { cancelAlarm(context, it) }
+            TripEndAlarm.set(context, null, Instant::now)
             val manager = NotificationManagerCompat.from(context)
             manager.cancel(ID_TRIP)
             manager.cancel(ID_OFFER)
