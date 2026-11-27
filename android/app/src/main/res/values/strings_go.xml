@@ -148,7 +148,9 @@
     <string name="go_card_leaves_platform">%1$s leaves\u00A0%2$s, %3$s</string>
     <string name="go_card_catch">%1$s at\u00A0%2$s</string>
     <string name="go_card_catch_platform">%1$s at\u00A0%2$s, %3$s</string>
-    <string name="go_card_get_off">Get off at\u00A0%1$s, %2$s</string>
+    <!-- The time alone, so a narrow collapsed notification never cuts it; the stop leads the text. -->
+    <string name="go_card_get_off">Get off at\u00A0%s</string>
+    <string name="go_card_stop_detail">%1$s ·\u00A0%2$s</string>
     <!-- Beside the countdown in the notification's header. -->
     <string name="go_card_leaves_in">Leaves in</string>
     <string name="go_card_get_off_in">Get off in</string>

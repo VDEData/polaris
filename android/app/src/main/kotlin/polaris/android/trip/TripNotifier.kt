@@ -156,6 +156,7 @@ class TripNotifier(
     override fun cancel() {
         nudges.cancelAll()
         polaris.engine.TripAlerts.allIds.forEach { manager.cancel(it, ID_ALERT) }
+        manager.cancel(ID_ALERT_SUMMARY)
     }
 
     override fun offer(message: ReplanMessage?) {
@@ -258,10 +259,10 @@ class TripNotifier(
                 else context.getString(R.string.go_card_leaves, line, w.clock(card.countdownTo))
                 title to (step.headsign?.let { context.getString(R.string.go_card_towards, it) } ?: context.getString(R.string.go_card_from, step.from))
             }
-            is TripCard.Step.Riding -> context.getString(R.string.go_card_get_off, step.to, w.clock(card.countdownTo)) to when {
-                step.yours != null -> context.getString(R.string.go_card_on_the, w.clock(step.yours!!), line)
-                step.stops != null -> context.resources.getQuantityString(R.plurals.go_card_stops, step.stops!!, step.stops.toString())
-                else -> context.getString(R.string.go_get_off_at, step.to)
+            is TripCard.Step.Riding -> context.getString(R.string.go_card_get_off, w.clock(card.countdownTo)) to when {
+                step.yours != null -> context.getString(R.string.go_card_stop_detail, step.to, context.getString(R.string.go_card_on_the, w.clock(step.yours!!), line))
+                step.stops != null -> context.getString(R.string.go_card_stop_detail, step.to, context.resources.getQuantityString(R.plurals.go_card_stops, step.stops!!, step.stops.toString()))
+                else -> step.to
             }
             is TripCard.Step.WalkToRide -> {
                 val where = platform(step.platform, step.bus)
@@ -320,6 +321,7 @@ class TripNotifier(
         const val ID_TRIP = 1
         const val ID_OFFER = 2
         const val ID_ALERT = 3
+        const val ID_ALERT_SUMMARY = 4
         private const val REQUEST_OPEN = 10
         private const val REQUEST_SWITCH = 11
         const val EXTRA_OPEN_GO = "polaris.go"
@@ -358,6 +360,19 @@ class TripNotifier(
                 .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
                 .build()
             runCatching { NotificationManagerCompat.from(context).notify(id, ID_ALERT, notification) }
+            // A group of their own with a summary, so Android doesn't bundle the nudges with the trip
+            // under the trip's countdown (it groups an app's unsummarised notifications itself).
+            val summary = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+                .setSmallIcon(R.drawable.go_arrow)
+                .setContentTitle(context.getString(R.string.go_channel_alerts))
+                .setGroup(GROUP_ALERTS)
+                .setGroupSummary(true)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                .setSilent(true)
+                .setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .build()
+            runCatching { NotificationManagerCompat.from(context).notify(ID_ALERT_SUMMARY, summary) }
         }
 
         const val EXTRA_DUE = "polaris.go.due"
@@ -396,6 +411,7 @@ class TripNotifier(
             manager.cancel(ID_TRIP)
             manager.cancel(ID_OFFER)
             polaris.engine.TripAlerts.allIds.forEach { manager.cancel(it, ID_ALERT) }
+            manager.cancel(ID_ALERT_SUMMARY)
         }
     }
 }
