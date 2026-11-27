@@ -39,6 +39,7 @@ object Variant {
      * so the real settings and saved alerts are not touched. States:
      * - `lines`: two saved alerts, one with a station closed and one with planned works; a push
      *   address made up; "Send a test notification" shows a notice drawn locally (simulated);
+     * - `many`: as `lines` with four more alerts, with long names (a name given, Heathrow, the Overground and the DLR);
      * - `empty`: the server, no alerts yet;
      * - `noPush`: as `lines` in a build with no push service;
      * - `unavailable`: as `lines` on a phone without Google Play services;
@@ -67,9 +68,21 @@ object Variant {
     fun values(context: Context, intent: Intent?): polaris.engine.KeyValueStore? {
         val state = intent?.getStringExtra("alerts") ?: return null
         return polaris.engine.InMemoryKeyValueStore().apply {
-            if (state !in setOf("empty", "noServer")) putString(polaris.engine.AlertStore.ALERTS, polaris.engine.RouteAlert.encode(DEMO_ALERTS))
+            if (state !in setOf("empty", "noServer")) putString(polaris.engine.AlertStore.ALERTS, polaris.engine.RouteAlert.encode(if (state == "many") DEMO_ALERTS + MORE_ALERTS else DEMO_ALERTS))
         }
     }
+
+    private fun stretch(lineId: String, lineName: String, mode: String, from: String, to: String) = polaris.engine.RouteAlert.Segment(
+        polaris.engine.RouteAlert.Line(lineId, lineName), mode, polaris.engine.RouteAlert.Station("demo-$from", from), polaris.engine.RouteAlert.Station("demo-$to", to), listOf("demo-$from", "demo-$to"),
+    )
+
+    /** Long names, for seeing how rows hold them. */
+    val MORE_ALERTS = listOf(
+        polaris.engine.RouteAlert(id = "DEMO-NAMED", name = "Mornings to the office by the river, and back again in the evening", segments = listOf(stretch("jubilee", "Jubilee line", "tube", "Bond Street", "Canary Wharf"))),
+        polaris.engine.RouteAlert(id = "DEMO-HEATHROW", segments = listOf(stretch("elizabeth", "Elizabeth line", "elizabeth-line", "Heathrow Terminals 2 & 3", "Tottenham Court Road"), stretch("piccadilly", "Piccadilly line", "tube", "Heathrow Terminals 2 & 3", "King's Cross St. Pancras"))),
+        polaris.engine.RouteAlert(id = "DEMO-OVERGROUND", days = listOf(1, 3, 5), segments = listOf(stretch("mildmay", "Mildmay line", "overground", "Hampstead Heath", "Stratford"), stretch("windrush", "Windrush line", "overground", "Highbury & Islington", "Clapham Junction"))),
+        polaris.engine.RouteAlert(id = "DEMO-DLR", days = (1..7).toList(), windows = listOf(polaris.engine.RouteAlert.TimeWindow(6 * 60, 23 * 60)), segments = listOf(polaris.engine.RouteAlert.Segment(polaris.engine.RouteAlert.Line("dlr", "DLR"), "dlr"), polaris.engine.RouteAlert.Segment(polaris.engine.RouteAlert.Line("tram", "Tram"), "tram"))),
+    )
 
     /** Liverpool Street to Canary Wharf on the Elizabeth line, both ways at their own times; and the whole District line at weekends. */
     val DEMO_ALERTS = listOf(

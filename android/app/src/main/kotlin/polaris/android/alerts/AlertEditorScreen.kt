@@ -81,6 +81,11 @@ fun AlertEditorScreen(
     state: AlertStore.State,
     night: Boolean,
     addLine: () -> Unit,
+    /**
+     * Gives the window what to ask before this page is left by back (the system's, a swipe, a tap
+     * outside the card): false means stay, the page is asking whether to discard. Null on leaving.
+     */
+    guardBack: ((() -> Boolean)?) -> Unit = {},
     onClose: () -> Unit,
 ) {
     val alert by model.alert.collectAsStateWithLifecycle()
@@ -100,6 +105,12 @@ fun AlertEditorScreen(
         }
     }
     val leave = { if (model.isDirty) confirmDiscard = true else onClose() }
+    // Back goes through the window (a cover page is a dialog, whose own back would close it
+    // before a handler here is asked), so an edit is never lost without the question.
+    androidx.compose.runtime.DisposableEffect(model) {
+        guardBack { if (model.isDirty) { confirmDiscard = true; false } else true }
+        onDispose { guardBack(null) }
+    }
     BackHandler(enabled = model.isDirty) { confirmDiscard = true }
 
     CoverPage(night) {
@@ -416,14 +427,28 @@ private fun TimeRow(
 private fun TimeDialog(title: String, minutes: Int, onDismiss: () -> Unit, onSet: (Int) -> Unit) {
     val picker = rememberTimePickerState(initialHour = (minutes / 60) % 24, initialMinute = minutes % 60, is24Hour = true)
     val short = LocalConfiguration.current.screenHeightDp < 620 || LocalDensity.current.fontScale >= 1.5f
+    val set = { onSet(picker.hour * 60 + picker.minute) }
+    if (short) {
+        // The two fields bring the number keyboard up at once, which on a short window covers a
+        // dialog's foot: Cancel and Set sit beside the title instead, always in reach.
+        HalfDialog(onDismissRequest = onDismiss, title = null, confirmButton = {}) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+                    TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                    TextButton(set) { Text(stringResource(R.string.alert_time_set)) }
+                }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimeInput(picker) }
+            }
+        }
+        return
+    }
     HalfDialog(
         onDismissRequest = onDismiss,
         title = title,
-        confirmButton = { TextButton({ onSet(picker.hour * 60 + picker.minute) }) { Text(stringResource(R.string.alert_time_set)) } },
+        confirmButton = { TextButton(set) { Text(stringResource(R.string.alert_time_set)) } },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     ) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            if (short) TimeInput(picker) else TimePicker(picker)
-        }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimePicker(picker) }
     }
 }

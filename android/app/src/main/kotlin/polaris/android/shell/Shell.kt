@@ -220,6 +220,8 @@ fun PolarisApp(
         }
     }
 
+    /** Each open alert editor's "may I be left?", by its session. */
+    val editorGuards = remember { HashMap<String, () -> Boolean>() }
     val openSearch: (SearchFor) -> Unit = { kind -> if (window.lastOrNull() !is SearchWindow) window.add(SearchWindow(kind)) }
     val openSettings: () -> Unit = { if (window.lastOrNull() == MainWindow) window.add(SettingsWindow) }
     // Alerts opens over the map or over Settings (its row there); never twice.
@@ -286,7 +288,11 @@ fun PolarisApp(
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
-        onBack = { window.removeLastOrNull() },
+        // An alert being edited is asked first: with changes unsaved it stays and asks whether to discard them.
+        onBack = {
+            val top = window.lastOrNull()
+            if (!(top is AlertEditorWindow && editorGuards[top.session]?.invoke() == false)) window.removeLastOrNull()
+        },
         sceneStrategies = listOf(DialogSceneStrategy()),
         entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
         entryProvider = entryProvider {
@@ -330,6 +336,7 @@ fun PolarisApp(
                 val alertsState by graph.alerts.state.collectAsStateLifecycle()
                 AlertEditorScreen(
                     model, alertsState, night,
+                    guardBack = { guard -> if (guard == null) editorGuards.remove(key.session) else editorGuards[key.session] = guard },
                     addLine = { if (window.lastOrNull() == key) window.add(LinePickerWindow(key.session)) },
                     onClose = { window.removeAll { it == key || (it is LinePickerWindow && it.session == key.session) || (it is StationPickerWindow && it.session == key.session) } },
                 )

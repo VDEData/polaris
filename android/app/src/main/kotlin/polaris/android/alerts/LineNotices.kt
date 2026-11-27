@@ -85,9 +85,10 @@ object LineNotices {
 
     /**
      * What happened comes first, as the title, so a collapsed notice or a group's line says it
-     * ("Canary Wharf closed (Elizabeth line)"); the alert's name is in the header beside the
-     * app's; TfL's own words are the text. A test says it is one, in the header and before its
-     * words: when TfL has trouble on the alert, a test carries that trouble's own words.
+     * ("Canary Wharf closed (Elizabeth line)"), with the title's line to itself (a header beside
+     * it squeezes it short). TfL's own words are the text, and the alert it is for closes the
+     * expanded notice. A test says it is one, before its words and under them: when TfL has
+     * trouble on the alert, a test carries that trouble's own words.
      */
     fun build(context: Context, notice: LineNotice): android.app.Notification {
         val headline = if (notice.isTest) context.getString(R.string.alerts_notice_test_headline, notice.headline) else notice.headline
@@ -95,13 +96,13 @@ object LineNotices {
         val expanded = listOfNotNull(
             // The whole of what happened when there is nothing under it (the title is one line).
             if (detail == null) headline else detail,
+            context.getString(R.string.alerts_notice_for, notice.title),
             if (notice.isTest) context.getString(R.string.alerts_notice_test_note) else null,
         ).joinToString("\n\n")
         return NotificationCompat.Builder(context, channel(notice.level))
             .setSmallIcon(R.drawable.sym_notifications)
             .setContentTitle(headline)
-            .setContentText(detail ?: if (notice.isTest) context.getString(R.string.alerts_notice_test_note) else null)
-            .setSubText(if (notice.isTest) context.getString(R.string.alerts_notice_test_header, notice.title) else notice.title)
+            .setContentText(detail ?: context.getString(R.string.alerts_notice_for, notice.title))
             .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
             .setWhen(notice.shownAt(System.currentTimeMillis()))
             .setShowWhen(true)

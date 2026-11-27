@@ -66,7 +66,7 @@
     <string name="alerts_notice_public">Line alert</string>
     <string name="alerts_notice_public_test">Test of your line alerts</string>
     <string name="alerts_notice_test_headline">Test: %s</string>
-    <string name="alerts_notice_test_header">Test ·\u00A0%s</string>
+    <string name="alerts_notice_for">Your alert: %s</string>
     <string name="alerts_notice_test_note">This is a test of your alerts, sent because you asked for one.</string>
 
     <!-- The editor -->

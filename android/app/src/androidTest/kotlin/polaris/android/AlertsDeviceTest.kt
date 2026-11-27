@@ -64,10 +64,10 @@ class AlertsDeviceTest {
         check(LineNotices.show(context, notice("TEST-ALERT", "quiet", now - 30_000, subtitle = null, body = "Severe delays on the Jubilee line have cleared.")))
         compose.waitUntil(5_000) { shown("TEST-ALERT").singleOrNull()?.notification?.channelId == LineNotices.CHANNEL_QUIET }
         check(shown("TEST-ALERT").size == 1) { "one notice per alert, not two" }
-        // What happened is the title, so a collapsed notice or a group's line says it; the alert's name is in the header.
+        // What happened is the title, so a collapsed notice or a group's line says it; the alert's name closes it.
         val extras = shown("TEST-ALERT").single().notification.extras
         check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() == "Severe delays on the Jubilee line have cleared.") { extras.toString() }
-        check(extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT).toString() == "Home to work") { extras.toString() }
+        check(extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains("Your alert: Home to work")) { extras.toString() }
 
         // One sent before it, delivered late: refused, and what is showing stays.
         check(!LineNotices.show(context, notice("TEST-ALERT", "urgent", now - 45_000, subtitle = "OLD NEWS")))
@@ -93,7 +93,6 @@ class AlertsDeviceTest {
         compose.waitUntil(5_000) { shown("TEST-ALERT-test").size == 1 && shown("OTHER-ALERT").size == 1 }
         val extras = shown("TEST-ALERT-test").single().notification.extras
         check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() == "Test: Canary Wharf closed (Elizabeth line)") { extras.toString() }
-        check(extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT).toString().startsWith("Test")) { extras.toString() }
         check(extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains("This is a test")) { extras.toString() }
         // Two notices and the group's summary: three different taps, so none carries another's alert.
         val taps = manager.activeNotifications.filter { it.id == LineNotices.ID || it.id == LineNotices.ID_SUMMARY }.map { it.notification.contentIntent }
