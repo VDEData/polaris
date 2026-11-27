@@ -83,7 +83,9 @@ class AlertsDeviceTest {
         // What happened is the title, so a collapsed notice or a group's line says it; the alert's name closes it.
         val extras = shown("TEST-ALERT").single().notification.extras
         check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() == "Severe delays on the Jubilee line have cleared.") { extras.toString() }
-        check(extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains("Your alert: Home to work")) { extras.toString() }
+        // Opened, it is headed by its alert and says its sentence once.
+        check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE_BIG).toString() == "Home to work") { extras.toString() }
+        check(extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString() == "Severe delays on the Jubilee line have cleared.") { extras.toString() }
 
         // One sent before it, delivered late: refused, and what is showing stays.
         check(!LineNotices.show(context, notice("TEST-ALERT", "urgent", now - 45_000, subtitle = "OLD NEWS")))
