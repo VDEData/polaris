@@ -181,12 +181,15 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     val hinge = hinges.firstOrNull { it.isVertical }
     // A fold running across the window (an unfolded book-style phone turned tall): the phone
     // layout with more room, as the proposal decides for tall-open, not a card above the fold.
+    // With no hinge reported, the window's shape decides: a book-style foldable open and turned on
+    // its side is near-square and wider than tall (its fold now runs across), so it is open tall.
     val foldAcross = hinges.any { !it.isVertical }
     val foldBottom = hinges.firstOrNull { !it.isVertical }?.bounds?.bottom
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Wide: an unfolded phone held wide, a tablet in landscape, and a phone in landscape (under
     // 480 dp tall a sheet leaves no room for a route card; a card beside the map does).
-    val wide = !foldAcross && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
+    val turnedOpen = hinges.isEmpty() && maxWidth >= 840.dp && maxHeight >= 840.dp && maxWidth > maxHeight && maxHeight >= maxWidth * 0.8f
+    val wide = !foldAcross && !turnedOpen && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
     val widthPx = constraints.maxWidth.toFloat()
     // Up to the fold, 48 dp short of it; with no fold, 400 dp (less on a short landscape phone). The card starts 16 dp in.
     // A book-style foldable held open wide whose fold WindowManager didn't report (it can be late
@@ -209,7 +212,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // and what it frames stay clear of a hinge there. On a tablet this only nudges the map's start.
     val middle = maxWidth / 2
     val mapStart: Dp = if (wide && hinge == null && besideCard > middle - 24.dp && besideCard < middle + 24.dp) middle + 24.dp else besideCard
-    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom)
+    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom ?: if (turnedOpen) constraints.maxHeight / 2f else null)
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -358,7 +361,11 @@ private fun MapAndSheet(
                 // Open tall, the half rest is 48 dp below the fold, so neither the sheet's edge nor the map's
                 // credit sits on it.
                 val foldRest = layout.foldBottomPx?.let { it + with(density) { 48.dp.toPx() } }?.takeIf { it < heightPx * 0.7f }
-                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.30f else 0.52f))
+                val half = foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.30f else 0.52f)
+                // Go's banner, however many lines it grows to, stays whole above the half rest, with the
+                // credit and a strip of map under it, so the credit never sits on the banner.
+                val underBanner = if (banner != null && bannerHeight > 0) with(density) { statusTop.toPx() + 12.dp.toPx() + bannerHeight + 112.dp.toPx() } else 0f
+                put(Rest.Half, maxOf(half, underBanner).coerceAtMost(heightPx * 0.6f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
@@ -392,10 +399,14 @@ private fun MapAndSheet(
             modifier = Modifier.fillMaxSize().semantics { isTraversalGroup = true; traversalIndex = 1f },
             contentPadding = covered,
             // Wide, routes are fitted above the docked card too (the credit stays at the foot).
+            // Routes are framed above the credit too, so it never covers the start of a walk or your dot.
             fitPadding = if (wide && scene.dockOf(top) != null) PaddingValues(
                 start = covered.calculateStartPadding(direction), top = covered.calculateTopPadding(), end = covered.calculateEndPadding(direction),
                 bottom = with(density) { dockHeight.toDp() } + 64.dp,
-            ) else covered,
+            ) else PaddingValues(
+                start = covered.calculateStartPadding(direction), top = covered.calculateTopPadding(), end = covered.calculateEndPadding(direction),
+                bottom = covered.calculateBottomPadding() + 32.dp,
+            ),
             // The docked card (wide) and Go's banner are measured after the routes come: a change
             // in either fits the frame again inside the room left.
             refitOn = listOf(if (wide) dockHeight else null, if (banner != null) bannerHeight else null),

@@ -410,6 +410,9 @@ class DepartureStore(
         }
     }
 
+    /** The last request for [leg]'s board failed (a board already held is kept, so its state alone doesn't say). */
+    fun boardFailed(leg: Leg): Boolean = failures.containsKey(key(leg))
+
     /** Whether nearby was fetched within the minute: checked before asking for a fix at all. */
     fun nearbyIsFresh(): Boolean = fresh(nearbyFetched?.first, clock())
 

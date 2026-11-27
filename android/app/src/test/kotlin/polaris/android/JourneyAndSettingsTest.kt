@@ -468,7 +468,12 @@ class SeparatorsTest {
     @Test fun noStringEndsALineWithADot() {
         val dir = java.io.File("src/main/res/values").takeIf { it.exists() } ?: java.io.File("app/src/main/res/values")
         val offenders = dir.listFiles()!!.filter { it.name.endsWith(".xml") }.flatMap { file ->
-            file.readLines().filter { "<!--" !in it && Regex("""·(?!\\u00A0)""").containsMatchIn(it) && " · " in it }.map { "${file.name}: ${it.trim()}" }
+            // Every dot between parts has the escaped no-break space after it (a typed one is
+            // invisible in review), in every strings file, Go's included. A string that is only
+            // the dot (`nearby_dot`) stands alone.
+            file.readLines().filter { line ->
+                "<!--" !in line && Regex("""·(?!\\u00A0)""").containsMatchIn(line) && !Regex(""">\s*·\s*<""").containsMatchIn(line)
+            }.map { "${file.name}: ${it.trim()}" }
         }
         assertTrue(offenders.isEmpty(), offenders.joinToString("\n"))
         assertTrue(polaris.android.ui.SEPARATOR.endsWith("\u00A0"))

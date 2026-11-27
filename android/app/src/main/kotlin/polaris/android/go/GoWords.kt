@@ -28,18 +28,22 @@ class GoWords(private val r: Resources) {
 
     fun clock(at: Instant) = Clock.of(at)
     fun line(raw: String) = shortLineName(raw)
+    /** A number and its unit never split across lines ("7 min", "1 h 05", "230 m"). */
+    private fun keep(text: String) = text.replace(' ', '\u00A0')
+
     fun minutes(seconds: Double): String {
         val m = Math.round(seconds / 60).toInt()
-        return if (m < 60) r.getString(R.string.duration_minutes, m) else r.getString(R.string.duration_hours_minutes, m / 60, m % 60)
+        return keep(if (m < 60) r.getString(R.string.duration_minutes, m) else r.getString(R.string.duration_hours_minutes, m / 60, m % 60))
     }
 
     /** "platform 2", or for a bus "stop G". */
     fun standing(leg: Leg, platform: String): String =
         r.getString(if (leg.mode == LegMode.bus || leg.mode == LegMode.coach) R.string.go_stop else R.string.go_platform, platform)
 
-    fun distance(metres: Double): String =
+    fun distance(metres: Double): String = keep(
         if (metres < 1000) r.getString(R.string.journey_metres, ((metres / 10).let { Math.round(it).toInt() } * 10))
-        else r.getString(R.string.journey_kilometres, "%.1f".format(java.util.Locale.UK, metres / 1000))
+        else r.getString(R.string.journey_kilometres, "%.1f".format(java.util.Locale.UK, metres / 1000)),
+    )
 
     fun lineOf(leg: Leg) = line(leg.line ?: leg.mode.label)
 
@@ -101,13 +105,22 @@ class GoWords(private val r: Resources) {
             }
         }
         trip.guidance?.first?.let { return it }
-        trip.nextRide?.let { return r.getString(R.string.go_walk_to, it.fromName) }
+        trip.nextRide?.let { ride -> return change(trip, ride) ?: r.getString(R.string.go_walk_to, ride.fromName) }
         return r.getString(R.string.go_walk_to, trip.query.destination.name)
     }
 
-    /** What comes after this step. */
-    fun then(trip: LiveTrip): String? {
+    /** A walk between two rides at one station is a change: "Walk to the Elizabeth line, platform B", not "Walk to Farringdon" while at Farringdon. */
+    fun change(trip: LiveTrip, ride: Leg): String? {
+        val before = trip.journey.legs.getOrNull(trip.legIndex - 1) ?: return null
+        if (!before.mode.isTransit) return null
+        val platform = trip.platform(ride)?.let { standing(ride, it) }
+        return if (platform != null) r.getString(R.string.go_change_to_platform, lineOf(ride), platform) else r.getString(R.string.go_change_to, lineOf(ride))
+    }
+
+    /** What comes after this step; when the ride was missed, the next one instead. */
+    fun then(trip: LiveTrip, now: Instant = trip.now): String? {
         val leg = trip.leg
+        if (leg.mode.isTransit && trip.missedRide) return missedNext(trip.board(leg), leg, now)
         val ride = trip.nextRide
         val departure = trip.nextRideDeparture
         if (ride != null && departure != null) {
@@ -133,8 +146,13 @@ class GoWords(private val r: Resources) {
 
     // The sheet
 
-    fun step(step: LiveTrip.Step): String = when (step) {
-        is LiveTrip.Step.Boarded -> step.ride.line?.let { r.getString(R.string.go_step_on, line(it)) } ?: r.getString(R.string.go_step_on_it)
+    /** "I'm on the H&C": the line of the train the timeline has you catching (another line can be the soonest there). */
+    fun step(step: LiveTrip.Step, trip: LiveTrip? = null): String = when (step) {
+        is LiveTrip.Step.Boarded -> {
+            val index = trip?.journey?.legs?.indexOfFirst { it.id == step.ride.id } ?: -1
+            val catching = trip?.timeline?.steps?.getOrNull(index)?.service?.line
+            (catching ?: step.ride.line)?.let { r.getString(R.string.go_step_on, line(it)) } ?: r.getString(R.string.go_step_on_it)
+        }
         is LiveTrip.Step.GotOff -> r.getString(R.string.go_step_off)
     }
 
@@ -274,3 +292,8 @@ class GoWords(private val r: Resources) {
             r.getString(R.string.go_alert_leave_body, minutes(kind.walkSeconds), kind.from, clock(kind.departure), line(kind.line))
     }
 }
+
+/** "platform 2", or for a bus "stop G", from the app's resources (the engine leaves wording to the app). */
+@androidx.compose.runtime.Composable
+fun standingText(leg: Leg, platform: String): String =
+    androidx.compose.ui.res.stringResource(if (leg.mode == LegMode.bus || leg.mode == LegMode.coach) R.string.go_stop else R.string.go_platform, platform)

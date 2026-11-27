@@ -158,6 +158,8 @@ private class DemoTransport(private val context: Context, private val scenario: 
             }
             "/api/v6/stoptimes" in url -> when {
                 scenario == "failing" -> HttpResponse(503, ByteArray(0))
+                // The H&C at King's Cross: hand-written, so the planned train is on it (the recording has none at the plan's time).
+                "fetchStops=true" in url && "mode=SUBWAY" in url && isHammersmithAndCity(url) -> handWrittenBoard(url)
                 // A board: recorded for the 18:08 Northern line train, asked 20 minutes before it.
                 "fetchStops=true" in url && "mode=SUBWAY" in url -> stopTimes("transitous-departures.json", "2026-10-31T17:48:00Z")
                 // Rail, the Elizabeth line and the DLR: hand-written (no recording covers them).
@@ -183,6 +185,13 @@ private class DemoTransport(private val context: Context, private val scenario: 
     }
 }
 
+/** A board asked from the H&C's stop at King's Cross St. Pancras (the recorded best route's first ride). */
+private fun isHammersmithAndCity(url: String): Boolean {
+    val center = java.net.URI(url).rawQuery.split("&").firstOrNull { it.startsWith("center=") }?.substringAfter("=")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: return false
+    val (lat, lon) = center.split(",").map { it.toDouble() }
+    return kotlin.math.abs(lat - 51.52971) < 0.0006 && kotlin.math.abs(lon + 0.12470) < 0.0008
+}
+
 /**
  * Hand-written, not recorded: a board for the recorded trip's rail rides, so the strip and board
  * show their states (yours, gone, late, live, cancelled, a sooner one worth running for). Every
@@ -193,19 +202,26 @@ private fun handWrittenBoard(url: String): HttpResponse {
     val asked = java.time.Instant.parse(query["time"])
     val (lat, lon) = query["center"]!!.split(",").map { it.toDouble() }
     data class Ride(val stop: String, val line: String, val headsign: String, val to: String, val toLat: Double, val toLon: Double, val minutes: Long, val track: String)
+    val subway = "mode=SUBWAY" in url
     val ride = when {
+        subway -> Ride("King's Cross St. Pancras", "Hammersmith & City", "Barking", "Farringdon", 51.52076, -0.10508, 3, "2")
         lat > 51.525 -> Ride("London St Pancras International", "Thameslink", "Brighton", "Farringdon", 51.5203, -0.1053, 4, "A")
         lon < -0.1 -> Ride("Farringdon", "Elizabeth line", "Abbey Wood", "Canary Wharf", 51.5036, -0.0189, 11, "B")
         else -> Ride("Bank", "DLR", "Lewisham", "Canary Wharf", 51.5051, -0.0209, 13, "10")
     }
     // Minutes after the asked time, minutes late, live, cancelled.
-    val rows = listOf(Triple(12L, 0L, false), Triple(16L, 2L, true), Triple(20L, 0L, true), Triple(23L, 0L, true), Triple(27L, 0L, false), Triple(31L, 4L, true), Triple(36L, 0L, false))
+    // Fourteen rows from 8 minutes after the asked time, so a whole board can be scrolled to its end.
+    val rows = listOf(
+        Triple(8L, 0L, false), Triple(12L, 0L, false), Triple(16L, 2L, true), Triple(20L, 0L, true), Triple(23L, 0L, true), Triple(27L, 0L, false),
+        Triple(31L, 4L, true), Triple(36L, 0L, false), Triple(39L, 0L, true), Triple(42L, 1L, true), Triple(45L, 0L, false), Triple(48L, 0L, true),
+        Triple(51L, 0L, false), Triple(54L, 0L, true),
+    )
     val times = rows.mapIndexed { i, (after, late, live) ->
         val scheduled = asked.plusSeconds(after * 60)
         val expected = scheduled.plusSeconds(late * 60)
-        val cancelled = i == 4
+        val cancelled = i == 5
         """{"place":{"name":"${ride.stop}","lat":$lat,"lon":$lon,"departure":"$expected","scheduledDeparture":"$scheduled","track":"${ride.track}","cancelled":$cancelled},""" +
-            """"mode":"RAIL","realTime":$live,"headsign":"${ride.headsign}","tripId":"demo-$i","routeShortName":"${ride.line}","cancelled":$cancelled,""" +
+            """"mode":"${if (subway) "SUBWAY" else "RAIL"}","realTime":$live,"headsign":"${ride.headsign}","tripId":"demo-$i","routeShortName":"${ride.line}","cancelled":$cancelled,""" +
             """"nextStops":[{"name":"${ride.to}","lat":${ride.toLat},"lon":${ride.toLon},"arrival":"${expected.plusSeconds(ride.minutes * 60)}","scheduledArrival":"${scheduled.plusSeconds(ride.minutes * 60)}"}]}"""
     }
     return HttpResponse(200, """{"stopTimes":[${times.joinToString(",")}]}""".encodeToByteArray())

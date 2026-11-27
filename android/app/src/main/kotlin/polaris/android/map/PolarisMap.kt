@@ -338,12 +338,14 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
             Text(
                 MapStyle.ATTRIBUTION,
                 modifier = Modifier
-                    // Near opaque, so the map's own place labels don't show through the credit; it covers only its own words.
-                    .background(colors.paper.copy(alpha = 0.97f), RoundedCornerShape(6.dp))
+                    // Opaque, so the map's own place labels don't show through the credit; it covers only its own words.
+                    .background(colors.paper, RoundedCornerShape(6.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 // Grows with the text size up to 1.3x, then stops: past that it wrapped over the map's own labels.
                 style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = (10f * minOf(1f, 1.3f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
+                    // Up to 1.3x it grows with the text; past that it stays at 1.3x of its size but
+                    // never more than one line's worth of map at large text (it keeps its words whole).
+                    fontSize = (10f * minOf(1f, 1.15f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
                     color = colors.ink.copy(alpha = 0.85f),
                 ),
                 // Whole, always (the terms ask for all of it): it wraps rather than being cut.
@@ -452,9 +454,10 @@ private object JourneyLayers {
             ).apply { minZoom = 12.5f },
         )
         style.addLayer(
+            // A ring, not a filled dot: the person's own location is the filled blue dot.
             CircleLayer("polaris-origin", STOPS).withFilter(kind("origin")).withProperties(
-                PropertyFactory.circleRadius(6.5f), PropertyFactory.circleColor(colors.here.toArgb()),
-                PropertyFactory.circleStrokeColor(colors.casing.toArgb()), PropertyFactory.circleStrokeWidth(2.5f),
+                PropertyFactory.circleRadius(6f), PropertyFactory.circleColor(colors.surface.toArgb()),
+                PropertyFactory.circleStrokeColor(colors.here.toArgb()), PropertyFactory.circleStrokeWidth(3f),
             ),
         )
         // An estimate, not a fix: a ring in the location colour with no filled centre.

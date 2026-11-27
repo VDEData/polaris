@@ -133,12 +133,14 @@ fun reasonText(reason: Loadable.Reason): String = stringResource(
  * an earlier one) does to your arrival, and the way to the whole board.
  */
 @Composable
-fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instant?, onOpen: (() -> Unit)?) {
+fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instant?, onOpen: (() -> Unit)?, now: Instant? = null) {
     val c = polaris
     val board = state?.value
+    // Go passes its own clock, so "gone" and the line under the tiles agree with the rest of its page.
+    val ticked = ticking()
     when {
         board != null && board.departures.isNotEmpty() -> {
-            val now = ticking()
+            val now = now ?: ticked
             val openLabel = stringResource(R.string.strip_open_board)
             Column(
                 Modifier.fillMaxWidth()
@@ -146,6 +148,11 @@ fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instan
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                // The tiles' minutes are against your train, not a countdown: say so once.
+                Text(
+                    stringResource(if (board.planned != null) R.string.strip_against_yours else R.string.strip_against_plan),
+                    style = MaterialTheme.typography.labelSmall, color = c.inkFaint,
+                )
                 Ticks(leg, board, now, reachable)
                 verdictText(leg, board, now, reachable)?.let { (text, warns) ->
                     Text(text, style = MaterialTheme.typography.bodySmall, color = if (warns) c.warning else c.inkSoft)

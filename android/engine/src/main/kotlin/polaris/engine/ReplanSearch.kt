@@ -22,7 +22,8 @@ object ReplanSearch {
         clock: Clock = Clock.systemUTC(),
     ): suspend (JourneyQuery, Replan.Watch) -> ReplanAnswer = { query, watch ->
         val now = clock.instant()
-        val keys = settings.readKeys()
+        // The keys come from the Keystore: read off the main thread, where Go runs.
+        val keys = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { settings.readKeys() }
         // A key saved but unreadable right now: that source sits this search out, as a search does.
         val googleKey = (keys.google as? AppSettings.Key.Use)?.value
         val tflUsable = keys.tfl is AppSettings.Key.Use

@@ -139,29 +139,32 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
         }
     }) {
         val list = rememberLazyListState()
+        KeepRestoredPlace(list)
         LazyColumn(
             Modifier.fillMaxSize(),
             state = list,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = if (LocalSheet.current.wide) 16.dp else 4.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "header") { Header(trip, words, openSettings, end) }
+            // Every slot is always there, empty when it has nothing to show, so a list restored
+            // after the process was ended finds its place before the trip's later parts arrive.
+            slot("header") { Header(trip, words, openSettings, end) }
             // A faster way leads, above the step: it's the decision to make now.
             val offer = trip.offerMessage
             val status = replanLine(trip)
-            if (offer != null) item(key = "offer") { OfferCard(trip, words.said(offer), trip.offer) }
-            else if (status != null) item(key = "status") { StatusCard(status, words) }
-            item(key = "step") { StepButton(trip, words) }
-            item(key = "connection") { WillYouMakeIt(trip, words, now) }
-            if (trip.canFindFaster) item(key = "faster") {
+            slot("lead", if (offer != null || status != null) ({
+                if (offer != null) OfferCard(trip, words.said(offer), trip.offer) else if (status != null) StatusCard(status, words)
+            }) else null)
+            slot("step") { StepButton(trip, words) }
+            slot("connection") { WillYouMakeIt(trip, words, now) }
+            slot("faster", if (trip.canFindFaster) ({
                 TextButton(onClick = trip::findFaster, modifier = Modifier.heightIn(min = 48.dp)) {
                     Symbol(R.drawable.go_branch, null, Modifier.size(18.dp), tint = c.tint)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.go_find_faster), fontWeight = FontWeight.SemiBold, color = c.tint)
                 }
-            }
+            }) else null)
             val ride = trip.nextRide ?: trip.leg.takeIf { trip.isWaiting }
-            if (ride != null) item(key = "strip") {
+            slot("strip", if (ride != null) ({
                 Column(Modifier.fillMaxWidth().surface(c).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         LinePill(ride)
@@ -169,10 +172,10 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
                     }
                     val board = trip.board(ride)
                     val state = board?.let { Loadable.Loaded(it) } ?: graph.departures.board(ride)
-                    DepartureStrip(ride, state, reachable = null, onOpen = null)
+                    DepartureStrip(ride, state, reachable = null, onOpen = null, now = now)
                 }
-            }
-            item(key = "steps") { Steps(trip, words) }
+            }) else null)
+            slot("steps") { Steps(trip, words) }
         }
     }
 }
@@ -229,7 +232,7 @@ private fun Banner(key: GoPage, trip: LiveTrip, words: GoWords, now: Instant) {
     val primary = words.primary(trip, now)
     val secondary = words.secondary(trip)
     val offer = trip.offerMessage?.let { words.said(it) }
-    val then = words.then(trip)
+    val then = words.then(trip, now)
     val leg = trip.leg
     val night = polaris.isNight
     val content: @Composable () -> Unit = {
@@ -252,17 +255,19 @@ private fun Banner(key: GoPage, trip: LiveTrip, words: GoWords, now: Instant) {
                     Symbol(if (trip.isLastLeg) R.drawable.sym_location_on else R.drawable.sym_directions_walk, null, Modifier.size(28.dp), tint = Color.White)
                 }
             }
+            // At large text the banner keeps to a few lines, so it doesn't cover the map it's over.
+            val large = LocalDensity.current.fontScale >= 1.5f
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(secondary, style = MaterialTheme.typography.titleSmall, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(secondary, style = MaterialTheme.typography.titleSmall, color = Color.White, maxLines = if (large) 2 else 3, overflow = TextOverflow.Ellipsis)
                 if (offer != null) {
                     // A faster way takes the last line, in gold.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FractalStar(14.dp, color = c.gold)
                         Text(offer.short, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = c.gold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                } else if (then != null) {
-                    Text(then, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else if (then != null && !(large && leg.mode.isTransit && !trip.isWaiting && !trip.missedRide)) {
+                    Text(then, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f), maxLines = if (large) 1 else 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -301,7 +306,8 @@ private fun Header(trip: LiveTrip, words: GoWords, openSettings: () -> Unit, end
             Text(words.arrive(trip), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2)
             Text(words.headerDetail(trip), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        IconButton(onClick = openSettings) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_title), tint = c.inkSoft) }
+        val gear = if (LocalDensity.current.fontScale >= 1.5f) 30.dp else 24.dp
+        IconButton(onClick = openSettings, modifier = Modifier.size(48.dp)) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_title), Modifier.size(gear), tint = c.inkSoft) }
         OutlinedButton(
             onClick = end,
             modifier = Modifier.heightIn(min = 48.dp).semantics { onClick(label = endHint) { end(); true } },
@@ -328,7 +334,7 @@ private fun StepButton(trip: LiveTrip, words: GoWords) {
         }
         Symbol(icon, null, Modifier.size(18.dp), tint = c.tint)
         Spacer(Modifier.width(8.dp))
-        Text(words.step(step), fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(words.step(step, trip), fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -439,8 +445,14 @@ private fun Steps(trip: LiveTrip, words: GoWords) {
             }
             val current = index == trip.legIndex
             val done = index < trip.legIndex
-            val title = if (leg.mode.isTransit) stringResource(R.string.go_step_ride, words.lineOf(leg), leg.toName)
-            else stringResource(R.string.go_walk_to, if (index == trip.journey.legs.lastIndex) trip.query.destination.name else leg.toName)
+            val before = trip.journey.legs.getOrNull(index - 1)
+            val after = trip.journey.legs.getOrNull(index + 1)
+            val title = when {
+                leg.mode.isTransit -> stringResource(R.string.go_step_ride, words.lineOf(leg), leg.toName)
+                index == trip.journey.legs.lastIndex -> stringResource(R.string.go_walk_to, trip.query.destination.name)
+                before?.mode?.isTransit == true && after?.mode?.isTransit == true -> stringResource(R.string.go_change_to, words.lineOf(after))
+                else -> stringResource(R.string.go_walk_to, leg.toName)
+            }
             val jump = stringResource(R.string.go_jump_hint)
             Row(
                 Modifier.fillMaxWidth()
@@ -452,8 +464,9 @@ private fun Steps(trip: LiveTrip, words: GoWords) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // A step done shows its tick, not a time: jumping past steps ends them all at the same moment.
                 Text(
-                    words.clock(timed.legs[index].departure),
+                    if (done) "" else words.clock(timed.legs[index].departure),
                     Modifier.widthIn(min = 44.dp),
                     style = MaterialTheme.typography.labelLarge, color = if (done) c.inkFaint else c.ink,
                     fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
@@ -466,6 +479,36 @@ private fun Steps(trip: LiveTrip, words: GoWords) {
                     style = MaterialTheme.typography.bodyMedium, color = if (done) c.inkFaint else c.ink,
                     fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
+            }
+        }
+    }
+}
+
+/** One of Go's list slots: always present under its key, with the gap below it only when it shows something. */
+private fun androidx.compose.foundation.lazy.LazyListScope.slot(key: String, content: (@Composable () -> Unit)?) {
+    item(key = key) {
+        if (content != null) Box(Modifier.padding(bottom = 12.dp)) { content() }
+    }
+}
+
+/**
+ * Brought back after the process was ended, the list's saved place can be further down than the
+ * list first reaches: the departure board isn't loaded yet, so the list is shorter and stops
+ * short. For a few seconds, as the late parts arrive, it goes back to the saved place, unless the
+ * person scrolls first.
+ */
+@Composable
+private fun KeepRestoredPlace(list: androidx.compose.foundation.lazy.LazyListState) {
+    val saved = remember { list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }
+    LaunchedEffect(list) {
+        if (saved.first == 0 && saved.second == 0) return@LaunchedEffect
+        var placed: Pair<Int, Int>? = null
+        kotlinx.coroutines.withTimeoutOrNull(5_000) {
+            androidx.compose.runtime.snapshotFlow { list.layoutInfo.visibleItemsInfo.map { it.key to it.size } }.collect {
+                val at = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
+                if (list.isScrollInProgress || (placed != null && at != placed)) throw kotlinx.coroutines.CancellationException("moved by the person")
+                if (at != saved) list.scrollToItem(saved.first, saved.second)
+                placed = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
             }
         }
     }

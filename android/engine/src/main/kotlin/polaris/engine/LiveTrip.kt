@@ -44,8 +44,8 @@ class LiveTrip(
     private val store: TripStore? = null,
     saved: SavedTrip? = null,
 ) {
-    /** A location fix, when it was taken (on the trip's own clock), and the speed then in m/s where known. */
-    data class Fix(val coordinate: Coordinate, val at: Instant, val speed: Double? = null)
+    /** A location fix, when it was taken (on the trip's own clock), the speed then in m/s and its accuracy in metres where known. */
+    data class Fix(val coordinate: Coordinate, val at: Instant, val speed: Double? = null, val accuracy: Double? = null)
 
     /** Re-planning, as a satnav does: looking for a faster way, offering one, or saying why not. */
     sealed interface ReplanState {
@@ -143,6 +143,15 @@ class LiveTrip(
     /** When you'll get there, as the trip is going. */
     val eta: Instant get() = timeline.arrival
     val isRunning: Boolean get() = started && !stopped
+
+    /** On the last leg and seen within [TripProgress.arrivedDistance] of its end: there. */
+    val arrived: Boolean
+        get() {
+            if (!isLastLeg) return false
+            val end = leg.end ?: return false
+            val here = trustedPosition ?: return false
+            return here.distance(end) < TripProgress.arrivedDistance
+        }
 
     /** Where you are as far as the leg you're on goes: a fix from before you got on or off says where you were. */
     val trustedPosition: Coordinate?
@@ -250,7 +259,8 @@ class LiveTrip(
         get() {
             nextRide?.let { return Step.Boarded(it) }
             if (!leg.mode.isTransit || isLastLeg) return null
-            return if (isWaiting) Step.Boarded(leg) else Step.GotOff(leg)
+            // Still at the stop after it left (missed it): the next one is the one you'll get on.
+            return if (isWaiting || missedRide) Step.Boarded(leg) else Step.GotOff(leg)
         }
 
     /** The platform of the train Go has you catching, once a board has it, otherwise the plan's. */
@@ -410,7 +420,10 @@ class LiveTrip(
         if (!leg.mode.isTransit) {
             val walk = walk
             val here = trustedPosition
-            if (walk != null && here != null) walkProgress = PathProgress.locate(here, walk.path)
+            // A fix far from the walk isn't on it (a step made by hand before the fix caught up): its
+            // nearest point could be the end. iOS walks a fresh route from there; Android has no
+            // walking router, so the walk counts as not begun.
+            if (walk != null && here != null) walkProgress = PathProgress.locate(here, walk.path)?.takeIf { it.distanceFromPath <= OFF_WALK_METRES }
         }
         // Keep the next ride's board live until it has gone (the store asks at most once a minute).
         val ride = nextRide ?: if (isWaiting) leg else null
@@ -433,7 +446,12 @@ class LiveTrip(
         var seenAtStop: Instant? = null
         val start = leg.start
         if (leg.mode.isTransit && !boarded && fix != null && start != null && fix.coordinate.distance(start) < 150) seenAtStop = fix.at
-        val walkLeft = if (!leg.mode.isTransit) walkProgress?.let { it.remaining / pace } else null
+        // With a fix, the walk left at your pace, as the will-you-make-it check counts it: off the walk
+        // (a step made by hand before the fix caught up), all of it. Catching up, a fix off the walk may
+        // be past it, and jumping to the fix comes next, so it keeps its planned time, as with no fix.
+        val offWalk = !catchingUp && walkProgress == null && trustedPosition != null
+        val metresLeft = walkProgress?.remaining ?: if (offWalk) remainingWalk else null
+        val walkLeft = if (!leg.mode.isTransit) metresLeft?.let { it / pace } else null
         timeline = TripTimeline.make(journey, log, legIndex, now, seenAtStop, null, walkLeft) { rawBoard(it) }
     }
 
@@ -729,7 +747,7 @@ class LiveTrip(
             card = card.copy(line = Replan.ride(leg), lineColor = leg.lineColor)
             card = if (isWaiting) {
                 card.copy(
-                    step = TripCard.Step.Waiting(leg.fromName, leg.headsign, platform(leg)?.let(leg::standing)),
+                    step = TripCard.Step.Waiting(leg.fromName, leg.headsign, platform(leg), leg.mode == LegMode.bus || leg.mode == LegMode.coach),
                     countdown = TripCard.Countdown.leaves, countdownTo = rideDeparture, miss = miss(ifMissed, leg),
                 )
             } else {
@@ -740,12 +758,14 @@ class LiveTrip(
             }
         } else if (ride != null) {
             card = card.copy(
-                step = TripCard.Step.WalkToRide(ride.fromName, platform(ride)?.let(ride::standing), ride.headsign ?: ride.toName),
+                step = TripCard.Step.WalkToRide(ride.fromName, platform(ride), ride.headsign ?: ride.toName, ride.mode == LegMode.bus || ride.mode == LegMode.coach),
                 line = Replan.ride(ride), lineColor = ride.lineColor,
                 countdown = TripCard.Countdown.leaves, countdownTo = nextRideDeparture ?: ride.departure, miss = miss(ifMissed, ride),
             )
         } else {
-            card = card.copy(step = TripCard.Step.WalkToEnd(query.destination.name, remainingWalk, leg.duration))
+            // To the distance as shown (10 m under a kilometre, 100 m above), so a walk's every step doesn't post a new card.
+            val shown = remainingWalk?.let { m -> if (m < 1000) Math.round(m / 10) * 10.0 else Math.round(m / 100) * 100.0 }
+            card = card.copy(step = TripCard.Step.WalkToEnd(query.destination.name, shown, leg.duration))
         }
         // A faster way, or a long wait for the next ride, says so in place of the detail.
         val offerWords = offerMessage
@@ -774,5 +794,7 @@ class LiveTrip(
     companion object {
         /** Longer than this between two looks, the trip is caught up as after a relaunch. */
         const val GAP_SECONDS = 60.0
+        /** Further than this from a walk's path, a fix isn't placed on the walk. */
+        const val OFF_WALK_METRES = 150.0
     }
 }

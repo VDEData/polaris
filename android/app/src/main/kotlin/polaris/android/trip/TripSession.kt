@@ -61,9 +61,12 @@ class TripSession(
 
     private fun timetable(leg: Leg): DepartureBoard? = departures.board(leg)?.value
 
+    /** Go's automatic board loads: nothing offline, and a growing wait after failures. */
+    private val boards = polaris.engine.BoardLoads(departures, clock, isOnline)
+
     private fun make(journey: Journey, query: JourneyQuery, saved: SavedTrip?) = LiveTrip(
         journey = journey, query = query, scope = scope, clock = clock, fixSource = { tracker.latest },
-        timetable = ::timetable, loadBoard = { departures.load(it) }, alerts = alerts, search = search,
+        timetable = ::timetable, loadBoard = { boards.load(it) }, alerts = alerts, search = search,
         isOnline = isOnline, presenter = presenter, store = store, saved = saved,
     )
 
@@ -72,6 +75,17 @@ class TripSession(
         _trip.value?.let { if (it.journey.id == journey.id && it.isRunning) return it }
         end()
         return run(make(journey, query, null))
+    }
+
+    /** A trip found at launch and not yet taken. */
+    val hasPending: Boolean get() = pending != null
+
+    /** End tapped in the shade before the screen took the trip found at launch: it isn't brought back. */
+    fun dropPending() {
+        if (pending != null) {
+            pending = null
+            store.clear()
+        }
     }
 
     /** At launch, after Android ended the process during a trip: back in Go, caught up to now. */
@@ -89,7 +103,35 @@ class TripSession(
         return trip
     }
 
+    /** When the last leg was first reached (seen at the destination), for ending the trip by itself. */
+    private var arrivedAt: Instant? = null
+
+    /**
+     * A trip ends by itself: [ARRIVED_SECONDS] after you're seen at the destination (long enough
+     * to glance at Go saying so, short enough that GPS, the service and the notification don't run
+     * on in a pocket), or [SavedTrip.STALE_AFTER] past its arrival (at most an hour later than planned) whatever happened (no fix
+     * underground, the phone left behind), the same limit after which a saved trip isn't resumed.
+     */
+    private fun endIfOver(trip: LiveTrip) {
+        val now = clock()
+        if (trip.arrived && arrivedAt == null) arrivedAt = now
+        val there = arrivedAt?.let { java.time.Duration.between(it, now).seconds >= ARRIVED_SECONDS } ?: false
+        // The estimate keeps moving while a walk never ends (no fix), so it counts as at most an hour late.
+        val due = minOf(trip.eta, trip.journey.arrival.plusSeconds(LATEST_SLIP_SECONDS))
+        val stale = java.time.Duration.between(due, now).seconds > SavedTrip.STALE_AFTER.toLong()
+        if (there || stale) end()
+    }
+
+    /** A new fix: Go looks at once (the two-second ticks don't run while the phone sleeps; fixes wake it). */
+    fun onFix() {
+        val trip = _trip.value ?: return
+        if (!trip.isRunning) return
+        trip.refresh()
+        endIfOver(trip)
+    }
+
     private fun run(trip: LiveTrip): LiveTrip {
+        arrivedAt = null
         _trip.value = trip
         tracker.start()
         trip.start()
@@ -100,6 +142,7 @@ class TripSession(
                 // Location allowed since Go started (asked on the Go tap): start listening now.
                 tracker.start()
                 trip.refresh()
+                endIfOver(trip)
             }
         }
         return trip
@@ -117,6 +160,13 @@ class TripSession(
         _trip.value = null
         _opens.value = false
         _version.value += 1
+    }
+
+    companion object {
+        /** After being seen at the destination, the trip carries on this long, then ends. */
+        const val ARRIVED_SECONDS = 120L
+        /** How much later than planned the arrival estimate may be before the trip ends anyway. */
+        const val LATEST_SLIP_SECONDS = 60 * 60L
     }
 
     /** The trip, if it is following [journeyId]'s journey (a Switch keeps the journey's id). */

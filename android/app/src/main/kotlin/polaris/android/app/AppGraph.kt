@@ -121,7 +121,7 @@ class AppGraph(
                     version = BuildConfig.VERSION_NAME,
                     firstRun = decidesSetup && settings.takeFirstRunTurn(),
                     tripStore = trips,
-                    tracker = polaris.android.trip.AndroidLocationTracker(app, clock ?: java.time.Instant::now),
+                    tracker = polaris.android.trip.AndroidLocationTracker(app, clock ?: java.time.Instant::now) { cached()?.trips?.onFix() },
                     online = { isOnline(app) },
                     pendingTrip = resumable,
                     clock = clock ?: java.time.Instant::now,

@@ -114,12 +114,12 @@ data class TripCard(
     val miss: Miss? = null,
 ) {
     sealed interface Step {
-        /** "[line] from [from]", "towards [headsign] · platform 2". */
-        data class Waiting(val from: String, val headsign: String?, val platform: String?) : Step
+        /** "[line] from [from]", "towards [headsign] · platform 2". [platform] is as the source gives it ("2", "C"); [bus] says it's a stop. */
+        data class Waiting(val from: String, val headsign: String?, val platform: String?, val bus: Boolean = false) : Step
         /** "[line] to [to]", "On the 06:30, get off at [to]" or "[stops] stops, get off at [to]". */
         data class Riding(val to: String, val yours: Instant?, val stops: Int?) : Step
         /** "Walk to [stop]", "[line] from platform 2" or "[line] towards [towards]". */
-        data class WalkToRide(val stop: String, val platform: String?, val towards: String) : Step
+        data class WalkToRide(val stop: String, val platform: String?, val towards: String, val bus: Boolean = false) : Step
         /** "Walk to [destination]", with the distance left (or the walk's minutes when there's no fix). */
         data class WalkToEnd(val destination: String, val metres: Double?, val minutes: Double) : Step
     }

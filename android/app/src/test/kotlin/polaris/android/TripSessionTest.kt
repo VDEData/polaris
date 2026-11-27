@@ -67,7 +67,7 @@ class TripSessionTest {
     private class Tracker : LocationTracking {
         var started = 0
         var stopped = 0
-        override val latest: LiveTrip.Fix? = null
+        override var latest: LiveTrip.Fix? = null
         override fun start() { started += 1 }
         override fun stop() { stopped += 1 }
     }
@@ -159,5 +159,48 @@ class TripSessionTest {
         assertNull(trips.trip.value)
         assertNull(store.trip)
         assertFalse(trips.opens.value)
+    }
+
+    /** Arrive, pocket the phone, forget End: half an hour past the arrival the trip ends by itself. */
+    @Test fun halfAnHourPastTheArrivalTheTripEndsByItself() = runTest {
+        val store = TripStore.Memory()
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(store, { now }, tracker = tracker)
+        trips.start(journey(), query)
+        runCurrent()
+        // Ticks a minute apart, no fix at all: the walk never ends, so the estimate keeps slipping
+        // and the trip ends half an hour past an hour late (06:50 + 60 + 31 min).
+        while (now < t0.plusSeconds((20 + 60 + 31) * 60L)) {
+            now = now.plusSeconds(60)
+            advanceTimeBy(2_000)
+            runCurrent()
+        }
+        assertNull(trips.trip.value)
+        assertEquals(1, tracker.stopped)
+        assertNull(store.trip)
+    }
+
+    /** Seen at the destination on the last leg: two minutes later the trip ends, GPS and all. */
+    @Test fun seenAtTheDestinationTheTripEndsTwoMinutesLater() = runTest {
+        val store = TripStore.Memory()
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(store, { now }, tracker = tracker)
+        val trip = trips.start(journey(), query)
+        runCurrent()
+        trip.select(1)
+        tracker.latest = LiveTrip.Fix(c, now)
+        now = now.plusSeconds(10); advanceTimeBy(2_000); runCurrent()
+        assertTrue(trip.arrived)
+        assertSame(trip, trips.trip.value, "not straight away")
+        repeat(70) {
+            now = now.plusSeconds(2)
+            tracker.latest = LiveTrip.Fix(c, now)
+            advanceTimeBy(2_000); runCurrent()
+        }
+        assertNull(trips.trip.value)
+        assertEquals(1, tracker.stopped)
+        assertNull(store.trip)
     }
 }

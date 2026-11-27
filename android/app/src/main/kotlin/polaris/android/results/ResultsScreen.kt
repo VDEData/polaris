@@ -69,6 +69,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import polaris.android.R
+import polaris.android.go.standingText
 import polaris.android.ui.SEPARATOR
 import polaris.android.app.AppGraph
 import polaris.android.shell.LocalScene
@@ -729,8 +730,9 @@ fun RouteCard(option: RouteOption, isBest: Boolean, isShown: Boolean, reference:
         val minutes = (((if (arriveBy) it.epochSecond - j.departure.epochSecond else j.arrival.epochSecond - it.epochSecond)) / 60.0).roundToInt()
         if (minutes > 0) (if (arriveBy) stringResource(R.string.route_leave_earlier, minutes) else stringResource(R.string.route_later, minutes)) else null
     }
+    val platformWords = j.transitLegs.firstOrNull()?.let { ride -> ride.platform?.let { standingText(ride, it) } }
     val boarding = j.transitLegs.firstOrNull()?.let { ride ->
-        listOfNotNull(Clock.of(ride.departure), ride.platform?.let(ride::standing), ride.fromName).joinToString(SEPARATOR)
+        listOfNotNull(Clock.of(ride.departure), platformWords, ride.fromName).joinToString(SEPARATOR)
     }
     val details = details(j)
     val and = stringResource(R.string.list_and)

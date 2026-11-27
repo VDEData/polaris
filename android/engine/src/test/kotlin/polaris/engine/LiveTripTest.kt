@@ -844,4 +844,64 @@ class LiveTripTest {
         assertEquals(2, drive.trip.legIndex)
         assertEquals(at("06:49:00"), drive.trip.log.ended[1])
     }
+
+    /** On the last walk the card says the distance as shown: a few metres more walked is the same card (no new notification every two seconds). */
+    @Test fun theLastWalksCardChangesOnlyWithTheDistanceShown() = runTest {
+        val journey = Go.bakerloo
+        val drive = Drive(this, journey, Go.at("07:15:30"), Go.bakerlooBoards(journey), Go.canaryWharf)
+        drive.trip.select(4)
+        fun along(f: Double) = Coordinate(Go.canaryWharf.latitude + (Go.canadaSquare.latitude - Go.canaryWharf.latitude) * f,
+            Go.canaryWharf.longitude + (Go.canadaSquare.longitude - Go.canaryWharf.longitude) * f)
+        drive.tick("07:15:40", along(0.20))
+        val first = drive.trip.card()
+        drive.tick("07:15:42", along(0.205))
+        assertEquals(first, drive.trip.card())
+        drive.tick("07:16:20", along(0.70))
+        kotlin.test.assertNotEquals(first, drive.trip.card())
+    }
+
+    /** Still at the stop after the planned train left: you'll get on the next one, so the button says you're on it, not that you've got off. */
+    @Test fun afterMissingItTheStepIsGettingOnNotGettingOff() = runTest {
+        val journey = Go.bakerloo
+        // No board (none loaded yet, or none for the line): nothing says the next one is coming.
+        val drive = Drive(this, journey, Go.at("06:36:00"), emptyMap(), Go.paddington)
+        drive.tick("06:36:00", Go.paddington)
+        drive.steady("06:43:00")
+        drive.tick("06:43:00", Go.paddington)
+        assertTrue(drive.trip.missedRide)
+        assertEquals(LiveTrip.Step.Boarded(journey.legs[1]), drive.trip.manualStep)
+    }
+
+    /**
+     * Stepped on by hand to the last walk while the fix is still far away: the fix's nearest point on
+     * the walk is its end, but it isn't on the walk, so the whole walk is still to do and the
+     * banner and the walk left agree.
+     */
+    @Test fun aFixFarFromTheWalkDoesNotSayYouAreThere() = runTest {
+        val journey = Go.bakerloo
+        val drive = Drive(this, journey, Go.at("07:15:30"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.trip.select(4)
+        drive.tick("07:15:40", Go.paddington)
+        val full = drive.trip.walk!!.distance
+        assertEquals(full, drive.trip.remainingWalk!!, 1.0)
+        assertEquals(full, drive.trip.guidance!!.second, 1.0)
+        // Back on the walk, it counts again.
+        drive.tick("07:16:20", Go.canadaSquare)
+        assertTrue(drive.trip.remainingWalk!! < full - 50)
+    }
+
+    /**
+     * Stepped on by hand to a change while the fix is still far off: the timeline walks the same
+     * metres at the same pace as the will-you-make-it check, so it never holds you to a train that
+     * check says you'll miss.
+     */
+    @Test fun offTheWalkTheTimelineAndThePaceCheckAgree() = runTest {
+        val plan = Go.bakerloo
+        val journey = plan.copy(legs = plan.legs.mapIndexed { i, leg -> if (i == 2) leg.copy(distanceMeters = 400.0) else leg })
+        val drive = Drive(this, journey, Go.at("06:49:30"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.trip.select(2)
+        drive.tick("06:49:30", Go.paddington)
+        val connection = drive.trip.connection!!
+        kotlin.test.assertNotEquals(Connection.Verdict.missing, connection.verdict, "timeline holds to a train the pace check misses")
+    }
 }
