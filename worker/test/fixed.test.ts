@@ -30,6 +30,7 @@ const line = (id: string, name: string, severity: number, description: string, r
 const good = (id: string, name: string) => line(id, name, 10, "Good Service");
 const JUB_MINOR = line("jubilee", "Jubilee line", 9, "Minor Delays", "JUBILEE LINE: Minor delays due to an earlier signal failure at Canary Wharf.");
 const JUB_SEVERE = line("jubilee", "Jubilee line", 6, "Severe Delays", "JUBILEE LINE: Severe delays due to an earlier signal failure at Canary Wharf.");
+const CEN_MINOR = line("central", "Central line", 9, "Minor Delays", "CENTRAL LINE: Minor delays due to a shortage of trains.");
 const CEN_SEVERE = line("central", "Central line", 6, "Severe Delays", "CENTRAL LINE: Severe delays due to a faulty train at Leytonstone.");
 const JUB_GOOD = good("jubilee", "Jubilee line");
 const CEN_GOOD = good("central", "Central line");
@@ -634,15 +635,53 @@ test("round 4: severe told ended, then back: told again at once", async () => {
   assert.deepEqual(seen(sent), [
     `07:00 ${SEVERE}`,
     "07:14 Minor delays on the Jubilee line have cleared. Severe delays on the Jubilee line continue.",
-    // Each back after it was told ended: told again.
-    "07:16 Jubilee line: minor delays | Minor delays due to an earlier signal failure.",
-    // Severe back at 07:20 (it eased, it wasn't told ended): not told again, as main.
+    // Minor back at 07:16 after its ended notice, but milder than the severe notice standing: a
+    // flip, as main sees it (round 5). Severe back at 07:20 after easing: not told again, as main.
     "07:28 Severe delays on the Jubilee line have cleared. Minor delays on the Jubilee line continue.",
     `07:30 ${SEVERE}`,
     // Both came back soon after an ended notice: told ended after half an hour without them.
     "09:00 Severe delays on the Jubilee line have cleared. Minor delays on the Jubilee line have cleared. Good service again.",
   ]);
   assertEnded(sent, jubileeOnly);
+});
+
+
+// Review of PR #9, fifth round.
+
+test("round 5, A: back after its ended notice, but milder than a severe notice standing: a flip, so the severe notice stays the newest", async () => {
+  const lines = (at: string) => { const t = at.slice(11); return [t < "07:10" ? JUB_MINOR : t < "07:20" ? JUB_GOOD : t < "07:30" ? JUB_SEVERE : t < "07:36" ? JUB_MINOR : t < "08:30" ? JUB_SEVERE : JUB_GOOD, CEN_GOOD]; };
+  const { sent } = await simulate("07:00", "08:30", lines, [{ ...commute, windows: [{ start: 420, end: 600 }] }]);
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:00", "07:14", "07:20"]);
+  assert.equal(sent.at(-1)!.payload.aps.alert.subtitle, "Jubilee line: severe delays");
+});
+
+const LIZ_BOTH = [{ id: "elizabeth", name: "Elizabeth line", lineStatuses: [
+  { statusSeverity: 6, statusSeverityDescription: "Severe Delays", reason: "Severe delays eastbound between Liverpool Street and Abbey Wood. Minor delays on the rest of the line.", validityPeriods: [], disruption: { category: "RealTime", affectedStops: [] } },
+  { statusSeverity: 9, statusSeverityDescription: "Minor Delays", reason: "Severe delays eastbound between Liverpool Street and Abbey Wood. Minor delays on the rest of the line.", validityPeriods: [], disruption: { category: "RealTime", affectedStops: [] } },
+] }];
+
+test("round 5, B: an ended notice settles every told disruption gone the usual few minutes, flapping or not, so one back soon after is told", async () => {
+  // 07:30 severe told, gone 07:36 (told ended 07:40), back 07:44 (told again, so flapping), 07:48 with
+  // minor delays too; 08:00 all gone; 08:26 severe back.
+  const lines = (at: string) => { const t = at.slice(11); return t < "07:36" ? EAST : t < "07:44" ? ELIZ_GOOD : t < "07:48" ? EAST : t < "08:00" ? LIZ_BOTH : t < "08:26" ? ELIZ_GOOD : t < "08:46" ? EAST : ELIZ_GOOD; };
+  const { sent } = await simulate("07:30", "08:50", lines, [outOnly]);
+  const at = seen(sent);
+  assert.ok(at.some((x) => x.startsWith("08:04 Minor delays on the Elizabeth line have cleared. Severe delays on the Elizabeth line have cleared.")), at.join("\n"));
+  assert.ok(sent.some((x) => hhmm(x) === "08:26" && x.payload.aps.alert.subtitle === "Elizabeth line: severe delays"), at.join("\n"));
+});
+
+test("round 5, B: single-line flaps every 6 and 10 minutes give no more audible notices than before", async () => {
+  for (const [period, expected] of [[6, 3], [10, 3]] as const) {
+    const lines = (at: string) => { const m = Number(at.slice(14)) + 60 * Number(at.slice(11, 13)); return [m < 510 && Math.floor((m - 450) / period) % 2 === 0 ? JUB_MINOR : JUB_GOOD, CEN_GOOD]; };
+    const { sent } = await simulate("07:30", "09:30", lines, [{ ...commute, windows: [{ start: 420, end: 600 }] }]);
+    assert.ok(sent.length <= expected + 1, `${period}: ${seen(sent).join(" / ")}`);
+  }
+});
+
+test("round 5, C: a told line missing from TfL's answer survives another line's notice, and its end is told", async () => {
+  const lines = (at: string) => { const t = at.slice(11); return t < "07:10" ? [JUB_SEVERE, CEN_GOOD] : t < "07:46" ? [CEN_GOOD] : t < "07:50" ? [CEN_MINOR] : [JUB_GOOD, CEN_MINOR]; };
+  const { sent } = await simulate("07:00", "08:00", lines);
+  assert.ok(seen(sent).some((x) => x.slice(0, 5) <= "07:54" && /Severe delays on the Jubilee line have cleared/.test(x)), seen(sent).join("\n"));
 });
 
 });

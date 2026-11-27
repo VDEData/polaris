@@ -33,8 +33,20 @@ const st = (severity: number, description: string, reason: string) => ({ statusS
 const d = (line: string, what: keyof typeof RANKS, ways: Way = "both"): Disruption =>
   ({ title: `${NAMES[line]}: ${what === "minor" ? "minor delays" : what === "severe" ? "severe delays" : what}`, rank: RANKS[what], ways });
 
-/** The kinds of answer TfL gives for a line, by line. Two statuses on one line included. */
+const STOP = "cwstop"; // Canary Wharf's station notices, kept beside the lines
+const stop = (type: "Closure" | "Part Closure", description: string) => ({ type, stationAtcoCode: "910GCANWHRF", commonName: "Canary Wharf", mode: "elizabeth-line", description, appearance: "RealTime" });
+
+/** The kinds of answer TfL gives for a line, by line (and Canary Wharf's station notices). Two
+ * statuses on one line included. */
 function choices(line: string): (() => LineState)[] {
+  if (line === STOP) {
+    const none = (): LineState => ({ statuses: [], disruptions: [] });
+    return [
+      none, none, none, none, none, none,
+      () => ({ statuses: [stop("Closure", "Canary Wharf: closed due to a fire alarm.")], disruptions: [{ title: "Canary Wharf closed (Elizabeth line)", rank: 3, ways: "both" }] }),
+      () => ({ statuses: [stop("Part Closure", "Canary Wharf: eastbound trains will not stop here while the platform is repaired.")], disruptions: [{ title: "Canary Wharf part closed (Elizabeth line)", rank: 2, ways: "out" }] }),
+    ];
+  }
   const N = NAMES[line].toUpperCase();
   const good = (): LineState => ({ statuses: [st(10, "Good Service", "")], disruptions: [] });
   const missing = (): LineState => ({ missing: true });
@@ -74,14 +86,18 @@ export function morning(rand: () => number, change: number): Morning {
   const pick = <T>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
   const end = 7 * 60 + 40 + 10 * Math.floor(rand() * 12); // 07:40 to 09:30
   const slotted = rand() < 0.4;
+  // Half the Elizabeth line alerts have a way of their own and one time, the rest a way per time.
+  const alertWay = slotted && rand() < 0.5;
   const lines = slotted ? ["elizabeth"] : rand() < 0.5 ? ["jubilee"] : ["jubilee", "central"];
-  const alert: Alert = slotted
+  const alert: Alert = alertWay
+    ? { id: "7A1B2C3D-0000-4000-8000-000000000003", name: "Liverpool Street to Canary Wharf", days: [1, 2, 3, 4, 5], windows: [{ start: 420, end }], minorDelays: true, direction: "out", segments: [ELIZABETH] }
+    : slotted
     ? { id: "7A1B2C3D-0000-4000-8000-000000000002", name: "Liverpool Street to Canary Wharf", days: [1, 2, 3, 4, 5], windows: [{ start: 420, end, direction: "out" }, { start: end, end: end + 40, direction: "back" }], minorDelays: true, segments: [ELIZABETH] }
     : { id: "7A1B2C3D-0000-4000-8000-000000000001", name: "Commute", days: [1, 2, 3, 4, 5], windows: [{ start: 420, end }], minorDelays: true, segments: lines.map(tube) };
   const last = Math.max(...alert.windows.map((w) => w.end));
   const marks: number[] = [];
   for (let t = DAY + 418 * MIN; t <= DAY + (last + 200) * MIN; t += 2 * MIN) marks.push(t);
-  const all = slotted ? ["elizabeth"] : ["jubilee", "central"];
+  const all = slotted ? ["elizabeth", STOP] : ["jubilee", "central"];
   const now: Record<string, LineState> = Object.fromEntries(all.map((l) => [l, choices(l)[0]()]));
   const truth = new Map<number, Record<string, LineState>>();
   for (const t of marks) {
@@ -91,7 +107,7 @@ export function morning(rand: () => number, change: number): Morning {
   let edit: Edit | undefined;
   if (rand() < 0.7) {
     const at = pick(marks);
-    const kinds = slotted ? ["rename", "end", "minor off", "way turned round", "time's way changed", "stretch changed"] : ["rename", "end", "minor off", lines.length === 2 ? "line removed" : "line added"];
+    const kinds = alertWay ? ["rename", "end", "minor off", "way turned round", "stretch changed"] : slotted ? ["rename", "end", "minor off", "way turned round", "time's way changed", "stretch changed"] : ["rename", "end", "minor off", lines.length === 2 ? "line removed" : "line added"];
     const kind = pick(kinds);
     const w = alert.windows;
     const changed: Alert =
@@ -100,6 +116,7 @@ export function morning(rand: () => number, change: number): Morning {
       : kind === "minor off" ? { ...alert, minorDelays: false }
       : kind === "line removed" ? { ...alert, segments: [tube("jubilee")] }
       : kind === "line added" ? { ...alert, segments: [tube("jubilee"), tube("central")] }
+      : kind === "way turned round" && alertWay ? { ...alert, direction: "back" }
       : kind === "way turned round" ? { ...alert, windows: w.map((x) => ({ ...x, direction: x.direction === "out" ? "back" : "out" })) }
       : kind === "time's way changed" ? { ...alert, windows: [{ ...w[0], direction: "back" }, ...w.slice(1)] }
       : { ...alert, segments: [{ ...ELIZABETH, from: { id: "910GPADTLL", name: "Paddington" }, to: { id: "910GBONDST", name: "Bond Street" }, stations: ["910GPADTLL", "910GBONDST"] }] };
@@ -152,7 +169,8 @@ export async function play(m: Morning, runChecks: RunChecks, forgetLineMaps: () 
       pushed.push({ at: mark, run, subtitle: aps.alert.subtitle, body: aps.alert.body, level: aps["interruption-level"], collapseId: (init!.headers as Record<string, string>)["apns-collapse-id"] });
       return new Response("", { status: 200 });
     }
-    if (url.includes("/StopPoint/") || url.includes("/to/")) return Response.json([]);
+    if (url.includes("/StopPoint/")) { const s = m.truth.get(mark)![STOP]; return Response.json(s && !s.missing ? s.statuses : []); }
+    if (url.includes("/to/")) return Response.json([]);
     if (url.includes("/Route/Sequence/")) return url.includes("/elizabeth/") ? Response.json(fixture("tfl-sequence-elizabeth.json")) : new Response("", { status: 404 });
     if (url.includes("/Line/")) {
       const ids = decodeURIComponent(url.split("/Line/")[1].split("/")[0]).split(",");
@@ -183,18 +201,21 @@ export function ridden(m: Morning, t: number): Way | undefined {
   if (!ways.length) return undefined;
   return new Set(ways).size === 1 ? ways[0] : "both";
 }
-export const lineOf = (title: string) => Object.keys(NAMES).find((id) => title.startsWith(`${NAMES[id]}:`))!;
+/** Where a disruption is: its line, or (for a station's notice) the station. */
+export const lineOf = (title: string) => (/ \(Elizabeth line\)$/.test(title) ? STOP : Object.keys(NAMES).find((id) => title.startsWith(`${NAMES[id]}:`))!);
 /** The disruptions TfL reports at `t` that the alert covers on `way`. */
 export function covered(m: Morning, t: number, way: Way = ridden(m, t) ?? "both"): Disruption[] {
   const a = alertAt(m, t);
   const now = m.truth.get(t)!;
-  return a.segments.flatMap((s) => {
+  const atCanaryWharf = a.segments.some((s) => s.to?.id === "910GCANWHRF" || s.from?.id === "910GCANWHRF");
+  const stops = atCanaryWharf && now[STOP] && !now[STOP].missing ? now[STOP].disruptions.filter((x) => way === "both" || x.ways === "both" || x.ways === way) : [];
+  return [...stops, ...a.segments.flatMap((s) => {
     const state = now[s.line.id];
     if (!state || state.missing) return [];
     // A stretch elsewhere on the line (Paddington to Bond Street): none of these sections touch it.
     if (s.from?.id === "910GPADTLL") return state.disruptions.filter((x) => x.title.endsWith("minor delays"));
     return state.disruptions.filter((x) => (x.rank > 1 || a.minorDelays) && (way === "both" || x.ways === "both" || x.ways === way));
-  });
+  })];
 }
 export const reported = (m: Morning, t: number, title: string) => { const s = m.truth.get(t)![lineOf(title)]; return !!s && !s.missing && s.disruptions.some((x) => x.title === title); };
 export const missing = (m: Morning, t: number, line: string) => !!(m.truth.get(t)![line] as { missing?: boolean })?.missing;
@@ -216,6 +237,40 @@ export function ended(p: Pushed): string[] {
     if (m2) out.push(`${m2[2]}: ${({ suspension: "suspended", "part suspension": "part suspended", "reduced service": "reduced service" } as Record<string, string>)[m2[1]]}`);
     const m3 = sentence.match(/^(Minor|Severe) delays on part of the (\w+ line) have cleared\./);
     if (m3) out.push(`${m3[2]}: ${m3[1].toLowerCase()} delays`);
+    const m4 = sentence.match(/^(.+) has reopened \((.+)\)\./);
+    if (m4) out.push(`${m4[1]} closed (${m4[2]})`);
+    const m5 = sentence.match(/^(.+) is no longer part closed \((.+)\)\./);
+    if (m5) out.push(`${m5[1]} part closed (${m5[2]})`);
   }
   return out;
 }
+
+/** The titles an ended notice says go on. */
+export function continuing(p: Pushed): string[] {
+  if (p.subtitle) return [];
+  const out: string[] = [];
+  const nouns: Record<string, string> = { suspension: "suspended", "part suspension": "part suspended", "reduced service": "reduced service" };
+  for (const sentence of p.body.split(/(?<=\.)\s+/)) {
+    const a = sentence.match(/^(Minor|Severe) delays on the (\w+ line) continue\./);
+    if (a) out.push(`${a[2]}: ${a[1].toLowerCase()} delays`);
+    const b = sentence.match(/^The (suspension|part suspension|reduced service) on the (\w+ line) continues\./);
+    if (b) out.push(`${b[2]}: ${nouns[b[1]]}`);
+    const c = sentence.match(/^(.+) is still (part closed|closed) \((.+)\)\./);
+    if (c) out.push(`${c[1]} ${c[2]} (${c[3]})`);
+  }
+  return out;
+}
+
+const RANK_OF: Record<string, number> = { "minor delays": 1, "severe delays": 2, "part suspended": 2, "reduced service": 2, suspended: 3 };
+/** How bad a title says it is. */
+export const rankOf = (title: string) => (/ part closed \(/.test(title) ? 2 : / closed \(/.test(title) ? 3 : RANK_OF[title.split(": ")[1]]);
+
+/** What the phone shows for the alert at `t`: the newest notice under its collapse ID, as the
+ * disruptions it presents as on now (a disruption notice: all it tells; an ended notice: what it
+ * says goes on). */
+export function shows(pushes: Pushed[], t: number): string[] {
+  const newest = pushes.filter((p) => p.at <= t).at(-1);
+  return !newest ? [] : newest.subtitle ? titles(newest) : continuing(newest);
+}
+/** The phone shows trouble at this disruption's place at least as bad as it is. */
+export const showsAtLeast = (shown: string[], d: { title: string; rank: number }) => shown.some((t) => lineOf(t) === lineOf(d.title) && rankOf(t) >= d.rank);

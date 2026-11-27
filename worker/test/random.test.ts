@@ -8,12 +8,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runChecks } from "../src/checks.ts";
 import { forgetLineMaps } from "../src/linemap.ts";
-import { alertAt, clock, covered, DAY, ended, lineOf, MIN, missing, morning, play, random, reported, ridden, titles, type Morning, type Pushed } from "./mornings.ts";
+import { alertAt, clock, covered, DAY, ended, lineOf, MIN, missing, morning, play, random, rankOf, reported, ridden, shows, showsAtLeast, titles, type Morning, type Pushed } from "./mornings.ts";
 
 const SEED = 20261127;
 const MORNINGS = Number(process.env.MORNINGS ?? 3000);
-const RANK: Record<string, number> = { "minor delays": 1, "severe delays": 2, "part suspended": 2, "reduced service": 2, suspended: 3 };
-const rankOf = (title: string) => RANK[title.split(": ")[1]];
 
 test(`${MORNINGS} random mornings: every push follows the rules`, async () => {
   const rand = random(SEED);
@@ -50,6 +48,8 @@ test(`${MORNINGS} random mornings: every push follows the rules`, async () => {
       const news = titles(p).some((title, k) => {
         const last = before.filter((q) => (k === 0 ? q.subtitle === title && detail(q) === detail(p) : titles(q).includes(title))).at(-1);
         if (!last) return true;
+        // The phone didn't show it at this severity (a later notice, an ended one included, showed it milder).
+        if (!showsAtLeast(shows(pushed, p.at - 1), { title, rank: rankOf(title) })) return true;
         if (endedSince(title, last.at, p.at)) return true;
         const line = lineOf(title);
         const lineEnded = ends.filter((e) => e.at < p.at && ended(e).some((t) => lineOf(t) === line)).at(-1)?.at ?? -Infinity;
@@ -103,9 +103,9 @@ test(`${MORNINGS} random mornings: every push follows the rules`, async () => {
         if (told.some((q) => q.at > p.at && q.at <= g + window && titles(q).some((t) => lineOf(t) === line))) continue;
         if (editAt <= g + window && uncovers(title)) continue;
         const editMark = m.marks.find((t) => t >= editAt);
-        if (editAt > p.at && editAt <= g + window && m.edit!.kind !== "rename" && editMark !== undefined && (onLine(editMark).length > 0 || missing(m, editMark, line))) {
+        if (editAt > p.at && editAt <= g + window && m.edit!.kind !== "rename" && editMark !== undefined && (onLine(editMark).length > 0 || missing(m, editMark, line) || line === "cwstop")) {
           // Known follow-up: an edit to what the alert matches, made while a told disruption is
-          // ending and its line still shows other trouble, settles it quietly.
+          // ending and its line still shows other trouble (or it is at a station), settles it quietly.
           counts.editedEnds++;
           continue;
         }
@@ -130,7 +130,7 @@ test(`${MORNINGS} random mornings: every push follows the rules`, async () => {
         // its line when they changed without a notice.
         const inWindow = ends.filter((e) => e.at > p.at && e.at <= g + window);
         const exact = inWindow.filter((e) => ended(e).includes(title));
-        const got = exact.length ? exact : inWindow.filter((e) => ended(e).some((t) => lineOf(t) === line && !titles(p).includes(t)));
+        const got = exact.length ? exact : inWindow.filter((e) => e.at >= g && ended(e).some((t) => lineOf(t) === line));
         if (got.length !== 1) fault("c", `"${title}" told ${clock(p.at)}, gone from ${clock(g)}: ${got.length} ended notices by ${clock(g + window)}${got.length ? ` (${got.map((e) => clock(e.at)).join(", ")})` : ""}`);
       }
     }
@@ -139,21 +139,27 @@ test(`${MORNINGS} random mornings: every push follows the rules`, async () => {
     for (const p of told) if (!ridden(m, p.at)) fault("d", `${clock(p.at)} "${p.subtitle}" outside the time`);
 
     // (f) A disruption on for 6 minutes or more inside the time, on a way the alert covers, is
-    // told, unless it was told and not told ended since.
+    // shown (the phone's newest notice for the alert presents its place at that severity or worse,
+    // by the next run) or was told and not told ended since. Not judged from an edit to what the
+    // alert matches until it next changes.
     const since = new Map<string, number>();
-    for (const t of m.marks) {
+    for (const [k, t] of m.marks.entries()) {
       if (!ridden(m, t)) { since.clear(); continue; }
-      const now = new Set(covered(m, t).map((x) => x.title));
-      for (const k of [...since.keys()]) if (!now.has(k)) since.delete(k);
-      for (const title of now) if (!since.has(title)) since.set(title, t);
-      for (const [title, from] of since) {
+      const now = covered(m, t);
+      for (const key of [...since.keys()]) if (!now.some((x) => x.title === key)) since.delete(key);
+      for (const x of now) if (!since.has(x.title)) since.set(x.title, t);
+      for (const x of now) {
+        const from = since.get(x.title)!;
         if (t - from < 6 * MIN) continue;
-        since.set(title, Infinity); // judged once for each stretch it is on
-        if (editAt > from - 2 * MIN && editAt <= t) continue;
+        if (m.edit && m.edit.kind !== "rename" && editAt <= t && from < editAt) continue;
         counts.checkedOn++;
-        const last = told.filter((q) => q.at <= t && titles(q).includes(title)).at(-1);
-        if (last && !endedSince(title, last.at, t + 1)) continue;
-        fault("f", `"${title}" on from ${clock(from)} to ${clock(t)} and not told${last ? ` (told ${clock(last.at)}, ended since)` : ""}`);
+        const next = m.marks[k + 1] ?? t;
+        if (showsAtLeast(shows(pushed, t), x) || showsAtLeast(shows(pushed, next), x)) continue;
+        // Or told, and not told ended since (TfL's words flipping back to it: main tells it no more).
+        const last = told.filter((q) => q.at <= t && titles(q).includes(x.title)).at(-1);
+        if (last && !endedSince(x.title, last.at, t + 1)) continue;
+        fault("f", `"${x.title}" on from ${clock(from)}, at ${clock(t)} the phone shows ${JSON.stringify(shows(pushed, t))}`);
+        since.set(x.title, Infinity); // once for each stretch it is on
       }
     }
 

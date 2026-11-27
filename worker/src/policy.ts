@@ -24,6 +24,21 @@ export interface AlertState {
   /** What the alert matched when this was decided (its stretches, ways and minor delays), so an
    * edit that changes it settles what it no longer matches quietly. */
   matches?: string;
+  /** What the phone shows: the newest notice's disruptions as on now (an ended notice: what it
+   * says goes on), as how bad each place is (`rank`), by place ("line:jubilee"). */
+  shown?: Record<string, number>;
+  /** What the server before this change would have on the phone, followed alongside: its open
+   * notice, its quiet "good service again" and what its newest notice shows. Whatever that would
+   * show, this shows too. */
+  main?: MainShadow;
+}
+
+export interface MainShadow {
+  open?: number;
+  quiet?: number;
+  shown: Record<string, number>;
+  /** The ways it told each disruption, as it would have recorded them. */
+  ways?: Record<string, Direction[]>;
 }
 
 export interface Told {
@@ -107,6 +122,70 @@ const BOTH: Direction[] = ["out", "back"];
 export function step(previous: AlertState | undefined, issues: Issue[], now: number, ways?: Ways, context: Context = {}): { state: AlertState; push?: Decision } {
   const prev = previous ?? { live: {} };
   const known = remembered(prev, now);
+  const shown = prev.shown ?? showing(prev, known);
+  const main = shadow(prev, issues, known, now, ways, shown);
+  // Whatever the server before this change would now show, this phone shows too: a disruption it
+  // would show at this severity or worse that this phone's newest notice doesn't is news.
+  const mustTell = issues.some((i) => (main.shown[place(i.signature)] ?? 0) >= rank(i.severity) && (shown[place(i.signature)] ?? 0) < rank(i.severity));
+  const result = decide(previous, issues, now, ways, context, mustTell);
+  let next = shown;
+  if (result.push?.kind === "issues") next = ranks(result.push.issues.map((i) => [i.signature, i.severity]));
+  else if (result.push?.kind === "clear") next = ranks(Object.entries(result.state.said ?? {}).filter(([, t]) => t.gone === undefined).map(([s]) => [s, result.state.live[s]?.severity ?? known[s]?.severity ?? "minor"]));
+  result.state.shown = next;
+  result.state.main = main;
+  return result;
+}
+
+/** How bad the phone shows each place, from what it shows. */
+function ranks(items: [string, Severity][]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [signature, severity] of items) out[place(signature)] = Math.max(out[place(signature)] ?? 0, rank(severity));
+  return out;
+}
+
+/** State from before `shown` was kept: what a notice standing tells, as well as is known. */
+function showing(prev: AlertState, known: AlertState["live"]): Record<string, number> {
+  if (prev.open === undefined) return {};
+  const told = prev.said ? Object.keys(prev.said) : Object.keys(known);
+  return ranks(told.filter((s) => known[s]).map((s) => [s, known[s].severity]));
+}
+
+/** The server before this change, run alongside on the same memory: when it would push, what it
+ * would show, and its quiet "good service again" (which shows nothing). */
+function shadow(prev: AlertState, issues: Issue[], known: AlertState["live"], now: number, ways: Ways | undefined, shown: Record<string, number>): MainShadow {
+  const before: MainShadow = prev.main ?? { open: prev.open, quiet: prev.quietSince, shown };
+  const toldWays = before.ways ?? {};
+  const rides = !ways || ways.way === "both" ? BOTH : [ways.way];
+  const yours = (signature: string) => {
+    const on = (ways?.on.get(signature) ?? rides).filter((d) => rides.includes(d));
+    return on.length ? on : rides;
+  };
+  const told = (signature: string) => toldWays[signature] ?? known[signature]?.ways ?? ways?.told ?? BOTH;
+  const untold = (signature: string) => !!ways && yours(signature).some((d) => !told(signature).includes(d));
+  const news = issues.some((i) => !known[i.signature] || rank(i.severity) > rank(known[i.signature].severity) || untold(i.signature));
+  if (issues.length && (news || before.open === undefined)) {
+    const nextWays: Record<string, Direction[]> = { ...toldWays };
+    if (ways) for (const i of issues) nextWays[i.signature] = [...new Set([...(known[i.signature] ? told(i.signature) : []), ...(ways.on.get(i.signature) ?? rides)])];
+    return { open: now, shown: ranks(issues.map((i) => [i.signature, i.severity])), ...(ways ? { ways: prune(nextWays, known, issues) } : {}) };
+  }
+  const keepWays = before.ways ? { ways: prune(before.ways, known, issues) } : {};
+  if (issues.length || before.open === undefined) return { open: before.open, shown: before.shown, ...keepWays };
+  // Nothing on: still there the other way, if a time goes that way; else, after a few quiet
+  // minutes, its quiet "good service again".
+  if (ways?.holds && [...ways.on.keys()].some((s) => known[s])) return { open: before.open, shown: before.shown, ...keepWays };
+  const quiet = before.quiet ?? now;
+  if (now - quiet < QUIET_BEFORE_CLEAR) return { open: before.open, quiet, shown: before.shown, ...keepWays };
+  return { shown: {}, ...keepWays };
+}
+
+/** Ways told, for what is still remembered. */
+function prune(ways: Record<string, Direction[]>, known: AlertState["live"], issues: Issue[]): Record<string, Direction[]> {
+  return Object.fromEntries(Object.entries(ways).filter(([s]) => s in known || issues.some((i) => i.signature === s)));
+}
+
+function decide(previous: AlertState | undefined, issues: Issue[], now: number, ways: Ways | undefined, context: Context, mustTell: boolean): { state: AlertState; push?: Decision } {
+  const prev = previous ?? { live: {} };
+  const known = remembered(prev, now);
 
   const rides = !ways || ways.way === "both" ? BOTH : [ways.way];
   // The ways a disruption of yours is on that you ride now.
@@ -129,12 +208,15 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
   const standing = (i: Issue) => Object.keys(said ?? {}).filter((s) => place(s) === place(i.signature));
   // Remembered (`live` is kept exactly as main keeps it), at a place a notice still stands for,
   // and not told ended lately: back after "cleared", it is told again.
-  const flipped = (i: Issue) => !!said && !!known[i.signature] && standing(i).length > 0 && !(i.signature in fixed);
+  // Back after "cleared" but milder than a told disruption still standing at that place (still
+  // on, and remembered): a flip, as main sees it, so the worse notice stays the newest.
+  const milder = (i: Issue) => standing(i).some((s) => !!known[s] && said![s].gone === undefined && rank(known[s].severity) > rank(i.severity));
+  const flipped = (i: Issue) => !!said && !!known[i.signature] && standing(i).length > 0 && (!(i.signature in fixed) || milder(i));
   // Not in a notice still standing: told ended, or never told.
   const fresh = (i: Issue) => !!said && !(i.signature in said) && !flipped(i);
   // News as main judges it, plus what isn't in a notice still standing.
   const news = issues.some((i) => !known[i.signature] || rank(i.severity) > rank(known[i.signature].severity) || untold(i.signature) || fresh(i));
-  const pushing = issues.length > 0 && (news || prev.open === undefined);
+  const pushing = issues.length > 0 && (news || prev.open === undefined || mustTell);
 
   const live: AlertState["live"] = {};
   for (const issue of issues) {
@@ -167,8 +249,11 @@ export function step(previous: AlertState | undefined, issues: Issue[], now: num
       delete fixed[issue.signature];
     }
     for (const [signature, entry] of Object.entries(said ?? {})) {
-      if (signature in next || !(signature in known)) continue;
-      if (away.has(signature) || context.unknown?.has(place(signature))) next[signature] = { ...entry, gone: away.has(signature) ? undefined : entry.gone };
+      if (signature in next) continue;
+      // Its line left out of TfL's answer: kept as it was, remembered or not, to tell its end.
+      if (context.unknown?.has(place(signature))) { next[signature] = entry; continue; }
+      if (!(signature in known)) continue;
+      if (away.has(signature)) next[signature] = { ...entry, gone: undefined };
       else if (!issues.some((i) => place(i.signature) === place(signature))) next[signature] = { ...entry, gone: entry.gone ?? now };
     }
     return { state: { live, open: now, said: tidy(next), ...(Object.keys(fixed).length ? { fixed } : {}) }, push: { kind: "issues", issues } };
@@ -212,6 +297,12 @@ export function follow(previous: AlertState, issues: Issue[], now: number, conte
   const live: AlertState["live"] = { ...known };
   const result = settle(said, known, live, issues, new Set(), recent(previous.fixed, now), now, previous.open, context);
   if (result.state.open !== undefined) result.state.following = previous.following ?? now;
+  // The server before this change didn't check outside your times: its phone stays as it was.
+  if (previous.main) result.state.main = previous.main;
+  const shown = previous.shown ?? showing(previous, known);
+  result.state.shown = result.push?.kind === "clear"
+    ? ranks(Object.entries(result.state.said ?? {}).filter(([, t]) => t.gone === undefined).map(([s]) => [s, known[s]?.severity ?? "minor"]))
+    : shown;
   return result;
 }
 
@@ -273,6 +364,17 @@ function settle(said: Record<string, Told>, known: AlertState["live"], live: Ale
       continue;
     }
     left[signature] = { ...entry, gone };
+  }
+  // An ended notice takes the place of the one standing: it settles too every told disruption gone
+  // the usual few minutes, flapping or not, so that one back soon after is told (once) rather
+  // than hidden behind the milder notice.
+  if (ended.length) {
+    for (const [signature, entry] of Object.entries(left)) {
+      if (entry.gone === undefined || context.unknown?.has(place(signature)) || !passed(entry.gone, now, QUIET_BEFORE_CLEAR)) continue;
+      ended.push(entry.title);
+      fixed[signature] = now;
+      delete left[signature];
+    }
   }
   const still = Object.values(left).filter((t) => t.gone === undefined).map((t) => t.title);
   const rest = tidy(left);
