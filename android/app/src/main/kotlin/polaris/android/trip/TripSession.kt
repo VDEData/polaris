@@ -45,6 +45,8 @@ class TripSession(
     /** A trip found at launch still worth resuming, until [resumePending] takes it. */
     private var pending: SavedTrip? = null,
     private val tickMillis: Long = 2_000,
+    /** Sets (or with null takes back) an alarm at the time the trip would end by itself. */
+    private val cutoffAlarm: (Instant?) -> Unit = {},
 ) {
     private val _trip = MutableStateFlow<LiveTrip?>(null)
     val trip: StateFlow<LiveTrip?> = _trip.asStateFlow()
@@ -98,7 +100,8 @@ class TripSession(
             store.clear()
             return null
         }
-        val trip = run(make(saved.journey, saved.query, saved))
+        // From the arrival it was saved with, as isResumable judged it.
+        val trip = run(make(saved.journey, saved.query, saved), saved.arrival)
         _opens.value = true
         return trip
     }
@@ -106,20 +109,48 @@ class TripSession(
     /** When the last leg was first reached (seen at the destination), for ending the trip by itself. */
     private var arrivedAt: Instant? = null
 
+    /** The arrival as last known from something that happened (a fresh fix, a change of leg), and the leg then. */
+    private var known: Instant? = null
+    private var knownLeg = -1
+    private var armed: Instant? = null
+
+    /** When the trip ends by itself if nothing more is heard, the same rule a saved trip is resumed by. */
+    val cutoff: Instant? get() = known?.let(SavedTrip::endsAt)
+
     /**
-     * A trip ends by itself: [ARRIVED_SECONDS] after you're seen at the destination (long enough
-     * to glance at Go saying so, short enough that GPS, the service and the notification don't run
-     * on in a pocket), or [SavedTrip.STALE_AFTER] past its arrival (at most an hour later than planned) whatever happened (no fix
-     * underground, the phone left behind), the same limit after which a saved trip isn't resumed.
+     * A trip ends by itself:
+     * - [ARRIVED_SECONDS] after you're seen at the destination and still there (long enough to glance
+     *   at Go saying so, short enough that GPS, the service and the notification don't run on in a pocket);
+     * - or at [cutoff], half an hour past the arrival as last known. Only a fresh fix or a change of
+     *   leg updates that arrival: with nothing heard (no fix underground, the phone left behind) the
+     *   timeline keeps moving the estimate on, and that alone mustn't keep the trip alive. A long
+     *   delay that is seen keeps it going.
+     * An alarm at the cut-off ends it with the phone asleep and no fixes coming.
      */
     private fun endIfOver(trip: LiveTrip) {
         val now = clock()
-        if (trip.arrived && arrivedAt == null) arrivedAt = now
+        if (!trip.arrived) arrivedAt = null else if (arrivedAt == null) arrivedAt = now
         val there = arrivedAt?.let { java.time.Duration.between(it, now).seconds >= ARRIVED_SECONDS } ?: false
-        // The estimate keeps moving while a walk never ends (no fix), so it counts as at most an hour late.
-        val due = minOf(trip.eta, trip.journey.arrival.plusSeconds(LATEST_SLIP_SECONDS))
-        val stale = java.time.Duration.between(due, now).seconds > SavedTrip.STALE_AFTER.toLong()
-        if (there || stale) end()
+        val fresh = tracker.latest?.let { java.time.Duration.between(it.at, now).seconds < FRESH_SECONDS } == true
+        if (known == null || fresh || trip.legIndex != knownLeg) {
+            known = trip.eta
+            knownLeg = trip.legIndex
+        }
+        val at = cutoff
+        if (at != null && (armed == null || kotlin.math.abs(java.time.Duration.between(armed, at).seconds) >= 60)) {
+            armed = at
+            cutoffAlarm(at)
+        }
+        if (there || (at != null && now > at)) end()
+    }
+
+    /** The cut-off alarm fired: the trip ends if it is over, otherwise the alarm moves on. */
+    fun check() {
+        val trip = _trip.value ?: return
+        if (!trip.isRunning) return
+        trip.refresh()
+        armed = null
+        endIfOver(trip)
     }
 
     /** A new fix: Go looks at once (the two-second ticks don't run while the phone sleeps; fixes wake it). */
@@ -130,8 +161,11 @@ class TripSession(
         endIfOver(trip)
     }
 
-    private fun run(trip: LiveTrip): LiveTrip {
+    private fun run(trip: LiveTrip, arrival: Instant? = null): LiveTrip {
         arrivedAt = null
+        known = arrival
+        knownLeg = if (arrival != null) trip.legIndex else -1
+        armed = null
         _trip.value = trip
         tracker.start()
         trip.start()
@@ -157,6 +191,9 @@ class TripSession(
         watching = null
         trip.stop()
         tracker.stop()
+        known = null
+        armed = null
+        cutoffAlarm(null)
         _trip.value = null
         _opens.value = false
         _version.value += 1
@@ -165,8 +202,8 @@ class TripSession(
     companion object {
         /** After being seen at the destination, the trip carries on this long, then ends. */
         const val ARRIVED_SECONDS = 120L
-        /** How much later than planned the arrival estimate may be before the trip ends anyway. */
-        const val LATEST_SLIP_SECONDS = 60 * 60L
+        /** A fix younger than this counts as hearing from the trip. */
+        const val FRESH_SECONDS = 120L
     }
 
     /** The trip, if it is following [journeyId]'s journey (a Switch keeps the journey's id). */

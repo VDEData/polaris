@@ -29,7 +29,7 @@ data class SavedTrip(
 ) {
     /** Still worth putting you back in Go: no more than half an hour past the arrival it had. */
     fun isResumable(now: Instant): Boolean =
-        version == CURRENT_VERSION && journey.legs.isNotEmpty() && legIndex in journey.legs.indices && now <= arrival.plusSeconds(STALE_AFTER)
+        version == CURRENT_VERSION && journey.legs.isNotEmpty() && legIndex in journey.legs.indices && now <= endsAt(arrival)
 
     /** The same trip as far as saving goes: the arrival counts only once it moves by five minutes or more. */
     fun sameAs(other: SavedTrip): Boolean =
@@ -42,6 +42,9 @@ data class SavedTrip(
         const val CURRENT_VERSION = 1
         /** Past the arrival by more than this, the trip is over: closed and never ended. */
         const val STALE_AFTER = 30 * 60.0
+
+        /** When a trip arriving at [arrival] ends by itself if nothing more is heard: the running trip and a resumed one use this. */
+        fun endsAt(arrival: Instant): Instant = arrival.plusSeconds(STALE_AFTER)
 
         fun encode(trip: SavedTrip): String = HTTP.json.encodeToString(TripDTO.of(trip))
 
@@ -184,8 +187,10 @@ class FileTripStore(private val file: File, private val writer: ExecutorService 
         return runCatching { file.readText() }.getOrNull()?.let(SavedTrip::decode)
     }
 
+    /** End is final: after any saves queued before it, the file is deleted before this returns. */
     override fun clear() {
         writer.execute { file.delete() }
+        flush()
     }
 
     /** Waits for every save and delete asked for so far. */

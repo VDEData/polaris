@@ -80,6 +80,7 @@ class AppGraph(
             isOnline = online, pending = pendingTrip,
             alerts = notifier ?: polaris.engine.TripAlertScheduling.None,
             presenter = notifier ?: polaris.engine.TripPresenter.None,
+            cutoffAlarm = { at -> appContext?.let { polaris.android.trip.TripEndAlarm.set(it, at, clock) } },
         )
     }
 

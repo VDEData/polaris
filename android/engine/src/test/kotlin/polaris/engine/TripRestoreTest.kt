@@ -516,4 +516,15 @@ class TripRestoreTest {
         return SavedTrip(journey = journey, query = query, legIndex = ride, log = log, replanWatch = watch,
             checkedWaits = setOf("wait.3"), arrival = journey.arrival)
     }
+
+    /** End is final: once clear() returns the file is gone, so a process ended right after End can't resume the trip. */
+    @Test fun clearIsDoneWhenItReturns() = kotlinx.coroutines.test.runTest {
+        withStore { scratch ->
+            val (_, _) = savedOnTheEarlyBakerloo(scratch.store)
+            scratch.store.flush()
+            assertTrue(scratch.file.exists())
+            scratch.store.clear()
+            kotlin.test.assertFalse(scratch.file.exists(), "the delete was only queued")
+        }
+    }
 }

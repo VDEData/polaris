@@ -50,5 +50,8 @@
         <receiver
             android:name=".trip.TripAlarmReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".trip.TripEndReceiver"
+            android:exported="false" />
     </application>
 </manifest>

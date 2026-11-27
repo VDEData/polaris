@@ -140,3 +140,54 @@ class TripAlarmReceiver : BroadcastReceiver() {
         }
     }
 }
+
+/**
+ * An alarm at the time the trip ends by itself if nothing more is heard ([TripSession.cutoff]), so
+ * it ends with the phone asleep and no fixes coming (the two-second ticks don't run then). Inexact,
+ * like the nudges: a few minutes late at most.
+ */
+object TripEndAlarm {
+    private const val REQUEST = 900
+    const val ACTION = "polaris.go.CUTOFF"
+
+    fun set(context: Context, at: Instant?, clock: () -> Instant) {
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
+        val intent = Intent(context, TripEndReceiver::class.java).setAction(ACTION)
+        if (at == null) {
+            android.app.PendingIntent.getBroadcast(context, REQUEST, intent, android.app.PendingIntent.FLAG_NO_CREATE or android.app.PendingIntent.FLAG_IMMUTABLE)
+                ?.let { alarms.cancel(it); it.cancel() }
+            return
+        }
+        val pending = android.app.PendingIntent.getBroadcast(context, REQUEST, intent, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        // The alarm clock runs on the phone's time; the trip's clock may run ahead in a debug check.
+        val inMillis = (at.toEpochMilli() - clock().toEpochMilli()).coerceAtLeast(1_000)
+        runCatching { alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + inMillis, pending) }
+    }
+}
+
+/** The cut-off alarm: the running trip checks itself; with the process gone, a stale saved trip and what it left go. */
+class TripEndReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != TripEndAlarm.ACTION) return
+        val trips = AppGraph.cached()?.trips
+        if (trips?.trip?.value != null) {
+            trips.check()
+            return
+        }
+        val done = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val store = ReceiverStore.of(context)
+                val saved = store.load()
+                if (saved == null || !saved.isResumable(Instant.now())) {
+                    if (saved != null) store.clear()
+                    (store as? FileTripStore)?.flush()
+                    trips?.dropPending()
+                    TripNotifier.removeLeftovers(context)
+                }
+            } finally {
+                done.finish()
+            }
+        }
+    }
+}

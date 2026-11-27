@@ -72,11 +72,12 @@ class TripSessionTest {
         override fun stop() { stopped += 1 }
     }
 
-    private fun kotlinx.coroutines.test.TestScope.session(store: TripStore, clock: () -> Instant, pending: polaris.engine.SavedTrip? = null, tracker: Tracker = Tracker(), requests: Requests = Requests()) =
+    private fun kotlinx.coroutines.test.TestScope.session(store: TripStore, clock: () -> Instant, pending: polaris.engine.SavedTrip? = null, tracker: Tracker = Tracker(), requests: Requests = Requests(), cutoffs: MutableList<Instant?> = mutableListOf()) =
         TripSession(
             scope = backgroundScope,
             departures = DepartureStore(DepartureProvider(HTTP(requests, "test")), clock),
             tracker = tracker, store = store, clock = clock, search = null, isOnline = { true }, pending = pending,
+            cutoffAlarm = { cutoffs += it },
         )
 
     @Test fun goStartsOneTripAndEndDeletesWhatARelaunchWouldPickUp() = runTest {
@@ -202,5 +203,58 @@ class TripSessionTest {
         assertNull(trips.trip.value)
         assertEquals(1, tracker.stopped)
         assertNull(store.trip)
+    }
+
+    /** Seen at the destination once, then walking away from it for two minutes: the trip goes on. */
+    @Test fun oneFixAtTheEndThenAwayKeepsTheTripRunning() = runTest {
+        val store = TripStore.Memory()
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(store, { now }, tracker = tracker)
+        val trip = trips.start(journey(), query)
+        runCurrent()
+        trip.select(1)
+        tracker.latest = LiveTrip.Fix(c, now)
+        now = now.plusSeconds(10); advanceTimeBy(2_000); runCurrent()
+        assertTrue(trip.arrived)
+        // 200 m north of the end.
+        val away = Coordinate(c.latitude + 0.0018, c.longitude)
+        repeat(70) {
+            now = now.plusSeconds(2)
+            tracker.latest = LiveTrip.Fix(away, now)
+            advanceTimeBy(2_000); runCurrent()
+        }
+        assertSame(trip, trips.trip.value, "ended though the person walked away from the end")
+    }
+
+    /** A long delay saved before Android ended the process: the relaunch resumes it and it doesn't end at once. */
+    @Test fun aLateTripResumedIsNotEndedAtOnce() = runTest {
+        val j = journey()
+        // Running 100 minutes late when saved; reopened 95 minutes past the planned arrival.
+        val saved = polaris.engine.SavedTrip(
+            journey = j, query = query, legIndex = 1, log = polaris.engine.TripLog(began = t0, boardings = mapOf(1 to polaris.engine.TripLog.Boarding(t0.plusSeconds(420)))),
+            replanWatch = polaris.engine.Replan.Watch(), checkedWaits = emptySet(), arrival = j.arrival.plusSeconds(100 * 60L),
+        )
+        var now = j.arrival.plusSeconds(95 * 60L)
+        assertTrue(saved.isResumable(now))
+        val store = TripStore.Memory()
+        val trips = session(store, { now }, pending = saved)
+        val trip = assertNotNull(trips.resumePending())
+        repeat(5) { now = now.plusSeconds(2); advanceTimeBy(2_000); runCurrent() }
+        assertSame(trip, trips.trip.value, "resumed, then ended at once")
+    }
+
+    /** The trip sets an alarm at the time it would end by itself, so it ends even asleep with no fixes; End takes it back. */
+    @Test fun anAlarmIsSetAtTheCutOffAndTakenBackOnEnd() = runTest {
+        val cutoffs = mutableListOf<Instant?>()
+        var now = t0
+        val trips = session(TripStore.Memory(), { now }, cutoffs = cutoffs)
+        trips.start(journey(), query)
+        runCurrent()
+        now = now.plusSeconds(2); advanceTimeBy(2_000); runCurrent()
+        val at = assertNotNull(cutoffs.lastOrNull())
+        assertEquals(journey().arrival.plusSeconds(30 * 60L), at)
+        trips.end()
+        assertNull(cutoffs.last())
     }
 }
