@@ -56,6 +56,14 @@ class AppGraph(
     private val appContext: Context? = null,
     /** Where the trip runs: the main thread in the app (it is confined to one thread). */
     tripScope: () -> kotlinx.coroutines.CoroutineScope = { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate) },
+    /** Where this install's secret for each alerts server is sealed (the store the settings use). */
+    private val secrets: polaris.engine.SecretStore = polaris.engine.InMemorySecretStore(),
+    /** The saved alerts and what the server last heard (the app's preferences; memory in tests). */
+    private val values: polaris.engine.KeyValueStore = polaris.engine.InMemoryKeyValueStore(),
+    /** This phone's push address, for line alerts (Firebase in a build given a project; none otherwise). */
+    val push: polaris.engine.PushRegistrar = polaris.engine.PushRegistrar.None,
+    /** Where the alerts' requests run (a test's own dispatcher). */
+    private val alertsIo: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val setupPending = java.util.concurrent.atomic.AtomicBoolean(firstRun)
 
@@ -96,6 +104,20 @@ class AppGraph(
         appContext?.let { polaris.android.trip.TripNotifier(it, { trips.trip.value }, clock) }
     }
 
+    /** Alerts for your lines, one store for the whole app, on the main thread. */
+    val alerts: polaris.engine.AlertStore by lazy {
+        polaris.engine.AlertStore(
+            settings, secrets, values, transport, { http.userAgent }, push,
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate), clock = clock, io = alertsIo,
+        )
+    }
+
+    /** TfL's lines and their stations, for choosing what to be alerted about (kept for the session). */
+    val lines: polaris.engine.TfLLines by lazy { polaris.engine.TfLLines(http) }
+
+    /** A line and its stations picked for the alert being edited, handed from the picker to its editor. */
+    val segmentPicks = kotlinx.coroutines.flow.MutableSharedFlow<Pair<String, polaris.engine.RouteAlert.Segment>>(extraBufferCapacity = 4)
+
     /** The appearance chosen in Settings, which the activity follows at once. */
     val appearance: kotlinx.coroutines.flow.MutableStateFlow<polaris.engine.Appearance> by lazy { kotlinx.coroutines.flow.MutableStateFlow(settings.appearance) }
 
@@ -114,6 +136,9 @@ class AppGraph(
             secrets: polaris.engine.SecretStore? = null,
             clock: (() -> java.time.Instant)? = null,
             replanSearch: (suspend (polaris.engine.JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null,
+            /** [push] and [values] replace Firebase and the saved alerts: debug checks only, null in release. */
+            push: polaris.engine.PushRegistrar? = null,
+            values: polaris.engine.KeyValueStore? = null,
         ): AppGraph {
             // A debug run on recorded answers, or on the simulated store, never decides first-run setup (nor shows it).
             val decidesSetup = transport == null && secrets == null
@@ -146,6 +171,9 @@ class AppGraph(
                     clock = clock ?: java.time.Instant::now,
                     replanSearch = replanSearch,
                     appContext = app,
+                    secrets = secrets ?: Storage.secrets(app),
+                    values = values ?: preferences,
+                    push = push ?: polaris.android.alerts.FirebasePush(app),
                 )
             }.also { loaded = it }
         }

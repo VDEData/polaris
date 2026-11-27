@@ -101,6 +101,7 @@ object Storage {
     private val mutex = Mutex()
     @Volatile private var ready: Pair<AppSettings, GoogleUsage>? = null
     @Volatile private var preferences: KeyValueStore? = null
+    @Volatile private var secrets: polaris.engine.SecretStore? = null
 
     /**
      * `AppSettings.contact`, kept in memory for the map's tile, style and font requests, which
@@ -130,7 +131,9 @@ object Storage {
             // Development installs only: the first builds of this storage kept the alerts server
             // as two entries. Nothing reads them; they are removed so no token lingers.
             listOf("secret.alerts.server.url", "secret.alerts.server.token").forEach { if (sealed.read(it) != null) sealed.write(it, null) }
-            val settings = AppSettings(EncryptedSecretStore(KeystoreCipher(), sealed), buildDefaults, preferences)
+            val secrets = EncryptedSecretStore(KeystoreCipher(), sealed)
+            this@Storage.secrets = secrets
+            val settings = AppSettings(secrets, buildDefaults, preferences)
             settings.onSecretsChanged = { refreshContact() }
             contact = settings.contact
             ContextCompat.registerReceiver(
@@ -150,6 +153,12 @@ object Storage {
     suspend fun preferences(context: Context): KeyValueStore {
         settings(context)
         return preferences!!
+    }
+
+    /** The sealed store the settings use, for the alerts' own secrets. Loads settings first if needed. */
+    suspend fun secrets(context: Context): polaris.engine.SecretStore {
+        settings(context)
+        return secrets!!
     }
 
     private fun refreshContact() {

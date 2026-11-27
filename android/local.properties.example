@@ -19,7 +19,10 @@
 # polaris.googleKey=
 # polaris.tflKey=
 
-# An alerts server of your own (worker/), as on iOS. Alerts come to Android in a later phase.
+# An alerts server of your own (worker/), as on iOS: its address and its APP_TOKEN. They can be
+# entered in the app's Settings instead. For its notifications to reach this build, also put your
+# Firebase project's google-services.json in app/ (see app/google-services.json.example and the
+# README); without it alerts still show what TfL says, but no notification can arrive.
 # polaris.alertsUrl=
 # polaris.alertsToken=
 

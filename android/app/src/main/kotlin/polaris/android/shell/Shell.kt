@@ -85,6 +85,11 @@ import kotlinx.serialization.Serializable
 import androidx.compose.ui.res.stringResource
 import polaris.android.R
 import polaris.android.app.AppGraph
+import polaris.android.alerts.AlertEditorScreen
+import polaris.android.alerts.AlertEditorViewModel
+import polaris.android.alerts.AlertsScreen
+import polaris.android.alerts.LinePickerScreen
+import polaris.android.alerts.StationPickerScreen
 import polaris.android.home.HomeScreen
 import polaris.android.map.PolarisMap
 import polaris.android.results.ResultsScreen
@@ -92,7 +97,9 @@ import polaris.android.search.PlaceSearchScreen
 import polaris.android.ui.HalfDialog
 import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
+import polaris.engine.RouteAlert
 import polaris.engine.Snapshot
+import polaris.engine.TfLLines
 
 /** The window's pages: the map with its sheet, and a place search over it. */
 @Serializable data object MainWindow : NavKey
@@ -101,6 +108,13 @@ import polaris.engine.Snapshot
 @Serializable data object SettingsWindow : NavKey
 @Serializable data object LicencesWindow : NavKey
 @Serializable data object SetupWindow : NavKey
+/** Alerts for your lines, an alert's editor over it, and the line and station pickers over that: cover pages too. */
+@Serializable data object AlertsWindow : NavKey
+/** [alert] is the alert as the editor opens with it (its JSON); [session] names this editor, for a picked line to find it. */
+@Serializable data class AlertEditorWindow(val alert: String, val isNew: Boolean, val session: String = java.util.UUID.randomUUID().toString()) : NavKey
+@Serializable data class LinePickerWindow(val session: String) : NavKey
+/** A line's stations: where you get on ([fromId] null), then where you get off. */
+@Serializable data class StationPickerWindow(val session: String, val lineId: String, val tflName: String, val mode: String, val fromId: String? = null, val fromName: String? = null) : NavKey
 
 /** Builds the app's view models from the graph; every screen's model takes its dependencies directly. */
 inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: (androidx.lifecycle.SavedStateHandle) -> T) =
@@ -123,6 +137,9 @@ fun PolarisApp(
     showSetup: Boolean = false,
     goRequest: polaris.android.GoRequest? = null,
     goRequestTaken: () -> Unit = {},
+    /** A line alert's notification tapped (a new value each tap): Alerts opens. */
+    alertsRequest: Long? = null,
+    alertsRequestTaken: () -> Unit = {},
 ) {
     val shell: ShellViewModel = viewModel(factory = factory { ShellViewModel(graph) })
     // First-run setup is over everything on a fresh start; after that the saved stack decides.
@@ -203,6 +220,21 @@ fun PolarisApp(
 
     val openSearch: (SearchFor) -> Unit = { kind -> if (window.lastOrNull() !is SearchWindow) window.add(SearchWindow(kind)) }
     val openSettings: () -> Unit = { if (window.lastOrNull() == MainWindow) window.add(SettingsWindow) }
+    // Alerts opens over the map or over Settings (its row there); never twice.
+    val openAlerts: () -> Unit = { if (window.none { it == AlertsWindow } && window.lastOrNull().let { it == MainWindow || it == SettingsWindow }) window.add(AlertsWindow) }
+    val openAlertEditor: (polaris.engine.RouteAlert, Boolean) -> Unit = { alert, isNew ->
+        if (window.none { it is AlertEditorWindow }) window.add(AlertEditorWindow(RouteAlert.encodeOne(alert), isNew))
+    }
+    // A notice tapped: Alerts on top of the map, whatever cover page was open (an alert being edited is left alone).
+    LaunchedEffect(alertsRequest) {
+        if (alertsRequest == null) return@LaunchedEffect
+        alertsRequestTaken()
+        if (window.any { it is AlertEditorWindow }) return@LaunchedEffect
+        window.removeAll { it != MainWindow }
+        window.add(AlertsWindow)
+    }
+    // On launch: a new push address is picked up, and the alerts resent in case the last change didn't reach the server.
+    LaunchedEffect(graph) { graph.alerts.resume() }
     val cover = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))
 
     val density = LocalDensity.current
@@ -253,7 +285,7 @@ fun PolarisApp(
         entryProvider = entryProvider {
             entry<MainWindow> {
                 CompositionLocalProvider(LocalScene provides scene) {
-                    MapAndSheet(graph, shell, pages, night, openSearch, openSettings)
+                    MapAndSheet(graph, shell, pages, night, openSearch, openSettings, openAlerts) { openAlertEditor(it, true) }
                 }
             }
             entry<SearchWindow>(metadata = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))) { key ->
@@ -270,7 +302,48 @@ fun PolarisApp(
                 SettingsScreen(
                     graph, shell, night, openSearch,
                     openLicences = { if (window.lastOrNull() == SettingsWindow) window.add(LicencesWindow) },
+                    openAlerts = openAlerts,
                     onClose = { window.removeAll { it == SettingsWindow || it == LicencesWindow } },
+                )
+            }
+            entry<AlertsWindow>(metadata = cover) {
+                AlertsScreen(
+                    graph, night, openEditor = openAlertEditor,
+                    // Settings is under Alerts when it was opened from there; from Home, it opens in its place.
+                    openSettings = {
+                        window.removeAll { it == AlertsWindow }
+                        if (window.none { it == SettingsWindow }) window.add(SettingsWindow)
+                    },
+                    onClose = { window.removeAll { it == AlertsWindow } },
+                )
+            }
+            entry<AlertEditorWindow>(metadata = cover) { key ->
+                val original = remember(key) { RouteAlert.decodeOne(key.alert) ?: RouteAlert() }
+                val model: AlertEditorViewModel = viewModel(factory = factory { AlertEditorViewModel(it, graph.alerts, graph.segmentPicks, original, key.isNew, key.session) })
+                val alertsState by graph.alerts.state.collectAsStateLifecycle()
+                AlertEditorScreen(
+                    model, alertsState, night,
+                    addLine = { if (window.lastOrNull() == key) window.add(LinePickerWindow(key.session)) },
+                    onClose = { window.removeAll { it == key || (it is LinePickerWindow && it.session == key.session) || (it is StationPickerWindow && it.session == key.session) } },
+                )
+            }
+            entry<LinePickerWindow>(metadata = cover) { key ->
+                LinePickerScreen(
+                    graph.lines, night,
+                    onPick = { line -> if (window.lastOrNull() == key) window.add(StationPickerWindow(key.session, line.id, line.tflName, line.mode)) },
+                    onBack = { window.removeAll { it == key } },
+                )
+            }
+            entry<StationPickerWindow>(metadata = cover) { key ->
+                StationPickerScreen(
+                    graph.lines, TfLLines.Line(key.lineId, key.tflName, key.mode), key.fromId, key.fromName, night,
+                    onFrom = { station -> if (window.lastOrNull() == key) window.add(key.copy(fromId = station.id, fromName = station.name)) },
+                    // Picked: back to the editor, which takes the line from the graph's hand-over.
+                    onPick = { segment ->
+                        graph.segmentPicks.tryEmit(key.session to segment)
+                        window.removeAll { (it is LinePickerWindow && it.session == key.session) || (it is StationPickerWindow && it.session == key.session) }
+                    },
+                    onBack = { window.removeAll { it == key } },
                 )
             }
             entry<LicencesWindow>(metadata = cover) {
@@ -336,6 +409,8 @@ private fun MapAndSheet(
     night: Boolean,
     openSearch: (SearchFor) -> Unit,
     openSettings: () -> Unit,
+    openAlerts: () -> Unit,
+    openAlert: (polaris.engine.RouteAlert) -> Unit,
 ) {
     val scene = LocalScene.current
     val density = LocalDensity.current
@@ -349,7 +424,7 @@ private fun MapAndSheet(
     val bars = remember { mutableStateMapOf<NavKey, Int>() }
     val movablePages = remember(graph, shell, pages) {
         movableContentOf { host: SheetHost ->
-            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch, openSettings) }
+            CompositionLocalProvider(LocalSheet provides host) { SheetPages(graph, shell, pages, openSearch, openSettings, openAlerts, openAlert) }
         }
     }
     var dockHeight by remember { mutableStateOf(0) }
@@ -528,6 +603,8 @@ private fun SheetPages(
     pages: androidx.navigation3.runtime.NavBackStack<NavKey>,
     openSearch: (SearchFor) -> Unit,
     openSettings: () -> Unit,
+    openAlerts: () -> Unit,
+    openAlert: (polaris.engine.RouteAlert) -> Unit,
 ) {
     // Pages slide in from the end; going back, the page on top slides away over the one under it
     // (and follows the finger during predictive back). Each page is opaque, so they never overlap.
@@ -543,7 +620,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings, openLine = { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) }, openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) }) } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings, openAlerts = openAlerts, openLine = { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) }, openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) }) } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->
@@ -556,6 +633,7 @@ private fun SheetPages(
                     JourneyScreen(
                         key, graph, shell, onBack = { pages.removeLastOrNull() },
                         openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) },
+                        openAlert = openAlert,
                     ) { leg ->
                         if (pages.lastOrNull() == key) pages.add(BoardPage(key.searchId, key.journeyId, leg.id))
                     }

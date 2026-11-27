@@ -88,6 +88,11 @@ import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
 import polaris.android.ui.surface
 import polaris.engine.Appearance
+import polaris.engine.AlertStore
+import polaris.engine.AlertServer
+import polaris.android.BuildConfig
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import polaris.engine.GoogleAllowance
 import polaris.engine.ProviderID
 
@@ -145,11 +150,11 @@ fun coverInset(): androidx.compose.ui.unit.Dp =
 
 /**
  * Settings (iOS's `SettingsView`, as Android lists): appearance, sources, keys and the Transitous
- * contact, saved places, the data credits the sources ask for, and the licences. No alert-server
- * or push fields yet: alerts come in a later update.
+ * contact and the alerts server, saved places, the data credits the sources ask for, and the
+ * licences. Alerts for your lines open from the first row.
  */
 @Composable
-fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openSearch: (SearchFor) -> Unit, openLicences: () -> Unit, onClose: () -> Unit) {
+fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openSearch: (SearchFor) -> Unit, openLicences: () -> Unit, openAlerts: () -> Unit = {}, onClose: () -> Unit) {
     val model: SettingsViewModel = viewModel(factory = factory { SettingsViewModel(it, graph) })
     val ui by model.ui.collectAsStateWithLifecycle()
     val places by shell.places.collectAsStateWithLifecycle()
@@ -167,6 +172,25 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (ui.lost.isNotEmpty()) item(key = "lost") { LostNotice(ui.lost, model::acknowledgeLost) }
+
+            item(key = "alerts") {
+                val alerts by graph.alerts.state.collectAsStateWithLifecycle()
+                Column(Modifier.fillMaxWidth().surface(c)) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_alerts)) },
+                        supportingContent = {
+                            Text(
+                                if (alerts.alerts.isEmpty()) stringResource(R.string.settings_alerts_detail_none)
+                                else androidx.compose.ui.res.pluralStringResource(R.plurals.settings_alerts_count, alerts.alerts.size, alerts.alerts.size.toString()),
+                            )
+                        },
+                        leadingContent = { Symbol(R.drawable.sym_notifications, null, tint = c.tint) },
+                        trailingContent = { Symbol(R.drawable.sym_chevron_right, null, tint = c.inkFaint) },
+                        colors = ListItemDefaults.colors(containerColor = c.surface),
+                        modifier = Modifier.clickable(role = Role.Button, onClick = openAlerts),
+                    )
+                }
+            }
 
             item(key = "appearance-h") { SectionHeader(stringResource(R.string.settings_appearance)) }
             item(key = "appearance") {
@@ -273,6 +297,7 @@ fun LazyListScope.connectionItems(ui: SettingsViewModel.Ui, model: SettingsViewM
     }
     item(key = "key-tfl") { KeyItem(SettingsViewModel.Item.tfl, R.string.item_tfl_title, R.string.item_tfl_purpose, R.string.item_tfl_source, ui, model, showLater) }
     item(key = "contact") { ContactItem(ui, model, showLater) }
+    item(key = "alerts-server") { AlertServerItem(graph, showLater) }
 }
 
 @Composable
@@ -379,6 +404,107 @@ private fun ContactItem(ui: SettingsViewModel.Ui, model: SettingsViewModel, show
         Caption(R.string.item_contact_purpose, R.string.item_contact_source, showLater)
     }
 }
+
+/**
+ * The alerts server (iOS's alerts-server section): its address and its token, entered together
+ * and used only on "Use this server", which checks the address, removes this phone from the
+ * server it leaves and registers the alerts with the new one. Typing alone changes nothing. The
+ * token is never put in the saved instance state, and never shown once saved.
+ */
+@Composable
+private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
+    val c = polaris
+    val state by graph.alerts.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val hasBuiltIn = remember(graph) { polarisBuildHasServer() }
+    // What is entered now, read off the main thread (it is sealed).
+    val entered by androidx.compose.runtime.produceState<AppSettings.EnteredServer?>(null, state.serverLabel, state.configured) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { graph.settings.enteredAlertsServer }
+    }
+    val saved = entered as? AppSettings.EnteredServer.Saved
+    var url by rememberSaveable(saved?.url) { mutableStateOf(saved?.url ?: "") }
+    var token by remember(saved?.url) { mutableStateOf("") }
+    var shown by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var problem by rememberSaveable { mutableStateOf<String?>(null) }
+    var note by rememberSaveable { mutableStateOf<String?>(null) }
+    val noToken = stringResource(R.string.item_server_no_token)
+    val notSaved = stringResource(R.string.item_server_not_saved)
+    val couldNotLeave = stringResource(R.string.item_server_could_not_leave, "%s")
+    fun use(address: String, appToken: String) {
+        scope.launch {
+            busy = true
+            problem = null
+            note = null
+            when (val result = graph.alerts.useServer(address, appToken)) {
+                is AlertStore.UseResult.Used -> {
+                    note = result.couldNotLeave?.let { couldNotLeave.format(it) }
+                    token = ""
+                    if (address.isBlank()) url = ""
+                }
+                is AlertStore.UseResult.Refused -> problem = result.problem.message
+                AlertStore.UseResult.NoToken -> problem = noToken
+                AlertStore.UseResult.NotSaved -> problem = notSaved
+            }
+            busy = false
+        }
+    }
+    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val stateText = when {
+            entered == AppSettings.EnteredServer.Unreadable -> stringResource(R.string.item_server_state_unreadable)
+            state.serverLabel == null -> stringResource(R.string.item_server_state_none)
+            state.serverIsBuiltIn -> stringResource(R.string.item_server_state_built_in, state.serverLabel ?: "")
+            else -> stringResource(R.string.item_server_state_entered, state.serverLabel ?: "")
+        }
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it; problem = null },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.item_server_title)) },
+            placeholder = { Text(stringResource(R.string.item_server_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+            isError = problem != null,
+            supportingText = { Text(problem ?: stateText, color = if (problem != null || entered == AppSettings.EnteredServer.Unreadable) c.warning else c.inkSoft) },
+        )
+        val tokenName = stringResource(R.string.item_server_token)
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it; problem = null },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(tokenName) },
+            singleLine = true,
+            visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+            trailingIcon = if (token.isNotEmpty()) ({
+                val label = stringResource(if (shown) R.string.key_hide_label else R.string.key_show_label, tokenName)
+                TextButton(onClick = { shown = !shown }, modifier = Modifier.semantics { contentDescription = label }) {
+                    Text(stringResource(if (shown) R.string.key_hide else R.string.key_show))
+                }
+            }) else null,
+        )
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { use(url, token) },
+                enabled = !busy && url.isNotBlank() && token.isNotBlank(),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text(stringResource(R.string.item_server_use)) }
+            if (saved != null || entered == AppSettings.EnteredServer.Unreadable) {
+                TextButton(onClick = { use("", "") }, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(if (hasBuiltIn) R.string.item_server_use_built_in else R.string.item_server_remove))
+                }
+            }
+            if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
+        }
+        note?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = c.warning) }
+        Caption(R.string.item_server_purpose, R.string.item_server_source, showLater)
+    }
+}
+
+/** Whether this build has an alerts server built in (so removing an entered one goes back to it). */
+private fun polarisBuildHasServer(): Boolean =
+    AlertServer.resolve("", "", BuildConfig.POLARIS_ALERTS_URL, BuildConfig.POLARIS_ALERTS_TOKEN) != null
 
 /**
  * A switch row: the badge in a fixed column, centred, so every title starts at the same place

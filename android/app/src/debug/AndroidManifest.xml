@@ -2,7 +2,13 @@
 <!-- Debug builds only: a check of the map, place search and settings storage. Not the app's UI. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application>
+    <application android:networkSecurityConfig="@xml/debug_network">
+        <!-- Shows a line alert's notice as a push would, with nothing sent or received:
+             adb shell am broadcast -n <app id>/polaris.android.debug.NoticeCheckReceiver \
+                 -e alert A -e title "Home to work" -e subtitle "Jubilee line: severe delays" -e body "…" -e level urgent -->
+        <receiver
+            android:name=".debug.NoticeCheckReceiver"
+            android:exported="true" />
         <activity
             android:name=".debug.MapCheckActivity"
             android:exported="true"

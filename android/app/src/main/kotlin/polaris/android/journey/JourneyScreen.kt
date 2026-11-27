@@ -1,6 +1,8 @@
 package polaris.android.journey
 
 import polaris.engine.Strip
+import polaris.engine.TfLLines
+import kotlinx.coroutines.launch
 import polaris.engine.LegMode
 import polaris.engine.Loadable
 import polaris.engine.DepartureBoard
@@ -106,7 +108,16 @@ import java.time.Instant
  * beside the itinerary, as iOS does on the Duo.
  */
 @Composable
-fun JourneyScreen(key: JourneyPage, graph: AppGraph, shell: polaris.android.shell.ShellViewModel, onBack: () -> Unit, openGo: () -> Unit, openBoard: (Leg) -> Unit) {
+fun JourneyScreen(
+    key: JourneyPage,
+    graph: AppGraph,
+    shell: polaris.android.shell.ShellViewModel,
+    onBack: () -> Unit,
+    openGo: () -> Unit,
+    /** An alert drafted from this route's TfL lines, to check and save (the bell). */
+    openAlert: (polaris.engine.RouteAlert) -> Unit = {},
+    openBoard: (Leg) -> Unit,
+) {
     val model: JourneyViewModel = viewModel(factory = factory { JourneyViewModel(graph, key.searchId, key.journeyId) })
     val ui by model.ui.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
@@ -181,8 +192,31 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, shell: polaris.android.shel
     // Once for the page, whichever layout shows the countdown (a fold or a turn changes it).
     journey?.let { val (leave, urgent) = leaveText(it); UrgencyAnnouncement(leave, urgent) }
 
+    // The bell: an alert for this route's TfL lines, each from where you get on to where you get
+    // off. Only with an alerts server, a line TfL may report on, and no trip running on this route.
+    val alertsState by graph.alerts.state.collectAsStateWithLifecycle()
+    var draftingAlert by remember { mutableStateOf(false) }
+    val alertScope = androidx.compose.runtime.rememberCoroutineScope()
+    val alertContext = LocalContext.current
+    val bell: (() -> Unit)? = if (journey == null || following != null || !alertsState.configured || !TfLLines.mayHaveLines(journey)) null else ({
+        if (!draftingAlert) alertScope.launch {
+            draftingAlert = true
+            try {
+                val draft = graph.lines.draft(journey)
+                if (draft != null) openAlert(draft)
+                else android.widget.Toast.makeText(alertContext, R.string.journey_alert_none, android.widget.Toast.LENGTH_LONG).show()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(alertContext, R.string.journey_alert_failed, android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                draftingAlert = false
+            }
+        }
+    })
+
     val title = journey?.let { stringResource(R.string.journey_title, Clock.of(it.departure), Clock.of(it.arrival), durationText(it.duration)) } ?: ""
-    SheetPage(key, bar = { TopRow(title, null, journey, query, onBack) }) {
+    SheetPage(key, bar = { TopRow(title, null, journey, query, onBack, bell = bell, bellBusy = draftingAlert) }) {
         val list = rememberLazyListState()
         // After Android stopped the app the list comes back before its route does (read from the
         // archive), so the saved place would be clamped to the top: keep it, and go there once
@@ -216,8 +250,8 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, shell: polaris.android.shel
                 val sub = journey?.let { summary(it) }
                 if (layout.short && journey != null && query != null) {
                     val (leave, _) = leaveText(journey)
-                    TopRow(title, sub?.let { stringResource(R.string.journey_summary, leave, it) }, journey, query, onBack, share = shareAction(journey, query))
-                } else TopRow(title, sub, journey, query, onBack)
+                    TopRow(title, sub?.let { stringResource(R.string.journey_summary, leave, it) }, journey, query, onBack, share = shareAction(journey, query), bell = bell, bellBusy = draftingAlert)
+                } else TopRow(title, sub, journey, query, onBack, bell = bell, bellBusy = draftingAlert)
             }
             when {
                 ui.loading -> item(key = "loading") {
@@ -261,7 +295,7 @@ private fun summary(j: Journey): String {
 
 /** The page's top row (and its bar at the low rest): up, the times, and the overflow with other apps. */
 @Composable
-private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: JourneyQuery?, onBack: () -> Unit, share: (() -> Unit)? = null) {
+private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: JourneyQuery?, onBack: () -> Unit, share: (() -> Unit)? = null, bell: (() -> Unit)? = null, bellBusy: Boolean = false) {
     val c = polaris
     val context = LocalContext.current
     var menu by rememberSaveable { mutableStateOf(false) }
@@ -270,6 +304,13 @@ private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: J
         Column(Modifier.weight(1f)) {
             Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        }
+        bell?.let { make ->
+            // One 48 dp slot, whether it holds the bell or the wait for TfL's lines.
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                if (bellBusy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                else IconButton(onClick = make) { Symbol(R.drawable.sym_notifications, stringResource(R.string.journey_alert), tint = c.inkSoft) }
+            }
         }
         if (journey != null && query != null) {
             Box {

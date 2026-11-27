@@ -73,6 +73,9 @@ import polaris.android.ui.Clock
 import polaris.android.ui.polaris
 import polaris.android.ui.surface
 import polaris.engine.Place
+import polaris.engine.ServiceNotice
+import polaris.android.alerts.AlertRow
+import kotlinx.coroutines.launch
 
 /**
  * Home, the sheet's root (iOS's `HomeSheet`): the wordmark with the Settings gear, where
@@ -80,7 +83,6 @@ import polaris.engine.Place
  * unasked: what's leaving nearby is asked for (one request, kept a minute) only once the person
  * has allowed location, and offers a button to allow it otherwise.
  *
- * Not here yet: "Your lines", which comes with alerts.
  */
 @Composable
 fun HomeScreen(
@@ -89,6 +91,7 @@ fun HomeScreen(
     shell: ShellViewModel,
     openSearch: (SearchFor) -> Unit,
     openSettings: () -> Unit,
+    openAlerts: () -> Unit = {},
     openLine: (polaris.engine.NearbyLine) -> Unit,
     openGo: () -> Unit = {},
 ) {
@@ -162,6 +165,8 @@ fun HomeScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { home(Modifier.weight(1f)); work(Modifier.weight(1f)) }
                 }
             }
+            // The lines you've asked to hear about, with what TfL says about them now (iOS's "Your lines").
+            yourLines(graph, openAlerts)
             if (places.recents.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.common_recent)) }
                 item {
@@ -327,5 +332,46 @@ private fun TripRow(trip: polaris.engine.LiveTrip, openGo: () -> Unit) {
             Text(stringResource(R.string.go_arrive, Clock.of(trip.eta)), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
         }
         Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
+    }
+}
+
+/**
+ * "Your lines": each alert's lines and name with what TfL says now, opening Alerts. Shown once
+ * there is an alert; edged in gold while one of them has a closure. What TfL says is asked when
+ * Home shows them and when Polaris comes back, at most once a minute.
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.yourLines(graph: polaris.android.app.AppGraph, openAlerts: () -> Unit) {
+    item(key = "your-lines") {
+        val state by graph.alerts.state.collectAsStateWithLifecycle()
+        if (state.alerts.isEmpty()) return@item
+        val c = polaris
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        androidx.lifecycle.compose.LifecycleResumeEffect(state.alerts.size) {
+            val job = scope.launch { graph.alerts.refreshStatus() }
+            onPauseOrDispose { job.cancel() }
+        }
+        val open = stringResource(R.string.alerts_open_alert)
+        val closed = state.alerts.any { alert -> state.status[alert.id]?.issues?.any { it.level == ServiceNotice.Severity.closed } == true }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionHeader(stringResource(R.string.alerts_your_lines)) {
+                androidx.compose.material3.TextButton(onClick = openAlerts, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_open)) }
+            }
+            Column(Modifier.fillMaxWidth().surface(c, highlighted = closed)) {
+                state.alerts.forEachIndexed { index, alert ->
+                    if (index > 0) HorizontalDivider(Modifier.padding(start = 12.dp), color = c.hairline)
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = open, onClick = openAlerts)
+                            .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 10.dp)
+                            .semantics(mergeDescendants = true) {},
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), compact = true)
+                        Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
+                    }
+                }
+            }
+        }
     }
 }
