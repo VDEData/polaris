@@ -212,6 +212,10 @@ data class RouteAlert(
             runCatching { HTTP.json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(serializer()), it) }.getOrNull()
         } ?: emptyList()
 
+        /** Saved alerts; none for nothing saved; null if what's saved can't be read. */
+        fun decodeListOrNull(text: String?): List<RouteAlert>? = if (text == null) emptyList() else
+            runCatching { HTTP.json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(serializer()), text) }.getOrNull()
+
         fun encodeOne(alert: RouteAlert): String = HTTP.json.encodeToString(serializer(), alert)
         fun decodeOne(text: String): RouteAlert? = runCatching { HTTP.json.decodeFromString(serializer(), text) }.getOrNull()
     }

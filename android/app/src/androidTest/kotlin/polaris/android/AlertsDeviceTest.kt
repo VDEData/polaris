@@ -51,6 +51,22 @@ class AlertsDeviceTest {
 
     private fun shown(tag: String) = manager.activeNotifications.filter { it.id == LineNotices.ID && it.tag == tag }
 
+    /** A server whose clock was ahead and has been put right: its old, too-late stamp stops counting a day on, and at once when the server is changed. */
+    @Test fun theOrderKeptForATagExpiresAndIsForgottenWithItsServer() {
+        val now = System.currentTimeMillis()
+        val ledger = context.getSharedPreferences("polaris-notices", android.content.Context.MODE_PRIVATE)
+        // Taken in an hour ago, stamped a week ahead: a notice stamped now is still "older".
+        ledger.edit().putLong("TEST-ALERT", now + 7 * 86_400_000L).putLong("TEST-ALERT@taken", now - 3_600_000L).commit()
+        check(!LineNotices.show(context, notice("TEST-ALERT", "urgent", now)))
+        // The same record taken in two days ago no longer counts.
+        ledger.edit().putLong("TEST-ALERT@taken", now - 2 * 86_400_000L).commit()
+        check(LineNotices.show(context, notice("TEST-ALERT", "urgent", now)))
+        // And the server changed for another: nothing is kept.
+        ledger.edit().putLong("TEST-ALERT", now + 7 * 86_400_000L).putLong("TEST-ALERT@taken", now).commit()
+        LineNotices.forgetOrder(context)
+        check(LineNotices.show(context, notice("TEST-ALERT", "normal", now + 1)))
+    }
+
     @Test fun aLaterNoticeReplacesTheEarlierOneOnItsOwnChannelAndAnOlderOneIsRefused() {
         val now = System.currentTimeMillis()
         check(LineNotices.show(context, notice("TEST-ALERT", "urgent", now - 60_000)))

@@ -70,7 +70,7 @@ class AlertEditorTest {
         val editor = rig.editor()
         advanceUntilIdle()
         assertFalse(editor.alert.value.isValid)
-        assertFalse(editor.save())
+        assertEquals(AlertEditorViewModel.Saved.Incomplete, editor.save())
         assertEquals(emptyList(), rig.store.state.value.alerts)
         // The picker hands a line to this editor (and not to another's).
         rig.picks.emit("two" to district)
@@ -79,7 +79,7 @@ class AlertEditorTest {
         advanceUntilIdle()
         assertEquals(listOf(elizabeth), editor.alert.value.segments, "added once, and only its own")
         assertTrue(editor.isDirty)
-        assertTrue(editor.save())
+        assertEquals(AlertEditorViewModel.Saved.Yes, editor.save())
         advanceUntilIdle()
         assertEquals(listOf("Liverpool Street → Canary Wharf"), rig.store.state.value.alerts.map { it.displayName })
         assertTrue(rig.wire.requests.any { it.method == "PUT" }, "saved alerts go to the server")
@@ -128,7 +128,7 @@ class AlertEditorTest {
         assertEquals(2, editor.alert.value.windows.size, "a row that has gone changes nothing")
         editor.setTime(1, start = 600, end = 600)
         assertFalse(editor.alert.value.isValid, "a time that starts and ends together can't be saved")
-        assertFalse(editor.save())
+        assertEquals(AlertEditorViewModel.Saved.Incomplete, editor.save())
         editor.setTime(1, end = 720)
 
         editor.setMinorDelays(false)
@@ -139,12 +139,27 @@ class AlertEditorTest {
         assertFalse(editor.alert.value.isValid)
         rig.picks.emit("one" to district)
         advanceUntilIdle()
-        assertTrue(editor.save())
+        assertEquals(AlertEditorViewModel.Saved.Yes, editor.save())
         advanceUntilIdle()
         val saved = rig.store.state.value.alerts.single()
         assertEquals("Work", saved.name, "trimmed as it is saved")
         assertEquals(listOf(district), saved.segments)
         assertFalse(saved.minorDelays)
+    }
+
+    /** At the most alerts a phone can have, a new one (the bell's draft, say) isn't saved, and the editor is told so it stays open. */
+    @Test fun aNewAlertBeyondTheMostIsNotSavedAndSaysSo() = runTest(dispatcher) {
+        val full = (1..RouteAlert.MAX_ALERTS).map { RouteAlert(id = "A$it", segments = listOf(district)) }
+        val rig = Rig(this, dispatcher, full)
+        advanceUntilIdle()
+        val editor = rig.editor(RouteAlert(id = "NEW", segments = listOf(elizabeth)))
+        assertEquals(AlertEditorViewModel.Saved.Full, editor.save())
+        advanceUntilIdle()
+        assertEquals(RouteAlert.MAX_ALERTS, rig.store.state.value.alerts.size)
+        assertTrue(rig.store.state.value.alerts.none { it.id == "NEW" })
+        assertTrue(editor.isDirty || editor.isNew, "the draft is still there to keep or discard")
+        // One of the 30 can still be changed.
+        assertEquals(AlertEditorViewModel.Saved.Yes, rig.editor(full.first().copy(name = "Renamed"), isNew = false).save())
     }
 
     @Test fun theDraftSurvivesThePageBeingRebuilt() = runTest(dispatcher) {

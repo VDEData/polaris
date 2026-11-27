@@ -12,7 +12,7 @@
 
     <string name="settings_sources">Sources</string>
     <string name="settings_source_google">Full routes. Needs an API key.</string>
-    <string name="settings_source_tfl">London\'s official planner, incl. National Rail.</string>
+    <string name="settings_source_tfl">London\'s official planner, National Rail included.</string>
     <string name="settings_source_transitous">Open timetables for all of Great Britain.</string>
     <string name="settings_deep">Deep search</string>
     <string name="settings_deep_detail">Ask Google and TfL several ways (fewer changes, less walking, rail or bus only) to surface routes their default ranking hides.</string>

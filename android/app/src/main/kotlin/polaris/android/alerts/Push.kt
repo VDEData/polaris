@@ -57,8 +57,18 @@ class FirebasePush(private val context: Context, private val settings: FirebaseS
         return register()
     }
 
+    /** No alerts left and the server told: Firebase is no longer set up as the app starts, until an alert is saved again. */
+    override fun release() {
+        context.applicationContext.getSharedPreferences(IN_USE_FILE, Context.MODE_PRIVATE).edit().remove("registered").apply()
+    }
+
     companion object {
         private const val IN_USE_FILE = "polaris-push"
+
+        /** Pushes are in use on this phone (it has a push address saved, or a message came): set up now, and at each start from now on. */
+        fun use(context: Context) {
+            if (setUp(context)) markInUse(context)
+        }
 
         private fun markInUse(context: Context) =
             context.applicationContext.getSharedPreferences(IN_USE_FILE, Context.MODE_PRIVATE).edit().putBoolean("registered", true).apply()

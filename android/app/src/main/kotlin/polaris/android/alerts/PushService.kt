@@ -17,7 +17,15 @@ class PushService : FirebaseMessagingService() {
     /** Called on a worker thread, which Firebase holds open until this returns: the saved alerts are read on it. */
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
-        kotlinx.coroutines.runBlocking { LineNotices.receive(applicationContext, data) }
+        // Nothing thrown from here: an exception would take the process down with a notice half handled.
+        runCatching { kotlinx.coroutines.runBlocking { LineNotices.receive(applicationContext, data) } }
+            .onFailure { android.util.Log.w("Polaris", "a line notice couldn't be shown: ${it.javaClass.simpleName}") }
+    }
+
+    /** A message or a new address for this install means pushes are in use: Firebase is set up before its own service code runs, whatever the start-up marker says. */
+    override fun onCreate() {
+        FirebasePush.use(applicationContext)
+        super.onCreate()
     }
 
     /** This install's Firebase installation ID, given or changed: the server must have the new one. */

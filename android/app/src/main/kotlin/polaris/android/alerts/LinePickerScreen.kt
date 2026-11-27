@@ -1,5 +1,7 @@
 package polaris.android.alerts
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,11 +95,57 @@ private fun PickerHeader(title: String, back: String, onBack: () -> Unit) {
     }
 }
 
+/**
+ * A picker's top: its title, then its search. On a short window (a phone on its side, a short
+ * closed screen) the two are one row, the title as the field's label, so that with the keyboard
+ * up there is still room under it for what the search finds.
+ */
 @Composable
-private fun SearchField(value: String, label: String, onChange: (String) -> Unit) {
+private fun PickerTop(title: String, back: String, onBack: () -> Unit, under: String?, search: String, label: String, onChange: (String) -> Unit) {
+    if (shortWindow()) {
+        val c = polaris
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Symbol(R.drawable.sym_arrow_back, back) }
+            // A field no taller than the back button: every line of height saved is a result that shows above the keyboard.
+            val name = under ?: title
+            androidx.compose.foundation.text.BasicTextField(
+                value = search, onValueChange = onChange,
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).semantics { contentDescription = name },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.ink),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.tint),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false, imeAction = ImeAction.Search),
+                decorationBox = { field ->
+                    Row(
+                        Modifier.border(1.dp, c.inkFaint, RoundedCornerShape(10.dp)).padding(start = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Symbol(R.drawable.sym_search, null, Modifier.size(20.dp), tint = c.inkSoft)
+                        Box(Modifier.weight(1f)) {
+                            if (search.isEmpty()) Text(name, style = MaterialTheme.typography.bodyLarge, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            field()
+                        }
+                        if (search.isNotEmpty()) IconButton(onClick = { onChange("") }, modifier = Modifier.size(40.dp)) { Symbol(R.drawable.sym_close, stringResource(R.string.common_remove), Modifier.size(20.dp)) }
+                    }
+                },
+            )
+        }
+        return
+    }
+    PickerHeader(title, back, onBack)
+    under?.let { Text(it, Modifier.padding(start = 20.dp, end = 16.dp, bottom = 4.dp), style = MaterialTheme.typography.bodyMedium, color = polaris.inkSoft) }
+    SearchField(search, label, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), onChange)
+}
+
+/** A window too short to stack a title, a search and its results over a keyboard (a phone on its side, a short closed screen). */
+@Composable
+private fun shortWindow(): Boolean = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 480
+
+@Composable
+private fun SearchField(value: String, label: String, modifier: Modifier, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value, onValueChange = onChange,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = modifier,
         label = { Text(label) },
         leadingIcon = { Symbol(R.drawable.sym_search, null) },
         trailingIcon = if (value.isNotEmpty()) ({ IconButton(onClick = { onChange("") }) { Symbol(R.drawable.sym_close, stringResource(R.string.common_remove)) } }) else null,
@@ -130,8 +178,7 @@ fun LinePickerScreen(lines: TfLLines, night: Boolean, onPick: (TfLLines.Line) ->
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     val pick: (TfLLines.Line) -> Unit = { line -> focus.clearFocus(); keyboard?.hide(); onPick(line) }
     CoverPage(night) {
-        PickerHeader(stringResource(R.string.lines_title), stringResource(R.string.lines_close), onBack)
-        SearchField(search, stringResource(R.string.lines_search)) { search = it }
+        PickerTop(stringResource(R.string.lines_title), stringResource(R.string.lines_close), onBack, null, search, stringResource(R.string.lines_search)) { search = it }
         when (state) {
             Loaded.Loading -> Waiting()
             is Loaded.Failed -> Problem(stringResource(if (state.offline) R.string.lines_offline else R.string.lines_failed), retry)
@@ -142,16 +189,18 @@ fun LinePickerScreen(lines: TfLLines, night: Boolean, onPick: (TfLLines.Line) ->
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
                     if (shown.isEmpty()) null else title to shown
                 }
+                // On a short window a search's matches come straight under the field, with no kind's heading taking the room of one.
+                val plain = shortWindow() && wanted.isNotEmpty()
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = coverBottom()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (groups.isEmpty()) item(key = "none") { Text(stringResource(R.string.lines_none, wanted), Modifier.padding(4.dp), style = MaterialTheme.typography.bodyLarge, color = c.inkSoft) }
                     groups.forEach { (title, shown) ->
-                        item(key = "h-$title") { SectionHeader(title) }
+                        if (!plain) item(key = "h-$title") { SectionHeader(title) }
                         item(key = "g-$title") {
                             Column(Modifier.fillMaxWidth().surface(c)) {
                                 shown.forEachIndexed { index, line ->
                                     if (index > 0) HorizontalDivider(color = c.hairline)
                                     Row(
-                                        Modifier.fillMaxWidth().clickable(role = Role.Button) { pick(line) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                                        Modifier.fillMaxWidth().clickable(role = Role.Button) { pick(line) }.heightIn(min = if (plain) 48.dp else 56.dp).padding(horizontal = 16.dp, vertical = if (plain) 4.dp else 8.dp),
                                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
                                         // The line's own colour and kind, with no name on it: the name is beside it.
@@ -189,9 +238,11 @@ fun StationPickerScreen(
     var search by rememberSaveable { mutableStateOf("") }
     val (state, retry) = loaded(line.id) { lines.route(line.id) }
     CoverPage(night) {
-        PickerHeader(stringResource(if (fromName != null) R.string.stations_from_to else R.string.stations_get_on), stringResource(R.string.stations_back), onBack)
-        fromName?.let { Text(stringResource(R.string.stations_getting_on, it), Modifier.padding(start = 20.dp, end = 16.dp, bottom = 4.dp), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft) }
-        SearchField(search, stringResource(R.string.stations_search)) { search = it }
+        PickerTop(
+            stringResource(if (fromName != null) R.string.stations_from_to else R.string.stations_get_on), stringResource(R.string.stations_back), onBack,
+            fromName?.let { stringResource(if (shortWindow()) R.string.stations_getting_on_off else R.string.stations_getting_on, it) },
+            search, stringResource(R.string.stations_search),
+        ) { search = it }
         when (state) {
             Loaded.Loading -> Waiting()
             is Loaded.Failed -> Problem(if (state.offline) stringResource(R.string.stations_offline, line.name) else stringResource(R.string.stations_failed, line.name), retry)
@@ -234,7 +285,7 @@ fun StationPickerScreen(
                                             onPick(route.segment(line, from, station))
                                         }
                                     }
-                                    .heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .heightIn(min = if (shortWindow()) 48.dp else 52.dp).padding(horizontal = 16.dp, vertical = if (shortWindow()) 4.dp else 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(station.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)

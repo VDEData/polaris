@@ -479,7 +479,7 @@ private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
             label = { Text(stringResource(R.string.item_server_title)) },
             placeholder = { Text(stringResource(R.string.item_server_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = androidx.compose.ui.text.input.ImeAction.Next),
             isError = problem != null,
             supportingText = {
                 // An address typed and not yet put to use says so, rather than "alerts are off" under a filled-in field.
@@ -498,7 +498,9 @@ private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
             label = { Text(tokenName) },
             singleLine = true,
             visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+            // The keyboard covers the button under this field: its own Done key does the same.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (!busy && url.isNotBlank() && token.isNotBlank()) use(url, token) }),
             trailingIcon = if (token.isNotEmpty()) ({
                 val label = stringResource(if (shown) R.string.key_hide_label else R.string.key_show_label, tokenName)
                 TextButton(onClick = { shown = !shown }, modifier = Modifier.semantics { contentDescription = label }) {

@@ -26,9 +26,9 @@
     <string name="alerts_good_service">Good service</string>
     <string name="alerts_checking">Checking TfL…</string>
     <string name="alerts_not_checked">Not checked: no alerts server</string>
-    <string name="alerts_and_more">%1$s, and %2$s more</string>
-    <string name="alerts_planned">Planned: %s</string>
-    <string name="alerts_planned_on">Planned %1$s: %2$s</string>
+    <string name="alerts_and_more">%1$s, and %2$s\u00A0more</string>
+    <string name="alerts_planned">Planned. %s</string>
+    <string name="alerts_planned_on">Planned for %1$s. %2$s</string>
 
     <!-- Notifications -->
     <string name="alerts_notifications">Notifications</string>
@@ -41,7 +41,7 @@
     <string name="alerts_reregistered">This phone\'s registration with the alerts server was lost with its secure storage, so it has been registered afresh. Your alerts are as they were.</string>
     <string name="alerts_reregistered_ok">OK</string>
     <string name="alerts_try_again">Try again</string>
-    <string name="alerts_server_cannot_push">Your alerts server can\'t send to Android phones yet, so no notification will arrive. Whoever runs it needs to finish its Android setup; the README says how.</string>
+    <string name="alerts_server_cannot_push">Your alerts server isn\'t set up to send to Android phones yet, so no notification will arrive. Ask whoever runs it to finish setting it up for Android.</string>
     <string name="alerts_allow">Allow notifications</string>
     <string name="alerts_allow_detail">Polaris can only tell you about trouble if it may send notifications.</string>
     <string name="alerts_off">Notifications are off for Polaris</string>
@@ -168,4 +168,6 @@
     <string name="item_server_could_not_leave">Couldn\'t remove this phone from %s, so it may keep sending alerts until it\'s taken down.</string>
     <string name="item_server_show">Show</string>
     <string name="item_server_hide">Hide</string>
+    <string name="alerts_not_watched">The alerts server keeps %1$s alerts for a phone, and you have more saved. These aren\'t being watched: %2$s. Delete an alert to make room.</string>
+    <string name="stations_getting_on_off">Get off at (getting on at %s)</string>
 </resources>

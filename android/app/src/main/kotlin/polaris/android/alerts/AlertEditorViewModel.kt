@@ -86,12 +86,13 @@ class AlertEditorViewModel(
 
     fun setName(name: String) = change { it.copy(name = name.take(MAX_NAME)) }
 
-    /** Saves the draft; false (and nothing saved) while it isn't complete. */
-    fun save(): Boolean {
+    enum class Saved { Yes, Incomplete, Full }
+
+    /** Saves the draft. Nothing is saved while it isn't complete, or when it would be one alert more than the server keeps for a phone. */
+    fun save(): Saved {
         val draft = _alert.value
-        if (!draft.isValid) return false
-        store.save(draft.copy(name = draft.name.trim()))
-        return true
+        if (!draft.isValid) return Saved.Incomplete
+        return if (store.save(draft.copy(name = draft.name.trim()))) Saved.Yes else Saved.Full
     }
 
     fun delete() = store.delete(original.id)

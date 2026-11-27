@@ -38,6 +38,11 @@ object LineNotices {
     private const val REQUEST_SUMMARY = 30
     private const val LEDGER = "polaris-notices"
     private const val KEEP_MILLIS = 24 * 3600_000L
+    /** Beside each tag's send time: when this phone took that notice in. */
+    private const val TAKEN = "@taken"
+
+    /** Forgets when each tag's newest notice was sent (the alerts server was changed for another). */
+    fun forgetOrder(context: Context) = context.getSharedPreferences(LEDGER, Context.MODE_PRIVATE).edit().clear().apply()
 
     fun allowed(context: Context): Boolean = (
         Build.VERSION.SDK_INT < 33 ||
@@ -68,7 +73,11 @@ object LineNotices {
     fun show(context: Context, notice: LineNotice): Boolean {
         if (!allowed(context)) return false
         val ledger = context.getSharedPreferences(LEDGER, Context.MODE_PRIVATE)
-        val last = ledger.getLong(notice.tag, 0L).takeIf { it > 0 }
+        val now = System.currentTimeMillis()
+        // A record counts for a day from when this phone took it in, by this phone's clock either way round:
+        // a server whose clock was once ahead and then put right can't keep a tag's later notices hidden for longer.
+        fun live(tag: String) = kotlin.math.abs(now - ledger.getLong(tag + TAKEN, 0L)) < KEEP_MILLIS
+        val last = ledger.getLong(notice.tag, 0L).takeIf { it > 0 && live(notice.tag) }
         if (!LineNotice.replaces(notice, last)) return false
         channels(context)
         val manager = NotificationManagerCompat.from(context)
@@ -78,7 +87,8 @@ object LineNotices {
         runCatching { manager.notify(ID_SUMMARY, summary(context)) }
         ledger.edit().apply {
             putLong(notice.tag, notice.sent)
-            ledger.all.forEach { (tag, at) -> if (tag != notice.tag && (at as? Long ?: 0L) < notice.sent - KEEP_MILLIS) remove(tag) }
+            putLong(notice.tag + TAKEN, now)
+            ledger.all.keys.filterNot { it.endsWith(TAKEN) }.forEach { tag -> if (tag != notice.tag && !live(tag)) { remove(tag); remove(tag + TAKEN) } }
         }.apply()
         return true
     }
@@ -154,17 +164,19 @@ object LineNotices {
      */
     suspend fun receive(context: Context, data: Map<String, String>): Received {
         val notice = LineNotice.parse(data, System.currentTimeMillis()) ?: return Received.NotANotice
-        if (notice.alert !in savedAlerts(context)) return Received.AlertGone
+        // Saved alerts that can't be read (storage in trouble) don't lose the person a notice: only a list that was read and lacks the alert drops it.
+        val saved = runCatching { savedAlerts(context) }.getOrNull()
+        if (saved != null && notice.alert !in saved) return Received.AlertGone
         return if (show(context, notice)) Received.Shown else Received.NotShown
     }
 
     enum class Received { Shown, NotShown, AlertGone, NotANotice }
 
     /** The ids of the alerts saved on this phone: the running app's, else read from where they are kept. */
-    private suspend fun savedAlerts(context: Context): Set<String> {
+    private suspend fun savedAlerts(context: Context): Set<String>? {
         polaris.android.app.AppGraph.cached()?.let { graph -> return graph.alerts.state.value.alerts.map { it.id }.toSet() }
         val saved = polaris.android.storage.Storage.preferences(context).getString(polaris.engine.AlertStore.ALERTS)
-        return polaris.engine.RouteAlert.decodeList(saved).map { it.id }.toSet()
+        return polaris.engine.RouteAlert.decodeListOrNull(saved)?.map { it.id }?.toSet()
     }
 
     /** Whether a channel the person may have turned off still shows its notices. */

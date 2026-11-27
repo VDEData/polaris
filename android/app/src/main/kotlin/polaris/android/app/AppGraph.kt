@@ -1,5 +1,9 @@
 package polaris.android.app
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
@@ -177,6 +181,12 @@ class AppGraph(
                 )
             }.also { graph ->
                 loaded = graph
+                // A phone that registered for pushes before the start-up marker existed: Firebase is set up for it now and at each start after.
+                if (push == null && (values ?: Storage.preferences(app)).getString(polaris.engine.AlertStore.PUSH_ID) != null) polaris.android.alerts.FirebasePush.use(app)
+                // Another alerts server has its own clock: the order kept for the old one's notices says nothing about the new one's.
+                kotlinx.coroutines.CoroutineScope(Dispatchers.Main.immediate).launch {
+                    graph.alerts.state.map { it.serverLabel }.distinctUntilChanged().drop(1).collect { polaris.android.alerts.LineNotices.forgetOrder(app) }
+                }
                 // The network back: what the alerts server is still owed is tried again (on the main thread, where the store lives).
                 runCatching {
                     val main = android.os.Handler(android.os.Looper.getMainLooper())

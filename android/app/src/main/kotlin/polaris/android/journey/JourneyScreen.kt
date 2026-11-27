@@ -1,5 +1,6 @@
 package polaris.android.journey
 
+import polaris.engine.RouteAlert
 import polaris.engine.Strip
 import polaris.engine.TfLLines
 import kotlinx.coroutines.launch
@@ -200,7 +201,9 @@ fun JourneyScreen(
     val alertScope = androidx.compose.runtime.rememberCoroutineScope()
     val alertContext = LocalContext.current
     val bell: (() -> Unit)? = if (journey == null || following != null || !alertsState.configured || !TfLLines.mayHaveLines(journey)) null else ({
-        if (!draftingAlert) alertScope.launch {
+        // At the most alerts a phone can have, no draft is offered (it couldn't be saved): said instead.
+        if (alertsState.isFull) android.widget.Toast.makeText(alertContext, alertContext.getString(R.string.alerts_full, RouteAlert.MAX_ALERTS.toString()), android.widget.Toast.LENGTH_LONG).show()
+        else if (!draftingAlert) alertScope.launch {
             draftingAlert = true
             try {
                 val draft = graph.lines.draft(journey)

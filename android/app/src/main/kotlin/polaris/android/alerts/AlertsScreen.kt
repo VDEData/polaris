@@ -1,5 +1,6 @@
 package polaris.android.alerts
 
+import androidx.compose.foundation.layout.offset
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -157,6 +158,12 @@ fun AlertsScreen(graph: AppGraph, night: Boolean, openEditor: (RouteAlert, Boole
                     if (state.isFull) {
                         Text(stringResource(R.string.alerts_full, RouteAlert.MAX_ALERTS.toString()), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
                     }
+                    if (state.notWatched.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.alerts_not_watched, RouteAlert.MAX_ALERTS.toString(), state.notWatched.joinToString(", ") { it.displayName }),
+                            Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = c.warning,
+                        )
+                    }
                     if (!state.configured) {
                         Text(stringResource(R.string.alerts_no_server), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
                         TextButton(onClick = openSettings, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_open_settings)) }
@@ -212,7 +219,8 @@ private fun NotificationsCard(graph: AppGraph, state: AlertStore.State) {
                 }
                 if (state.pushFailed) {
                     Note(R.drawable.sym_warning, stringResource(R.string.alerts_push_failed), null, warning = true)
-                    TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.padding(start = 44.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
+                    // Up under its note (whose own foot is padded), so the two read as one.
+                    TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.padding(start = 32.dp).offset(y = (-10).dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
                     HorizontalDivider(color = c.hairline)
                 }
                 // Allowed, an address asked for, but the server doesn't have this phone yet (no connection, or it is on its way).

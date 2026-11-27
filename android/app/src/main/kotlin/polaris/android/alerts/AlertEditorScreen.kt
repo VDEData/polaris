@@ -1,5 +1,8 @@
 package polaris.android.alerts
 
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.height
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,8 +103,11 @@ fun AlertEditorScreen(
     // Notifications are asked for as the alert is saved, once: the person has just said they want to hear.
     val permission = rememberNotificationPermission(then = onClose)
     val save = {
-        if (model.save()) {
-            if (state.push == PushAvailability.ready && !permission.granted && !permission.asked) permission.ask() else onClose()
+        when (model.save()) {
+            AlertEditorViewModel.Saved.Yes -> if (state.push == PushAvailability.ready && !permission.granted && !permission.asked) permission.ask() else onClose()
+            // Not saved: the page stays, with the alert as drafted, and says why.
+            AlertEditorViewModel.Saved.Full -> android.widget.Toast.makeText(context, context.getString(R.string.alerts_full, RouteAlert.MAX_ALERTS.toString()), android.widget.Toast.LENGTH_LONG).show()
+            AlertEditorViewModel.Saved.Incomplete -> {}
         }
     }
     val leave = { if (model.isDirty) confirmDiscard = true else onClose() }
@@ -121,7 +127,9 @@ fun AlertEditorScreen(
             Text(
                 if (model.isNew) stringResource(R.string.alert_new) else alert.displayName,
                 Modifier.weight(1f).semantics { heading() },
-                style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                // A long name of the person's own is shown whole, smaller, rather than cut.
+                style = if (!model.isNew && alert.displayName.length > 40) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                color = c.ink, maxLines = 4, overflow = TextOverflow.Ellipsis,
             )
             Button(onClick = save, enabled = alert.isValid, modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alert_save)) }
         }
@@ -351,8 +359,11 @@ private fun WayRow(label: String, alert: RouteAlert, current: RouteAlert.Directi
                 .semantics(mergeDescendants = true) { contentDescription = label; stateDescription = if (follow == null || own) value else "$value, $followsWords" },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
-            Column(horizontalAlignment = Alignment.End) {
+            // At large text the label goes over its value, each with the row's width, instead of the two squeezed side by side.
+            val stacked = LocalDensity.current.fontScale >= 1.3f
+            if (!stacked) Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
+            Column(if (stacked) Modifier.weight(1f) else Modifier, horizontalAlignment = if (stacked) Alignment.Start else Alignment.End) {
+                if (stacked) Text(label, style = MaterialTheme.typography.bodyLarge, color = c.ink)
                 Text(value, style = MaterialTheme.typography.bodyLarge, color = if (own) c.tint else c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 // In words, not only by colour: whether this time has its own way or goes the alert's.
                 if (follow != null) Text(stringResource(if (own) R.string.alert_way_set else R.string.alert_follows_way), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
@@ -438,7 +449,13 @@ private fun TimeDialog(title: String, minutes: Int, onDismiss: () -> Unit, onSet
                     TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) }
                     TextButton(set) { Text(stringResource(R.string.alert_time_set)) }
                 }
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimeInput(picker) }
+                // On a window too short for them, the fields' "Hour" and "Minute" captions would hang over the
+                // keyboard: the box ends under the fields (each is still named to a screen reader, and the title says what is being set).
+                val cramped = LocalConfiguration.current.screenHeightDp < 480
+                Box(
+                    Modifier.fillMaxWidth().then(if (cramped) Modifier.height(76.dp).clipToBounds() else Modifier),
+                    contentAlignment = if (cramped) Alignment.TopCenter else Alignment.Center,
+                ) { TimeInput(picker, if (cramped) Modifier.wrapContentHeight(Alignment.Top, unbounded = true) else Modifier) }
             }
         }
         return
