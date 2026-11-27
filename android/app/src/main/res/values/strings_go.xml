@@ -8,7 +8,8 @@
     <string name="go_hint">follow you along the journey</string>
 
     <!-- Go's own top row -->
-    <string name="go_arrive">Arrive\u00A0%s</string>
+    <!-- An ordinary space: as a heading at large text in a narrow card, joined it broke inside the time. -->
+    <string name="go_arrive">Arrive %s</string>
     <string name="go_header">%1$s ·\u00A0%2$s</string>
     <string name="go_header_walk">%1$s ·\u00A0%2$s ·\u00A0%3$s</string>
     <string name="go_to_go">%s\u00A0to go</string>
