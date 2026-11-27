@@ -293,15 +293,33 @@ private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: J
 @Composable
 private fun leaveText(journey: Journey): Pair<String, Boolean> {
     val now = ticking()
-    val seconds = journey.departure.epochSecond - now.epochSecond
-    val minutes = Math.floorDiv(seconds, 60L).toInt()
-    val leave = when {
-        minutes >= 60 -> stringResource(R.string.journey_leave_at, Clock.of(journey.departure))
-        minutes >= 1 -> stringResource(R.string.journey_leave_in, minutes)
-        minutes >= -1 -> stringResource(R.string.journey_leave_now)
-        else -> stringResource(R.string.journey_was_due, Clock.of(journey.departure))
+    val state = leaveState(now, journey.departure)
+    val leave = when (state.kind) {
+        LeaveKind.at -> stringResource(R.string.journey_leave_at, Clock.of(journey.departure))
+        LeaveKind.inMinutes -> stringResource(R.string.journey_leave_in, state.minutes)
+        LeaveKind.now -> stringResource(R.string.journey_leave_now)
+        LeaveKind.wasDue -> stringResource(R.string.journey_was_due, Clock.of(journey.departure))
     }
-    return leave to (seconds in -599..119)
+    return leave to state.urgent
+}
+
+internal enum class LeaveKind { at, inMinutes, now, wasDue }
+internal data class LeaveState(val kind: LeaveKind, val minutes: Int, val urgent: Boolean)
+
+/**
+ * When to leave, in minutes as the clock times beside it show them (`Strip.shownMinutes`): at
+ * 12:00:50 a 12:04 departure is "in 4 min", never a minute short of what the two clocks say.
+ */
+internal fun leaveState(now: java.time.Instant, departure: java.time.Instant): LeaveState {
+    val seconds = departure.epochSecond - now.epochSecond
+    val minutes = Strip.shownMinutes(now, departure)
+    val kind = when {
+        minutes >= 60 -> LeaveKind.at
+        minutes >= 1 -> LeaveKind.inMinutes
+        minutes >= -1 -> LeaveKind.now
+        else -> LeaveKind.wasDue
+    }
+    return LeaveState(kind, minutes, seconds in -599..119)
 }
 
 /**
