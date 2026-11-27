@@ -14,9 +14,10 @@ import polaris.android.app.AppGraph
  * the server the alerts are registered with.
  */
 class PushService : FirebaseMessagingService() {
+    /** Called on a worker thread, which Firebase holds open until this returns: the saved alerts are read on it. */
     override fun onMessageReceived(message: RemoteMessage) {
-        val notice = LineNotice.parse(message.data, System.currentTimeMillis()) ?: return
-        LineNotices.show(applicationContext, notice)
+        val data = message.data
+        kotlinx.coroutines.runBlocking { LineNotices.receive(applicationContext, data) }
     }
 
     /** This install's Firebase installation ID, given or changed: the server must have the new one. */

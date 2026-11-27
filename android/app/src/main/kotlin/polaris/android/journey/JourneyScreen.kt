@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -309,7 +310,7 @@ private fun TopRow(title: String, subtitle: String?, journey: Journey?, query: J
             // One 48 dp slot, whether it holds the bell or the wait for TfL's lines.
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 if (bellBusy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                else IconButton(onClick = make) { Symbol(R.drawable.sym_notifications, stringResource(R.string.journey_alert), tint = c.inkSoft) }
+                else BellButton(make)
             }
         }
         if (journey != null && query != null) {
@@ -682,5 +683,19 @@ internal fun launchIntent(context: android.content.Context, intent: Intent) {
         android.widget.Toast.makeText(context, context.getString(R.string.journey_no_app), android.widget.Toast.LENGTH_SHORT).show()
     } catch (e: SecurityException) {
         android.widget.Toast.makeText(context, context.getString(R.string.journey_no_app), android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** The bell: what it does is its description for TalkBack and, on a long press or a pointer over it, a tooltip in words. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun BellButton(onClick: () -> Unit) {
+    val label = stringResource(R.string.journey_alert)
+    androidx.compose.material3.TooltipBox(
+        positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = androidx.compose.material3.rememberTooltipState(),
+    ) {
+        IconButton(onClick = onClick) { Symbol(R.drawable.sym_notifications, label, tint = polaris.inkSoft) }
     }
 }

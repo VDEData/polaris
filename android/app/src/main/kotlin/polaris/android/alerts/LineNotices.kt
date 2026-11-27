@@ -34,7 +34,8 @@ object LineNotices {
     const val ID_SUMMARY = 21
     const val EXTRA_OPEN_ALERTS = "polaris.alerts"
     const val EXTRA_ALERT_ID = "polaris.alerts.id"
-    private const val REQUEST_OPEN = 30
+    /** The group summary's own tap; each notice has its own (by its tag), so one never takes another's alert. */
+    private const val REQUEST_SUMMARY = 30
     private const val LEDGER = "polaris-notices"
     private const val KEEP_MILLIS = 24 * 3600_000L
 
@@ -82,13 +83,27 @@ object LineNotices {
         return true
     }
 
-    fun build(context: Context, notice: LineNotice): android.app.Notification =
-        NotificationCompat.Builder(context, channel(notice.level))
+    /**
+     * What happened comes first, as the title, so a collapsed notice or a group's line says it
+     * ("Canary Wharf closed (Elizabeth line)"); the alert's name is in the header beside the
+     * app's; TfL's own words are the text. A test says it is one, in the header and before its
+     * words: when TfL has trouble on the alert, a test carries that trouble's own words.
+     */
+    fun build(context: Context, notice: LineNotice): android.app.Notification {
+        val headline = if (notice.isTest) context.getString(R.string.alerts_notice_test_headline, notice.headline) else notice.headline
+        val detail = notice.detail
+        val expanded = listOfNotNull(
+            // The whole of what happened when there is nothing under it (the title is one line).
+            if (detail == null) headline else detail,
+            if (notice.isTest) context.getString(R.string.alerts_notice_test_note) else null,
+        ).joinToString("\n\n")
+        return NotificationCompat.Builder(context, channel(notice.level))
             .setSmallIcon(R.drawable.sym_notifications)
-            .setContentTitle(notice.title)
-            .setContentText(notice.summary)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(notice.full))
-            .setWhen(notice.sent)
+            .setContentTitle(headline)
+            .setContentText(detail ?: if (notice.isTest) context.getString(R.string.alerts_notice_test_note) else null)
+            .setSubText(if (notice.isTest) context.getString(R.string.alerts_notice_test_header, notice.title) else notice.title)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
+            .setWhen(notice.shownAt(System.currentTimeMillis()))
             .setShowWhen(true)
             .setAutoCancel(true)
             .setGroup(GROUP)
@@ -100,12 +115,13 @@ object LineNotices {
             .setPublicVersion(
                 NotificationCompat.Builder(context, channel(notice.level))
                     .setSmallIcon(R.drawable.sym_notifications)
-                    .setContentTitle(context.getString(R.string.alerts_notice_public))
-                    .setWhen(notice.sent)
+                    .setContentTitle(context.getString(if (notice.isTest) R.string.alerts_notice_public_test else R.string.alerts_notice_public))
+                    .setWhen(notice.shownAt(System.currentTimeMillis()))
                     .build(),
             )
-            .setContentIntent(open(context, notice.alert))
+            .setContentIntent(open(context, notice.alert, notice.tag.hashCode() or 0x40000000))
             .build()
+    }
 
     private fun summary(context: Context): android.app.Notification =
         NotificationCompat.Builder(context, CHANNEL_QUIET)
@@ -117,16 +133,37 @@ object LineNotices {
             .setSilent(true)
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setContentIntent(open(context, null))
+            .setContentIntent(open(context, null, REQUEST_SUMMARY))
             .build()
 
     /** Opens Polaris on Alerts. */
-    private fun open(context: Context, alert: String?): PendingIntent {
+    private fun open(context: Context, alert: String?, request: Int): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_OPEN_ALERTS, true)
         alert?.let { intent.putExtra(EXTRA_ALERT_ID, it) }
-        return PendingIntent.getActivity(context, REQUEST_OPEN, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return PendingIntent.getActivity(context, request, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    /**
+     * A message's data, as it arrives: shown if it is a notice for an alert this phone still has.
+     * One for an alert since deleted (the server not yet told, or its last push already on its
+     * way) is dropped, so nothing is shown about a line the person no longer asked to hear of.
+     * Returns what became of it.
+     */
+    suspend fun receive(context: Context, data: Map<String, String>): Received {
+        val notice = LineNotice.parse(data, System.currentTimeMillis()) ?: return Received.NotANotice
+        if (notice.alert !in savedAlerts(context)) return Received.AlertGone
+        return if (show(context, notice)) Received.Shown else Received.NotShown
+    }
+
+    enum class Received { Shown, NotShown, AlertGone, NotANotice }
+
+    /** The ids of the alerts saved on this phone: the running app's, else read from where they are kept. */
+    private suspend fun savedAlerts(context: Context): Set<String> {
+        polaris.android.app.AppGraph.cached()?.let { graph -> return graph.alerts.state.value.alerts.map { it.id }.toSet() }
+        val saved = polaris.android.storage.Storage.preferences(context).getString(polaris.engine.AlertStore.ALERTS)
+        return polaris.engine.RouteAlert.decodeList(saved).map { it.id }.toSet()
     }
 
     /** Whether a channel the person may have turned off still shows its notices. */

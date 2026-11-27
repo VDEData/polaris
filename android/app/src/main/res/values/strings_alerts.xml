@@ -10,11 +10,14 @@
     <string name="alerts_open">Alerts</string>
     <string name="alerts_open_alert">Opens this alert</string>
     <string name="alerts_add">Add a line</string>
+    <string name="alerts_full">That\'s the most alerts a phone can have (%s). Delete one to add another.</string>
+    <string name="alert_lines_full">That\'s the most lines one alert can have (%s).</string>
+    <string name="alert_times_full">That\'s the most times one alert can have (%s).</string>
     <string name="alerts_checked">TfL checked at %s.</string>
     <string name="alerts_status_failed">Couldn\'t check TfL just now.</string>
-    <string name="alerts_sync_unreachable">Couldn\'t reach the alert server, so notifications may be out of date. It tries again next time you open Polaris.</string>
-    <string name="alerts_sync_locked">This phone\'s secure storage can\'t be read just now, so the alert server wasn\'t told. It tries again next time you open Polaris.</string>
-    <string name="alerts_sync_said">The alert server said: %s</string>
+    <string name="alerts_sync_unreachable">Couldn\'t reach the alerts server, so notifications may be out of date. It tries again when you come back to Polaris.</string>
+    <string name="alerts_sync_locked">This phone\'s secure storage can\'t be read just now, so the alerts server wasn\'t told. It tries again when you come back to Polaris.</string>
+    <string name="alerts_sync_said">The alerts server said: %s</string>
     <string name="alerts_no_server">Alerts need a server to watch TfL while Polaris is closed, and this phone isn\'t set up with one. Enter its address and token in Settings, under Alerts server; the README says how to run your own.</string>
     <string name="alerts_open_settings">Open Settings</string>
     <string name="alerts_about">Polaris checks TfL every two minutes during the times you set, and tells you once per disruption, again if it gets worse, and when it has ended. Closures and delays come as urgent notifications, which you can let through Do Not Disturb; minor delays and planned works are ordinary ones. Planned works for the next day come the evening before, at 7 pm.</string>
@@ -22,7 +25,7 @@
     <!-- A row in the list -->
     <string name="alerts_good_service">Good service</string>
     <string name="alerts_checking">Checking TfL…</string>
-    <string name="alerts_not_checked">Not checked: no alert server</string>
+    <string name="alerts_not_checked">Not checked: no alerts server</string>
     <string name="alerts_and_more">%1$s, and %2$s more</string>
     <string name="alerts_planned">Planned: %s</string>
     <string name="alerts_planned_on">Planned %1$s: %2$s</string>
@@ -33,10 +36,12 @@
     <string name="alerts_push_not_set_up">This build of Polaris has no push service, so no notification can arrive. Your alerts still show what TfL says whenever you open Polaris. The README says how to build with your own Firebase project.</string>
     <string name="alerts_push_unavailable_title">This phone can\'t receive notifications from Polaris</string>
     <string name="alerts_push_unavailable">Alerts arrive through Google Play services, which this phone doesn\'t have or has switched off. Your alerts still show what TfL says whenever you open Polaris.</string>
-    <string name="alerts_push_failed">This phone couldn\'t get an address for notifications, so the alert server can\'t reach it yet.</string>
+    <string name="alerts_push_failed">This phone couldn\'t be set up to receive notifications just now, so none can arrive yet.</string>
     <string name="alerts_registering">Registering this phone for notifications. None can arrive until that is done.</string>
+    <string name="alerts_reregistered">This phone\'s registration with the alerts server was lost with its secure storage, so it has been registered afresh. Your alerts are as they were.</string>
+    <string name="alerts_reregistered_ok">OK</string>
     <string name="alerts_try_again">Try again</string>
-    <string name="alerts_server_cannot_push">Your alert server isn\'t set up to send to Android phones yet, so no notification will arrive. Whoever runs it needs to give it a Firebase service account (FCM_SERVICE_ACCOUNT).</string>
+    <string name="alerts_server_cannot_push">Your alerts server can\'t send to Android phones yet, so no notification will arrive. Whoever runs it needs to finish its Android setup; the README says how.</string>
     <string name="alerts_allow">Allow notifications</string>
     <string name="alerts_allow_detail">Polaris can only tell you about trouble if it may send notifications.</string>
     <string name="alerts_off">Notifications are off for Polaris</string>
@@ -47,9 +52,9 @@
     <string name="alerts_urgent_open">Opens the phone\'s settings for these notifications</string>
     <string name="alerts_test">Send a test notification</string>
     <string name="alerts_test_sent">Sent. It should arrive in a few seconds.</string>
-    <string name="alerts_test_no_server">No alert server is set.</string>
-    <string name="alerts_test_not_registered">This phone isn\'t registered with the alert server yet. Try again in a moment.</string>
-    <string name="alerts_test_unreachable">Couldn\'t reach the alert server.</string>
+    <string name="alerts_test_no_server">No alerts server is set.</string>
+    <string name="alerts_test_not_registered">This phone isn\'t registered with the alerts server yet. Try again in a moment.</string>
+    <string name="alerts_test_unreachable">Couldn\'t reach the alerts server.</string>
 
     <!-- Notification channels and the notices themselves -->
     <string name="alerts_channel_urgent">Closures and delays</string>
@@ -59,6 +64,10 @@
     <string name="alerts_channel_quiet">Quiet updates</string>
     <string name="alerts_channel_quiet_about">Follow-ups that change a notice you already have, without a sound.</string>
     <string name="alerts_notice_public">Line alert</string>
+    <string name="alerts_notice_public_test">Test of your line alerts</string>
+    <string name="alerts_notice_test_headline">Test: %s</string>
+    <string name="alerts_notice_test_header">Test ·\u00A0%s</string>
+    <string name="alerts_notice_test_note">This is a test of your alerts, sent because you asked for one.</string>
 
     <!-- The editor -->
     <string name="alert_new">New alert</string>
@@ -87,19 +96,22 @@
     <string name="alert_add_time">Add a time</string>
     <string name="alert_remove_time">Remove the time %1$s to %2$s</string>
     <string name="alert_way_for_time">Way for this time</string>
-    <string name="alert_follow_way">Follow Which way</string>
-    <string name="alert_ways_footer">Each time follows Which way unless you set its own.</string>
-    <string name="alert_ways_footer_one">Each time follows Which way unless you set its own. Trouble TfL reports one way only counts when it\'s towards %s.</string>
-    <string name="alert_ways_footer_differ">Each time follows Which way unless you set its own. Trouble TfL reports one way only counts at times going that way.</string>
+    <string name="alert_follow_way">Follow ‘Which way’</string>
+    <string name="alert_follows_way">Follows ‘Which way’</string>
+    <string name="alert_way_set">Set for this time</string>
+    <string name="alert_ways_footer">Each time goes the way set under ‘Which way’ unless you give it its own.</string>
+    <string name="alert_ways_footer_one">Each time goes the way set under ‘Which way’ unless you give it its own. Trouble TfL reports one way only counts when it\'s towards %s.</string>
+    <string name="alert_ways_footer_differ">Each time goes the way set under ‘Which way’ unless you give it its own. Trouble TfL reports one way only counts at times going that way.</string>
     <string name="alert_minor">Minor delays too</string>
     <string name="alert_minor_footer">Polaris checks during these times only. Planned works for the next day come the evening before.</string>
     <string name="alert_name">Name</string>
     <string name="alert_delete">Delete alert</string>
     <string name="alert_delete_title">Delete this alert?</string>
-    <string name="alert_delete_body">You\'ll stop hearing about %s.</string>
+    <string name="alert_delete_body">You\'ll stop hearing about “%s”.</string>
     <string name="alert_delete_confirm">Delete</string>
     <string name="alert_discard_title">Discard your changes?</string>
     <string name="alert_discard_body">This alert hasn\'t been saved.</string>
+    <string name="alert_discard_body_saved">The changes you made to this alert will be lost.</string>
     <string name="alert_discard_confirm">Discard</string>
     <string name="alert_keep_editing">Keep editing</string>
     <string name="alert_needs_line">Add a line to save this alert.</string>
@@ -111,10 +123,14 @@
     <string name="lines_title">Choose a line</string>
     <string name="lines_search">Line</string>
     <string name="lines_failed">Couldn\'t get TfL\'s lines.</string>
+    <string name="lines_offline">No connection, so TfL\'s lines couldn\'t be fetched.</string>
+    <string name="stations_offline">No connection, so the %s\'s stations couldn\'t be fetched.</string>
     <string name="lines_none">No line matches “%s”.</string>
     <string name="lines_close">Back to the alert</string>
     <string name="stations_get_on">Get on at</string>
-    <string name="stations_from_to">From %s to</string>
+    <string name="stations_from_to">Get off at</string>
+    <string name="stations_getting_on">Getting on at %s</string>
+    <string name="stations_no_stretch">%1$s and %2$s aren\'t on one branch of the %3$s, so this alert watches the whole line.</string>
     <string name="stations_search">Station</string>
     <string name="stations_whole_line">The whole line</string>
     <string name="stations_or_choose">Or choose where you get on.</string>
@@ -135,7 +151,7 @@
         <item quantity="other">%s lines watched</item>
     </plurals>
     <string name="item_server_title">Alerts server address</string>
-    <string name="item_server_token">Its token</string>
+    <string name="item_server_token">Server token</string>
     <string name="item_server_hint">https://alerts.example.com</string>
     <string name="item_server_purpose">Watches TfL while Polaris is closed and sends notifications for your lines. Each person runs their own.</string>
     <string name="item_server_source">The README says how to run one; the token is its APP_TOKEN.</string>
@@ -143,6 +159,7 @@
     <string name="item_server_use_built_in">Use the built-in server</string>
     <string name="item_server_remove">Remove this server</string>
     <string name="item_server_state_none">No alerts server: alerts are off.</string>
+    <string name="item_server_state_typing">Not in use until you tap Use this server.</string>
     <string name="item_server_state_built_in">Using the built-in server, %s.</string>
     <string name="item_server_state_entered">Using %s.</string>
     <string name="item_server_state_unreadable">A server is saved but can\'t be read right now, so alerts are waiting.</string>

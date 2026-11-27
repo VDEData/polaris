@@ -197,7 +197,7 @@ private class DemoTransport(private val context: Context, private val scenario: 
         return when {
             path == "/v1/status" -> {
                 val ids = Regex(""""id":"([^"]+)"""").findAll(request.body?.decodeToString() ?: "").map { it.groupValues[1] }.filter { '|' !in it && it != "elizabeth" && it != "district" }.distinct().toList()
-                val planned = java.time.LocalDate.now().plusDays(2).atTime(4, 30).toInstant(java.time.ZoneOffset.UTC)
+                val planned = java.time.LocalDate.now().plusDays(1).atTime(4, 30).toInstant(java.time.ZoneOffset.UTC)
                 val entries = ids.map { id ->
                     when (id) {
                         "DEMO-COMMUTE" -> """{"id":"$id","issues":[{"severity":"closed","title":"Canary Wharf closed (Elizabeth line)","detail":"Canary Wharf: This station is closed while a faulty escalator is repaired. Use Heron Quays or Canary Wharf Jubilee line station instead."},{"severity":"minor","title":"Elizabeth line: minor delays","detail":"Minor delays between Paddington and Abbey Wood due to an earlier signal failure at Whitechapel."}],"upcoming":[]}"""
@@ -211,7 +211,8 @@ private class DemoTransport(private val context: Context, private val scenario: 
                 polaris.android.alerts.LineNotice.parse(
                     mapOf(
                         "alert" to "DEMO-COMMUTE", "tag" to "DEMO-COMMUTE-test", "title" to "Liverpool Street → Canary Wharf", "subtitle" to "Canary Wharf closed (Elizabeth line)",
-                        "body" to "Canary Wharf: This station is closed while a faulty escalator is repaired.", "level" to "urgent",
+                        // As the server sends a test while TfL has trouble on the alert: that trouble's own words, marked as a test.
+                        "body" to "Canary Wharf: This station is closed while a faulty escalator is repaired.", "level" to "urgent", "test" to "1",
                     ),
                     System.currentTimeMillis(),
                 )?.let { polaris.android.alerts.LineNotices.show(context, it) }

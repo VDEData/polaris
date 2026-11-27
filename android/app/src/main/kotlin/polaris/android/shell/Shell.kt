@@ -181,14 +181,16 @@ fun PolarisApp(
             pages.add(GoPage)
         }
     }
-    // A trip that ended by itself (arrived, or past its time): only the trip's own page goes, and
-    // whatever was open under it (the route, its routes, Home) is where the message shows.
+    // A trip that ended by itself (arrived, or past its time): the trip's page goes, and with it
+    // the page of the route it was (which would only offer Go for the trip just made). Whatever
+    // else was open (the routes, a board, Home) stays, and is where the message shows.
     val endedItself by graph.trips.endedItself.collectAsStateLifecycle()
     var endingsSeen by rememberSaveable { mutableStateOf(endedItself) }
     LaunchedEffect(endedItself) {
         if (endedItself == endingsSeen) return@LaunchedEffect
         endingsSeen = endedItself
-        pages.removeAll { it == GoPage }
+        val ended = graph.trips.endedJourney
+        pages.removeAll { it == GoPage || (it is JourneyPage && it.journeyId == ended) || (it is BoardPage && it.journeyId == ended) }
     }
     LaunchedEffect(tripOpens) {
         if (!tripOpens) return@LaunchedEffect
@@ -235,6 +237,11 @@ fun PolarisApp(
     }
     // On launch: a new push address is picked up, and the alerts resent in case the last change didn't reach the server.
     LaunchedEffect(graph) { graph.alerts.resume() }
+    // Back in front: whatever the alerts server is still owed (a change it never got, a phone to forget) is tried again.
+    androidx.lifecycle.compose.LifecycleResumeEffect(graph) {
+        graph.alerts.retryIfOwed()
+        onPauseOrDispose { }
+    }
     val cover = DialogSceneStrategy.dialog(DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false))
 
     val density = LocalDensity.current

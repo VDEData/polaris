@@ -90,8 +90,12 @@ fun AlertsScreen(graph: AppGraph, night: Boolean, openEditor: (RouteAlert, Boole
                 }) { Symbol(R.drawable.sym_refresh, stringResource(R.string.alerts_refresh), tint = c.tint) }
             }
         }
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        // A line under the bar once the list has moved under it, so what is half hidden reads as scrolled, not cut.
+        if (list.canScrollBackward) HorizontalDivider(color = c.hairline)
         LazyColumn(
             Modifier.fillMaxSize(),
+            state = list,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = coverBottom()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -144,11 +148,14 @@ fun AlertsScreen(graph: AppGraph, night: Boolean, openEditor: (RouteAlert, Boole
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = { openEditor(RouteAlert(), true) },
-                        enabled = state.configured,
+                        enabled = state.configured && !state.isFull,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     ) {
                         Symbol(R.drawable.sym_add, null, Modifier.size(18.dp))
                         Text(stringResource(R.string.alerts_add), Modifier.padding(start = 8.dp))
+                    }
+                    if (state.isFull) {
+                        Text(stringResource(R.string.alerts_full, RouteAlert.MAX_ALERTS.toString()), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
                     }
                     if (!state.configured) {
                         Text(stringResource(R.string.alerts_no_server), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
@@ -198,6 +205,11 @@ private fun NotificationsCard(graph: AppGraph, state: AlertStore.State) {
                 Note(R.drawable.sym_notifications_off, stringResource(R.string.alerts_off), stringResource(R.string.alerts_off_detail), warning = true) { openNotificationSettings(context, null) }
             }
             else -> {
+                if (state.reRegistered) {
+                    Note(R.drawable.sym_info, stringResource(R.string.alerts_reregistered), null)
+                    TextButton(onClick = graph.alerts::acknowledgeReRegistered, modifier = Modifier.padding(start = 44.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_reregistered_ok)) }
+                    HorizontalDivider(color = c.hairline)
+                }
                 if (state.pushFailed) {
                     Note(R.drawable.sym_warning, stringResource(R.string.alerts_push_failed), null, warning = true)
                     TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.padding(start = 44.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
@@ -221,6 +233,8 @@ private fun NotificationsCard(graph: AppGraph, state: AlertStore.State) {
                     LineNotices.channels(context)
                     openNotificationSettings(context, LineNotices.CHANNEL_URGENT)
                 }
+                // A test is offered only when one could arrive: the server has this phone and can send to it.
+                if (!state.registered || state.pushFailed || state.serverCanPush == false) return@Column
                 HorizontalDivider(color = c.hairline)
                 val sent = stringResource(R.string.alerts_test_sent)
                 val noServer = stringResource(R.string.alerts_test_no_server)
@@ -267,7 +281,7 @@ private fun Note(icon: Int, title: String, detail: String?, warning: Boolean = f
             .semantics(mergeDescendants = true) {},
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Symbol(icon, null, Modifier.padding(top = 2.dp).size(20.dp), tint = if (warning) c.warning else if (onClick != null) c.tint else c.inkSoft)
+        Symbol(icon, null, Modifier.padding(top = 2.dp).size(scaled(20)), tint = if (warning) c.warning else if (onClick != null) c.tint else c.inkSoft)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = if (warning) c.warning else if (onClick != null && detail != null) c.tint else c.ink)
             detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkSoft) }
@@ -327,3 +341,7 @@ fun openNotificationSettings(context: Context, channel: String?) {
     }
     runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
+
+/** An icon's size beside text: it grows with the text size, so it isn't a speck beside large type. */
+@Composable
+fun scaled(dp: Int): androidx.compose.ui.unit.Dp = dp.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceIn(1f, 1.6f)

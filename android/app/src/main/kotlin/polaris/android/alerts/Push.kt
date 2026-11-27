@@ -36,21 +36,46 @@ data class FirebaseSettings(val projectId: String, val appId: String, val apiKey
 class FirebasePush(private val context: Context, private val settings: FirebaseSettings = FirebaseSettings.build) : PushRegistrar {
     override val availability: PushAvailability
         get() = when {
-            !settings.isSet || !setUp(context, settings) -> PushAvailability.notSetUp
+            // Whether it could be used, not using it: Firebase itself is first touched in register().
+            !settings.isSet -> PushAvailability.notSetUp
             runCatching { GoogleApiAvailabilityLight.getInstance().isGooglePlayServicesAvailable(context) }.getOrNull() != ConnectionResult.SUCCESS -> PushAvailability.unavailable
             else -> PushAvailability.ready
         }
 
     override suspend fun register(): String {
         check(setUp(context, settings)) { "no Firebase project in this build" }
+        // From now on Firebase is set up as the process starts, so a notice finds it ready.
+        markInUse(context)
         FirebaseMessaging.getInstance().register().await()
         return FirebaseInstallations.getInstance().id.await() ?: error("no installation ID")
     }
 
+    /** The installation is deleted (FCM stops delivering to its ID) and a new one registered. */
+    override suspend fun reset(): String {
+        check(setUp(context, settings)) { "no Firebase project in this build" }
+        FirebaseInstallations.getInstance().delete().await()
+        return register()
+    }
+
     companion object {
+        private const val IN_USE_FILE = "polaris-push"
+
+        private fun markInUse(context: Context) =
+            context.applicationContext.getSharedPreferences(IN_USE_FILE, Context.MODE_PRIVATE).edit().putBoolean("registered", true).apply()
+
+        /**
+         * At process start: Firebase is set up only on a phone that has registered for pushes
+         * before (an alert was saved with a server set). Until then none of Firebase's code runs
+         * at all, so nothing of it can reach Google from an install that has no alerts.
+         */
+        fun setUpIfInUse(context: Context) {
+            val used = context.applicationContext.getSharedPreferences(IN_USE_FILE, Context.MODE_PRIVATE).getBoolean("registered", false)
+            if (used) setUp(context)
+        }
+
         /**
          * Sets Firebase up from the build's project, once a process; false in a build without one,
-         * or if Firebase won't take it (a mistyped file). Nothing is sent by this.
+         * or if Firebase won't take it (a mistyped file).
          */
         fun setUp(context: Context, settings: FirebaseSettings = FirebaseSettings.build): Boolean {
             if (!settings.isSet) return false

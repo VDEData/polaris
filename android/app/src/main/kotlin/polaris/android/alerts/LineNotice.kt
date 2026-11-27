@@ -12,8 +12,14 @@ data class LineNotice(
     val subtitle: String?,
     val body: String,
     val level: Level,
-    /** When the server sent it (ms since 1970), to keep an older one from replacing a newer. */
+    /**
+     * When the server sent it (ms since 1970, by the server's clock, untouched), to keep an older
+     * one from replacing a newer. Only ever compared with another notice's: the phone's clock,
+     * which may be wrong either way, has no say in which of two notices is newer.
+     */
     val sent: Long,
+    /** "Send a test notification": said on the notice, whatever words it carries. */
+    val isTest: Boolean = false,
 ) {
     @Suppress("EnumEntryName")
     enum class Level {
@@ -25,11 +31,14 @@ data class LineNotice(
         quiet,
     }
 
-    /** One line for a collapsed notification: what is wrong, else the words themselves. */
-    val summary: String get() = subtitle ?: body
+    /** What happened, first: what is wrong ("Jubilee line: severe delays"), else the words themselves ("… have cleared"). */
+    val headline: String get() = subtitle ?: body
 
-    /** Everything, for the expanded notification. */
-    val full: String get() = listOfNotNull(subtitle, body.takeIf { it.isNotBlank() && it != subtitle }).joinToString("\n")
+    /** The rest, under the headline: TfL's own words about what is wrong. Null when the headline is all there is. */
+    val detail: String? get() = body.takeIf { subtitle != null && it.isNotBlank() && it != subtitle }
+
+    /** When to show it as having come: the server's time, but never later than the phone's now (a server clock ahead would show a notice from the future). */
+    fun shownAt(now: Long): Long = minOf(sent, now)
 
     companion object {
         /** A sender is whoever holds the server's keys, so what is shown is kept to a size. */
@@ -53,8 +62,9 @@ data class LineNotice(
                 subtitle = subtitle?.take(MAX_TITLE),
                 body = body.take(MAX_BODY),
                 level = Level.entries.firstOrNull { it.name == data["level"] } ?: Level.normal,
-                // A time in the future (a server's clock ahead) would block every later notice: capped at now.
-                sent = data["sent"]?.toLongOrNull()?.takeIf { it > 0 }?.coerceAtMost(now) ?: now,
+                // The server's own time; with none (it always sends one), the phone's.
+                sent = data["sent"]?.toLongOrNull()?.takeIf { it > 0 } ?: now,
+                isTest = data["test"] == "1",
             )
         }
 

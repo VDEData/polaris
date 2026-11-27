@@ -53,14 +53,17 @@ import polaris.android.ui.SectionHeader
 import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
 import polaris.android.ui.surface
+import polaris.engine.DepartureStore
 import polaris.engine.LineColors
+import polaris.engine.Loadable
 import polaris.engine.RouteAlert
 import polaris.engine.TfLLines
 
 /** Something asked of TfL for a picker: on its way, here, or not got. */
 private sealed interface Loaded<out T> {
     data object Loading : Loaded<Nothing>
-    data object Failed : Loaded<Nothing>
+    /** [offline]: there was no way to the internet at all (said as that, not as TfL's fault). */
+    data class Failed(val offline: Boolean = false) : Loaded<Nothing>
     data class Here<T>(val value: T) : Loaded<T>
 }
 
@@ -76,7 +79,7 @@ private fun <T> loaded(key: Any, load: suspend () -> T): Pair<Loaded<T>, () -> U
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Loaded.Failed
+            Loaded.Failed(offline = DepartureStore.describe(e) == Loadable.Reason.offline)
         }
     }
     return state to { attempt++ }
@@ -131,7 +134,7 @@ fun LinePickerScreen(lines: TfLLines, night: Boolean, onPick: (TfLLines.Line) ->
         SearchField(search, stringResource(R.string.lines_search)) { search = it }
         when (state) {
             Loaded.Loading -> Waiting()
-            Loaded.Failed -> Problem(stringResource(R.string.lines_failed), retry)
+            is Loaded.Failed -> Problem(stringResource(if (state.offline) R.string.lines_offline else R.string.lines_failed), retry)
             is Loaded.Here -> {
                 val wanted = search.trim()
                 val groups = TfLLines.GROUPS.mapNotNull { (mode, title) ->
@@ -182,14 +185,16 @@ fun StationPickerScreen(
     onBack: () -> Unit,
 ) {
     val c = polaris
+    val context = androidx.compose.ui.platform.LocalContext.current
     var search by rememberSaveable { mutableStateOf("") }
     val (state, retry) = loaded(line.id) { lines.route(line.id) }
     CoverPage(night) {
-        PickerHeader(fromName?.let { stringResource(R.string.stations_from_to, it) } ?: stringResource(R.string.stations_get_on), stringResource(R.string.stations_back), onBack)
+        PickerHeader(stringResource(if (fromName != null) R.string.stations_from_to else R.string.stations_get_on), stringResource(R.string.stations_back), onBack)
+        fromName?.let { Text(stringResource(R.string.stations_getting_on, it), Modifier.padding(start = 20.dp, end = 16.dp, bottom = 4.dp), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft) }
         SearchField(search, stringResource(R.string.stations_search)) { search = it }
         when (state) {
             Loaded.Loading -> Waiting()
-            Loaded.Failed -> Problem(stringResource(R.string.stations_failed, line.name), retry)
+            is Loaded.Failed -> Problem(if (state.offline) stringResource(R.string.stations_offline, line.name) else stringResource(R.string.stations_failed, line.name), retry)
             is Loaded.Here -> {
                 val route = state.value
                 val from = fromId?.let(route::stationWithId)
@@ -220,7 +225,15 @@ fun StationPickerScreen(
                             if (index > 0) HorizontalDivider(color = c.hairline)
                             Row(
                                 Modifier.fillMaxWidth()
-                                    .clickable(role = Role.Button) { if (fromId == null) onFrom(station) else onPick(route.segment(line, from, station)) }
+                                    .clickable(role = Role.Button) {
+                                        if (fromId == null) onFrom(station) else {
+                                            // Two branches (Edgware and High Barnet): no one stretch joins them, so it is the whole line, and that is said.
+                                            if (from != null && !route.joins(from, station)) {
+                                                android.widget.Toast.makeText(context, context.getString(R.string.stations_no_stretch, from.name, station.name, line.name), android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                            onPick(route.segment(line, from, station))
+                                        }
+                                    }
                                     .heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

@@ -24,8 +24,9 @@ class LineNoticeTest {
     @Test fun aClosureIsUrgentUnderItsAlertsTag() {
         val notice = assertNotNull(LineNotice.parse(closure, now))
         assertEquals("Liverpool Street → Canary Wharf", notice.title)
-        assertEquals("Canary Wharf closed (Elizabeth line)", notice.summary, "collapsed, it says what is wrong")
-        assertEquals("Canary Wharf closed (Elizabeth line)\nClosed - escalators.\n\nAlso: Elizabeth line: minor delays.", notice.full)
+        assertEquals("Canary Wharf closed (Elizabeth line)", notice.headline, "what happened comes first: a collapsed notice, or a group's line, says it")
+        assertEquals("Closed - escalators.\n\nAlso: Elizabeth line: minor delays.", notice.detail)
+        assertFalse(notice.isTest)
         assertEquals(LineNotice.Level.urgent, notice.level)
         assertEquals(LineNotices.CHANNEL_URGENT, LineNotices.channel(notice.level))
         assertEquals(closure["alert"], notice.tag)
@@ -36,8 +37,8 @@ class LineNoticeTest {
         val ended = closure - "subtitle" + ("body" to "Canary Wharf has reopened (Elizabeth line).") + ("level" to "normal")
         val notice = assertNotNull(LineNotice.parse(ended, now))
         assertNull(notice.subtitle)
-        assertEquals("Canary Wharf has reopened (Elizabeth line).", notice.summary)
-        assertEquals(notice.summary, notice.full)
+        assertEquals("Canary Wharf has reopened (Elizabeth line).", notice.headline)
+        assertNull(notice.detail, "the sentence is all there is")
         assertEquals(LineNotices.CHANNEL_NORMAL, LineNotices.channel(notice.level))
         // The same tag as the closure it settles: it replaces it.
         assertEquals(LineNotice.parse(closure, now)?.tag, notice.tag)
@@ -83,11 +84,40 @@ class LineNoticeTest {
         assertTrue(LineNotice.replaces(second, second.sent), "the same moment still shows (a resend)")
     }
 
-    @Test fun aTimeThatCannotBeRightIsTakenAsNow() {
+    /** Which of two notices is newer is the server's to say: both times are its own, and the phone's clock has no part in it. */
+    @Test fun thePhonesClockBeingWrongChangesNothing() {
+        val earlier = now + 60_000
+        val later = now + 120_000
+        // The phone's clock set back an hour (to it, both notices are "from the future").
+        val slow = now - 3_600_000
+        val first = assertNotNull(LineNotice.parse(closure + ("sent" to earlier.toString()), slow))
+        val second = assertNotNull(LineNotice.parse(closure + ("sent" to later.toString()), slow))
+        assertEquals(earlier, first.sent, "the server's time is kept as sent")
+        assertTrue(LineNotice.replaces(second, first.sent), "a new notice is not refused because the phone's clock is behind")
+        assertFalse(LineNotice.replaces(first, second.sent), "nor does a late older one get past it")
+        // The phone's clock an hour ahead: the same answers.
+        val fast = now + 3_600_000
+        val third = assertNotNull(LineNotice.parse(closure + ("sent" to earlier.toString()), fast))
+        val fourth = assertNotNull(LineNotice.parse(closure + ("sent" to later.toString()), fast))
+        assertTrue(LineNotice.replaces(fourth, third.sent))
+        assertFalse(LineNotice.replaces(third, fourth.sent))
+        // Only what is shown as its time is kept to the phone's now, so a notice never looks as if from the future.
+        assertEquals(slow, second.shownAt(slow))
+        assertEquals(later, fourth.shownAt(fast))
+    }
+
+    @Test fun aNoticeWithNoTimeTakesThePhones() {
         assertEquals(now, LineNotice.parse(closure - "sent", now)?.sent)
         assertEquals(now, LineNotice.parse(closure + ("sent" to "soon"), now)?.sent)
         assertEquals(now, LineNotice.parse(closure + ("sent" to "-5"), now)?.sent)
-        // A server whose clock runs ahead mustn't block every later notice for the tag.
-        assertEquals(now, LineNotice.parse(closure + ("sent" to (now + 3_600_000).toString()), now)?.sent)
+    }
+
+    /** "Send a test notification" while TfL has trouble on the alert carries that trouble's own words: the mark is what says it is a test. */
+    @Test fun aTestIsMarkedAsOne() {
+        val test = assertNotNull(LineNotice.parse(closure + ("test" to "1") + ("tag" to "${closure["alert"]}-test"), now))
+        assertTrue(test.isTest)
+        assertEquals("Canary Wharf closed (Elizabeth line)", test.headline, "the words are as sent; the app adds that it is a test")
+        assertFalse(assertNotNull(LineNotice.parse(closure + ("test" to "0"), now)).isTest)
+        assertFalse(assertNotNull(LineNotice.parse(closure + ("test" to "true"), now)).isTest, "only the server's own mark")
     }
 }

@@ -481,7 +481,14 @@ private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
             isError = problem != null,
-            supportingText = { Text(problem ?: stateText, color = if (problem != null || entered == AppSettings.EnteredServer.Unreadable) c.warning else c.inkSoft) },
+            supportingText = {
+                // An address typed and not yet put to use says so, rather than "alerts are off" under a filled-in field.
+                val typing = url.isNotBlank() && url.trim() != (saved?.url ?: "")
+                Text(
+                    problem ?: if (typing) stringResource(R.string.item_server_state_typing) else stateText,
+                    color = if (problem != null || entered == AppSettings.EnteredServer.Unreadable) c.warning else c.inkSoft,
+                )
+            },
         )
         val tokenName = stringResource(R.string.item_server_token)
         OutlinedTextField(

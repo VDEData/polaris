@@ -175,7 +175,18 @@ class AppGraph(
                     values = values ?: preferences,
                     push = push ?: polaris.android.alerts.FirebasePush(app),
                 )
-            }.also { loaded = it }
+            }.also { graph ->
+                loaded = graph
+                // The network back: what the alerts server is still owed is tried again (on the main thread, where the store lives).
+                runCatching {
+                    val main = android.os.Handler(android.os.Looper.getMainLooper())
+                    app.getSystemService(android.net.ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+                        object : android.net.ConnectivityManager.NetworkCallback() {
+                            override fun onAvailable(network: android.net.Network) { main.post { graph.alerts.retryIfOwed() } }
+                        },
+                    )
+                }
+            }
         }
 
         /** A network with the internet on it (underground there is none: Go sends no re-plan then). */

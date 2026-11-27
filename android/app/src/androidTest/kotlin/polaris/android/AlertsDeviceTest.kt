@@ -64,8 +64,10 @@ class AlertsDeviceTest {
         check(LineNotices.show(context, notice("TEST-ALERT", "quiet", now - 30_000, subtitle = null, body = "Severe delays on the Jubilee line have cleared.")))
         compose.waitUntil(5_000) { shown("TEST-ALERT").singleOrNull()?.notification?.channelId == LineNotices.CHANNEL_QUIET }
         check(shown("TEST-ALERT").size == 1) { "one notice per alert, not two" }
-        val text = shown("TEST-ALERT").single().notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
-        check(text == "Severe delays on the Jubilee line have cleared.") { text }
+        // What happened is the title, so a collapsed notice or a group's line says it; the alert's name is in the header.
+        val extras = shown("TEST-ALERT").single().notification.extras
+        check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() == "Severe delays on the Jubilee line have cleared.") { extras.toString() }
+        check(extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT).toString() == "Home to work") { extras.toString() }
 
         // One sent before it, delivered late: refused, and what is showing stays.
         check(!LineNotices.show(context, notice("TEST-ALERT", "urgent", now - 45_000, subtitle = "OLD NEWS")))
@@ -76,6 +78,42 @@ class AlertsDeviceTest {
         compose.waitUntil(5_000) { shown("TEST-ALERT-planned").size == 1 }
         check(shown("TEST-ALERT").size == 1)
         check(shown("TEST-ALERT-planned").single().notification.channelId == LineNotices.CHANNEL_NORMAL)
+        manager.cancelAll()
+    }
+
+    /** A test says it is one, in its title, header and words, whatever trouble's words it carries; and each notice's tap is its own. */
+    @Test fun aTestSaysItIsATestAndEachNoticeKeepsItsOwnTap() {
+        val now = System.currentTimeMillis()
+        val test = LineNotice.parse(
+            mapOf("alert" to "TEST-ALERT", "tag" to "TEST-ALERT-test", "title" to "Home to work", "subtitle" to "Canary Wharf closed (Elizabeth line)", "body" to "Closed.", "level" to "urgent", "sent" to now.toString(), "test" to "1"),
+            now,
+        )!!
+        check(LineNotices.show(context, test))
+        check(LineNotices.show(context, notice("OTHER-ALERT", "normal", now)))
+        compose.waitUntil(5_000) { shown("TEST-ALERT-test").size == 1 && shown("OTHER-ALERT").size == 1 }
+        val extras = shown("TEST-ALERT-test").single().notification.extras
+        check(extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() == "Test: Canary Wharf closed (Elizabeth line)") { extras.toString() }
+        check(extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT).toString().startsWith("Test")) { extras.toString() }
+        check(extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains("This is a test")) { extras.toString() }
+        // Two notices and the group's summary: three different taps, so none carries another's alert.
+        val taps = manager.activeNotifications.filter { it.id == LineNotices.ID || it.id == LineNotices.ID_SUMMARY }.map { it.notification.contentIntent }
+        check(taps.size == 3 && taps.toSet().size == 3) { "taps shared: $taps" }
+        manager.cancelAll()
+    }
+
+    /** A notice for an alert this phone doesn't have (deleted, the server not yet told) is dropped; one for a saved alert is shown. */
+    @Test fun aNoticeForAnAlertNoLongerSavedIsDropped() {
+        val intent = Intent(context, MainActivity::class.java).putExtra("alerts", "lines")
+        ActivityScenario.launch<MainActivity>(intent).use {
+            compose.waitUntil(20_000) { polaris.android.app.AppGraph.cached()?.alerts?.state?.value?.alerts?.isNotEmpty() == true }
+            fun data(alert: String) = mapOf("alert" to alert, "tag" to alert, "title" to "T", "subtitle" to "Jubilee line: severe delays", "body" to "Severe delays.", "level" to "urgent")
+            val gone = kotlinx.coroutines.runBlocking { LineNotices.receive(context, data("DELETED-ALERT")) }
+            check(gone == LineNotices.Received.AlertGone) { gone.toString() }
+            check(shown("DELETED-ALERT").isEmpty())
+            val kept = kotlinx.coroutines.runBlocking { LineNotices.receive(context, data("DEMO-COMMUTE")) }
+            check(kept == LineNotices.Received.Shown) { kept.toString() }
+            compose.waitUntil(5_000) { shown("DEMO-COMMUTE").size == 1 }
+        }
         manager.cancelAll()
     }
 

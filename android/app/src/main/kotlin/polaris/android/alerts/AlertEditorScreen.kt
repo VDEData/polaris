@@ -115,8 +115,12 @@ fun AlertEditorScreen(
             Button(onClick = save, enabled = alert.isValid, modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alert_save)) }
         }
         val (aboveKeyboard, underLast) = coverKeyboardPadding()
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        // A line under the bar once the page has moved under it, so what is half hidden reads as scrolled, not cut.
+        if (list.canScrollBackward) HorizontalDivider(color = c.hairline)
         LazyColumn(
             Modifier.fillMaxSize().padding(bottom = aboveKeyboard),
+            state = list,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = underLast),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -166,10 +170,19 @@ fun AlertEditorScreen(
                         }
                         HorizontalDivider(color = c.hairline)
                     }
-                    AddRow(stringResource(R.string.alerts_add), addLine)
+                    // The server takes eight lines an alert: at eight, no more are offered.
+                    if (alert.segments.size < RouteAlert.MAX_SEGMENTS) AddRow(stringResource(R.string.alerts_add), addLine)
                 }
             }
-            item(key = "lines-foot") { Footer(stringResource(if (alert.segments.isEmpty()) R.string.alert_needs_line else R.string.alert_lines_footer), warn = false) }
+            item(key = "lines-foot") {
+                Footer(
+                    when {
+                        alert.segments.isEmpty() -> stringResource(R.string.alert_needs_line)
+                        alert.segments.size >= RouteAlert.MAX_SEGMENTS -> stringResource(R.string.alert_lines_full, RouteAlert.MAX_SEGMENTS.toString())
+                        else -> stringResource(R.string.alert_lines_footer)
+                    },
+                )
+            }
 
             item(key = "when-h") { SectionHeader(stringResource(R.string.alert_when)) }
             item(key = "when") {
@@ -212,14 +225,17 @@ fun AlertEditorScreen(
                             setWay = { model.setTimeWay(index, it) }, remove = { model.removeTime(index) },
                         )
                     }
-                    HorizontalDivider(color = c.hairline)
-                    AddRow(stringResource(R.string.alert_add_time), model::addTime)
+                    if (alert.windows.size < RouteAlert.MAX_WINDOWS) {
+                        HorizontalDivider(color = c.hairline)
+                        AddRow(stringResource(R.string.alert_add_time), model::addTime)
+                    }
                 }
             }
             item(key = "when-foot") {
                 val ends = alert.ends
                 when {
                     alert.windows.isEmpty() -> Footer(stringResource(R.string.alert_needs_time), warn = true)
+                    alert.windows.size >= RouteAlert.MAX_WINDOWS -> Footer(stringResource(R.string.alert_times_full, RouteAlert.MAX_WINDOWS.toString()))
                     ends == null -> Unit
                     alert.waysDiffer -> Footer(stringResource(R.string.alert_ways_footer_differ))
                     alert.way != RouteAlert.Direction.both -> Footer(stringResource(R.string.alert_ways_footer_one, if (alert.way == RouteAlert.Direction.out) ends.second else ends.first))
@@ -279,13 +295,13 @@ fun AlertEditorScreen(
         title = stringResource(R.string.alert_discard_title),
         confirmButton = { TextButton({ confirmDiscard = false; onClose() }) { Text(stringResource(R.string.alert_discard_confirm)) } },
         dismissButton = { TextButton({ confirmDiscard = false }) { Text(stringResource(R.string.alert_keep_editing)) } },
-    ) { Text(stringResource(R.string.alert_discard_body)) }
+    ) { Text(stringResource(if (model.isNew) R.string.alert_discard_body else R.string.alert_discard_body_saved)) }
     if (confirmDelete) HalfDialog(
         onDismissRequest = { confirmDelete = false },
         title = stringResource(R.string.alert_delete_title),
         confirmButton = { TextButton({ confirmDelete = false; model.delete(); onClose() }) { Text(stringResource(R.string.alert_delete_confirm), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton({ confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) } },
-    ) { Text(stringResource(R.string.alert_delete_body, model.original.displayName)) }
+    ) { Text(stringResource(R.string.alert_delete_body, alert.displayName)) }
 }
 
 @Composable
@@ -315,16 +331,21 @@ private fun WayRow(label: String, alert: RouteAlert, current: RouteAlert.Directi
     val c = polaris
     var open by remember { mutableStateOf(false) }
     val value = alert.label(current)
+    val followsWords = stringResource(R.string.alert_follows_way)
     Box(modifier) {
         Row(
             Modifier.fillMaxWidth()
                 .clickable(role = Role.DropdownList) { open = true }
                 .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp)
-                .semantics(mergeDescendants = true) { contentDescription = label; stateDescription = value },
+                .semantics(mergeDescendants = true) { contentDescription = label; stateDescription = if (follow == null || own) value else "$value, $followsWords" },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = c.ink)
-            Text(value, style = MaterialTheme.typography.bodyLarge, color = if (own) c.tint else c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(value, style = MaterialTheme.typography.bodyLarge, color = if (own) c.tint else c.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // In words, not only by colour: whether this time has its own way or goes the alert's.
+                if (follow != null) Text(stringResource(if (own) R.string.alert_way_set else R.string.alert_follows_way), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+            }
             Symbol(R.drawable.sym_keyboard_arrow_down, null, Modifier.size(20.dp), tint = c.inkFaint)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -335,9 +356,14 @@ private fun WayRow(label: String, alert: RouteAlert, current: RouteAlert.Directi
                     leadingIcon = { if (own && way == current) Symbol(R.drawable.go_check, null, Modifier.size(18.dp), tint = c.tint) else Box(Modifier.size(18.dp)) },
                 )
             }
-            if (follow != null && own) {
+            if (follow != null) {
+                // Always there for a time, ticked while the time follows: the menu never opens with nothing ticked.
                 HorizontalDivider(color = c.hairline)
-                DropdownMenuItem(text = { Text(stringResource(R.string.alert_follow_way)) }, onClick = { open = false; follow() }, leadingIcon = { Box(Modifier.size(18.dp)) })
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.alert_follow_way)) },
+                    onClick = { open = false; follow() },
+                    leadingIcon = { if (!own) Symbol(R.drawable.go_check, null, Modifier.size(18.dp), tint = c.tint) else Box(Modifier.size(18.dp)) },
+                )
             }
         }
     }

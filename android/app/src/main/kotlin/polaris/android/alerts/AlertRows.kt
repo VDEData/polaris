@@ -68,7 +68,7 @@ fun AlertSummary(status: AlertStatus.Entry?, configured: Boolean) {
 @Composable
 private fun IconLine(icon: Int, text: String, color: androidx.compose.ui.graphics.Color, bold: Boolean = false, maxLines: Int = 3) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Symbol(icon, null, Modifier.padding(top = 1.dp).size(16.dp), tint = color)
+        Symbol(icon, null, Modifier.padding(top = 1.dp).size(scaled(16)), tint = color)
         Text(text, style = MaterialTheme.typography.bodySmall, fontWeight = if (bold) FontWeight.SemiBold else null, color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -81,7 +81,7 @@ fun AlertIssueRow(issue: AlertStatus.Issue, modifier: Modifier = Modifier, plann
     Row(modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Symbol(
             if (planned) R.drawable.sym_event else if (minor) R.drawable.sym_info else R.drawable.sym_warning, null,
-            Modifier.padding(top = 2.dp).size(20.dp), tint = if (planned || minor) c.inkSoft else c.warning,
+            Modifier.padding(top = 2.dp).size(scaled(20)), tint = if (planned || minor) c.inkSoft else c.warning,
         )
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(issue.title, style = MaterialTheme.typography.titleSmall, color = c.ink)
