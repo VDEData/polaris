@@ -147,6 +147,25 @@ class AlertStoreTest {
         assertEquals(ID, rig.values.getString(AlertStore.REGISTERED))
     }
 
+    @Test fun aLaunchResendsOnceHoweverOftenTheScreenIsMadeAnew() = runTest {
+        val rig = rig()
+        rig.store.resume()
+        advanceUntilIdle()
+        // A rotation, a fold, a notice tapped: the screen asks again; nothing more goes out.
+        rig.store.resume()
+        rig.store.resume()
+        advanceUntilIdle()
+        assertEquals(1, rig.push.asked)
+        assertEquals(listOf("PUT /v1/devices/$ID"), rig.wire.said("built.example.com"))
+        // With no alerts at launch it stays ready for the first one saved.
+        val empty = rig(alerts = emptyList(), registered = false)
+        empty.store.resume()
+        empty.store.save(district)
+        advanceUntilIdle()
+        assertEquals(1, empty.push.asked)
+        assertEquals(1, empty.wire.requests.count { it.method == "PUT" })
+    }
+
     @Test fun deletingTheLastAlertRemovesThePhoneFromTheServer() = runTest {
         val rig = rig()
         rig.store.delete(district.id)
@@ -191,6 +210,32 @@ class AlertStoreTest {
         advanceUntilIdle()
         assertFalse(rig.store.state.value.pushFailed)
         assertTrue(rig.store.state.value.registered)
+    }
+
+    @Test fun aPushServiceThatNeverAnswersIsSaidAfterHalfAMinuteAndItsLateAnswerStillRegisters() = runTest {
+        val silent = object : PushRegistrar {
+            override val availability = PushAvailability.ready
+            override suspend fun register(): String = kotlinx.coroutines.awaitCancellation()
+        }
+        val wire = Wire()
+        val values = InMemoryKeyValueStore().apply { putString(AlertStore.ALERTS, RouteAlert.encode(listOf(district))) }
+        val secrets = Secrets()
+        val store = AlertStore(
+            AppSettings(secrets, BuildDefaults(alertsUrl = "https://built.example.com", alertsToken = "built-token"), values), secrets, values, wire,
+            { "Polaris/test" }, silent, this, syncDelayMillis = 0, io = StandardTestDispatcher(testScheduler),
+        )
+        store.resume()
+        testScheduler.advanceTimeBy(29_000)
+        assertFalse(store.state.value.pushFailed, "still waiting")
+        assertFalse(store.state.value.registered)
+        testScheduler.advanceTimeBy(2_000)
+        assertTrue(store.state.value.pushFailed, "said, with Try again")
+        assertFalse(wire.requests.any { it.method == "PUT" })
+        // The service answers at last, through its own callback.
+        store.didRegister(ID)
+        advanceUntilIdle()
+        assertTrue(store.state.value.registered)
+        assertFalse(store.state.value.pushFailed)
     }
 
     @Test fun theServerSayingItCannotPushToThisPhoneIsKept() = runTest {

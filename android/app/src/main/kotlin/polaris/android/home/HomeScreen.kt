@@ -367,7 +367,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.yourLines(graph: pola
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), compact = true)
+                        AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), compact = true, failed = state.statusFailed)
                         Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
                     }
                 }

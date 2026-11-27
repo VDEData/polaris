@@ -74,6 +74,8 @@ class AlertStore(
     private val syncDelayMillis: Long = 400,
     private val random: (ByteArray) -> Unit = { SecureRandom().nextBytes(it) },
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** How long the push service is given to answer before the page is told it hasn't (offline, it waits without a word). */
+    private val registerTimeoutMillis: Long = 30_000,
 ) {
     /** Why the server's copy may be out of date. */
     sealed interface Trouble {
@@ -177,7 +179,13 @@ class AlertStore(
         _state.update { it.copy(push = push.availability) }
         if (push.availability != PushAvailability.ready) return
         try {
-            val id = push.register()
+            // No answer in time is said as a failure; if the service answers later, it tells the
+            // app itself (the address then comes through didRegister).
+            val id = kotlinx.coroutines.withTimeoutOrNull(registerTimeoutMillis) { push.register() }
+            if (id == null) {
+                _state.update { it.copy(pushFailed = true) }
+                return
+            }
             _state.update { it.copy(pushFailed = false) }
             didRegister(id)
         } catch (e: CancellationException) {
@@ -194,6 +202,7 @@ class AlertStore(
             pushId = id
             _state.update { it.copy(registered = registered != null && registered == id) }
         }
+        _state.update { it.copy(pushFailed = false) }
         sync()
     }
 
@@ -233,9 +242,15 @@ class AlertStore(
         else -> Trouble.Unreachable
     }
 
-    /** On launch: pick up a new address, and resend in case the last change didn't reach the server. */
+    private var resumed = false
+
+    /**
+     * On launch: pick up a new address, and resend in case the last change didn't reach the
+     * server. Once a process: the screen being made anew (a rotation, a fold) asks nothing more.
+     */
     fun resume() {
-        if (alerts.isEmpty()) return
+        if (resumed || alerts.isEmpty()) return
+        resumed = true
         scope.launch { enablePush() }
     }
 
@@ -339,9 +354,8 @@ class AlertStore(
         registered = null
         _state.update { it.copy(status = emptyMap(), checkedAt = null, statusFailed = false, syncTrouble = null, serverCanPush = null) }
         if (now != null && alerts.isNotEmpty()) {
-            enablePush()
-            // With no push address there is nothing to register; what TfL says now is still asked.
-            if (pushId != null) sync()
+            // Not waited for: a push service slow to answer mustn't hold Settings; its address registers when it comes.
+            scope.launch { enablePush() }
             refreshStatus(force = true)
         }
         return UseResult.Used(note)

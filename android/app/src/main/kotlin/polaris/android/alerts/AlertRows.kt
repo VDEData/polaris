@@ -30,7 +30,7 @@ import java.util.Locale
 /** One alert: its lines, when, and what TfL says now (iOS's `AlertRow`). [compact] (Home) leaves out when. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AlertRow(alert: RouteAlert, status: AlertStatus.Entry?, configured: Boolean, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun AlertRow(alert: RouteAlert, status: AlertStatus.Entry?, configured: Boolean, modifier: Modifier = Modifier, compact: Boolean = false, failed: Boolean = false) {
     val c = polaris
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -38,7 +38,8 @@ fun AlertRow(alert: RouteAlert, status: AlertStatus.Entry?, configured: Boolean,
         }
         Text(alert.displayName, style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (!compact) Text(alert.whenText, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
-        AlertSummary(status, configured)
+        // The last check didn't come back and nothing is known: the page's own line says so, not "Checking".
+        if (status != null || !failed) AlertSummary(status, configured)
     }
 }
 

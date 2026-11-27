@@ -117,7 +117,7 @@ fun AlertsScreen(graph: AppGraph, night: Boolean, openEditor: (RouteAlert, Boole
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f))
+                                AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), failed = state.statusFailed)
                                 Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
                             }
                         }
@@ -201,6 +201,11 @@ private fun NotificationsCard(graph: AppGraph, state: AlertStore.State) {
                 if (state.pushFailed) {
                     Note(R.drawable.sym_warning, stringResource(R.string.alerts_push_failed), null, warning = true)
                     TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.padding(start = 44.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
+                    HorizontalDivider(color = c.hairline)
+                }
+                // Allowed, an address asked for, but the server doesn't have this phone yet (no connection, or it is on its way).
+                if (!state.registered && !state.pushFailed && state.syncTrouble == null) {
+                    Note(R.drawable.sym_info, stringResource(R.string.alerts_registering), null)
                     HorizontalDivider(color = c.hairline)
                 }
                 if (state.serverCanPush == false) {

@@ -59,7 +59,7 @@ class TripSession(
     /** Bumped when the trip on screen may have changed (its own version, or a new or ended trip). */
     val version: StateFlow<Int> = _version.asStateFlow()
 
-    /** Bumped each time a trip ends by itself, so the window goes back to Home (not to a journey page offering the trip again). */
+    /** Bumped each time a trip ends by itself, so the window leaves the trip's page for whatever was open under it. */
     private val _endedItself = MutableStateFlow(0)
     val endedItself: StateFlow<Int> = _endedItself.asStateFlow()
 

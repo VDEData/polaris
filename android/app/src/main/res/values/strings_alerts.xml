@@ -34,6 +34,7 @@
     <string name="alerts_push_unavailable_title">This phone can\'t receive notifications from Polaris</string>
     <string name="alerts_push_unavailable">Alerts arrive through Google Play services, which this phone doesn\'t have or has switched off. Your alerts still show what TfL says whenever you open Polaris.</string>
     <string name="alerts_push_failed">This phone couldn\'t get an address for notifications, so the alert server can\'t reach it yet.</string>
+    <string name="alerts_registering">Registering this phone for notifications. None can arrive until that is done.</string>
     <string name="alerts_try_again">Try again</string>
     <string name="alerts_server_cannot_push">Your alert server isn\'t set up to send to Android phones yet, so no notification will arrive. Whoever runs it needs to give it a Firebase service account (FCM_SERVICE_ACCOUNT).</string>
     <string name="alerts_allow">Allow notifications</string>
