@@ -30,6 +30,14 @@ Apache License 2.0 (text below):
 - Kotlin standard library, kotlinx.coroutines, kotlinx.serialization, JetBrains
 - OkHttp and Okio, Square
 - MapLibre's Java libraries `android-sdk-geojson` and `android-sdk-turf`, Gson, Timber (pulled in by MapLibre)
+- Firebase Cloud Messaging for Android and what it brings (`firebase-messaging`, `firebase-installations`,
+  `firebase-common`, `firebase-components`, the Firebase encoders and Google's `datatransport` libraries),
+  Google: for line-alert notifications
+
+Android Software Development Kit License (Google's own terms, not an open-source licence:
+https://developer.android.com/studio/terms.html):
+- Google Play services client libraries that Firebase Cloud Messaging needs (`play-services-base`,
+  `play-services-basement`, `play-services-tasks`, `play-services-cloud-messaging`, `play-services-stats`)
 
 BSD 2-Clause:
 - MapLibre Native for Android (`org.maplibre.gl:android-sdk`) and `maplibre-android-gestures`. The

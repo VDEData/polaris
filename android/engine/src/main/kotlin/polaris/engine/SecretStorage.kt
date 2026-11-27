@@ -96,6 +96,10 @@ class EncryptedSecretStore(private val cipher: SecretCipher, private val store: 
         KNOWN.forEach { store.write(notice(it), null) }
     }
 
+    override fun forgetLost(account: String) {
+        if (store.read(notice(account)) != null) store.write(notice(account), null)
+    }
+
     private fun key(account: String) = "secret.$account"
     private fun notice(account: String) = "lost.$account"
 

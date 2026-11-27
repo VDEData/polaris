@@ -481,10 +481,28 @@ class LiveTrip(
                 val leaves = timeline.steps[index].departure
                 if ((leaves since now) < 45 * 60 && now < leaves.plusSeconds(5 * 60.0)) scope.launch { loadBoard(ride) }
             }
+        } else if (leg.mode.isTransit) {
+            // Aboard (or the ride has gone with you on it): its board stays live for as long as
+            // you're on this ride, so a train held on the way is seen as it happens (`serviceNews`,
+            // `liveEta`) rather than left as it stood when you got on. A board that never came
+            // (no network on the platform) is asked for too, but not in the same moment as the
+            // trip's own first asking for it: at most every [ABOARD_SECONDS] here, and the
+            // store and the loader hold it to a minute and back off after failures.
+            val riding = leg
+            val has = rawBoard(riding) != null
+            val last = aboardAsked[riding.id]
+            if (!has && last == null) aboardAsked[riding.id] = now
+            if (has || (last != null && (now since last) >= ABOARD_SECONDS)) {
+                aboardAsked[riding.id] = now
+                scope.launch { loadBoard(riding) }
+            }
         }
         retime()
         publish()
     }
+
+    /** When each ride's board was last asked for from aboard (the first look only notes the time: the trip's start has just asked). */
+    private val aboardAsked = HashMap<String, Instant>()
 
     private val holdsUnseenRide: Boolean get() = quietSince != null && leg.mode.isTransit && !boarded && rawBoard(leg) == null
 
@@ -842,6 +860,8 @@ class LiveTrip(
     companion object {
         /** Longer than this between two looks, the trip is caught up as after a relaunch. */
         const val GAP_SECONDS = 60.0
+        /** Aboard with no board for the ride: how often it is asked for again. */
+        const val ABOARD_SECONDS = 30.0
         /** Further than this from a walk's path, a fix isn't placed on the walk. */
         const val OFF_WALK_METRES = 150.0
     }

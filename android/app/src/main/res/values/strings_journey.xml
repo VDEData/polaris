@@ -14,7 +14,7 @@
     <string name="journey_summary">%1$s ·\u00A0%2$s</string>
     <string name="journey_summary_fare">%1$s ·\u00A0%2$s ·\u00A0%3$s</string>
     <string name="journey_leave_at">Leave at %s</string>
-    <string name="journey_leave_in">Leave in %s min</string>
+    <string name="journey_leave_in">Leave in %s\u00A0min</string>
     <string name="journey_leave_now">Leave now</string>
     <string name="journey_was_due">Was due to leave at %s</string>
     <string name="journey_share">Share</string>
@@ -68,9 +68,9 @@
     <string name="strip_there">there</string>
     <string name="strip_cancelled_next">Your %1$s is cancelled. The next is %2$s.</string>
     <string name="strip_cancelled_only">Your %s is cancelled.</string>
-    <string name="strip_late">Running %s min late.</string>
-    <string name="strip_earlier">Make the %1$s and you reach %2$s %3$s min sooner.</string>
-    <string name="strip_miss">Miss it and the %1$s gets you there %2$s min later.</string>
+    <string name="strip_late">Running %s\u00A0min late.</string>
+    <string name="strip_earlier">Make the %1$s and you reach %2$s %3$s\u00A0min sooner.</string>
+    <string name="strip_miss">Miss it and the %1$s gets you there %2$s\u00A0min later.</string>
     <string name="strip_all">All departures from %s</string>
     <string name="strip_open_board">Opens all departures from this stop</string>
     <string name="strip_tile">%1$s, %2$s</string>

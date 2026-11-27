@@ -11,5 +11,7 @@ object Variant {
     fun startTrip(intent: Intent?): JourneyQuery? = null
     fun secrets(intent: Intent?): polaris.engine.SecretStore? = null
     fun clock(intent: Intent?): (() -> java.time.Instant)? = null
+    fun push(intent: Intent?): polaris.engine.PushRegistrar? = null
+    fun values(context: Context, intent: Intent?): polaris.engine.KeyValueStore? = null
     fun replanSearch(intent: Intent?): (suspend (JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null
 }

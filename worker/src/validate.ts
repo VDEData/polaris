@@ -101,7 +101,10 @@ export function deviceSecret(v: string | undefined): string {
   return v;
 }
 
+/** What a phone is registered under: an iPhone's APNs device token (hex, kept in lower case),
+ * or an Android phone's Firebase installation ID (URL-safe base64, kept exactly: case matters). */
 export function deviceToken(v: string): string {
-  if (!/^[0-9a-f]{64,200}$/i.test(v)) throw new Invalid("not a device token");
-  return v.toLowerCase();
+  if (/^[0-9a-f]{64,200}$/i.test(v)) return v.toLowerCase();
+  if (/^[A-Za-z0-9_-]{16,63}$/.test(v)) return v;
+  throw new Invalid("not a device token");
 }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import polaris.android.alerts.LineNotices
 import polaris.android.app.AppGraph
 import polaris.android.trip.TripNotifier
 import polaris.engine.Appearance
@@ -33,7 +34,14 @@ class MainActivity : ComponentActivity() {
     /** A tap on Go's notification (open Go, or Switch to a faster way), once per tap. */
     private val goRequest = mutableStateOf<GoRequest?>(null)
 
+    /** A tap on a line alert's notification, once per tap. */
+    private val alertsRequest = mutableStateOf<Long?>(null)
+
     private fun take(intent: android.content.Intent?) {
+        if (intent?.getBooleanExtra(LineNotices.EXTRA_OPEN_ALERTS, false) == true) {
+            alertsRequest.value = System.nanoTime()
+            intent.removeExtra(LineNotices.EXTRA_OPEN_ALERTS)
+        }
         if (intent?.getBooleanExtra(TripNotifier.EXTRA_OPEN_GO, false) != true) return
         val switch = intent.getStringExtra(TripNotifier.EXTRA_ACTION) == TripNotifier.ACTION_SWITCH
         goRequest.value = GoRequest(switch, verified = switch && intent.getStringExtra(TripNotifier.EXTRA_TOKEN) == TripNotifier.TOKEN)
@@ -55,6 +63,8 @@ class MainActivity : ComponentActivity() {
         val secrets = Variant.secrets(intent)
         val clock = Variant.clock(intent)
         val replan = Variant.replanSearch(intent)
+        val push = Variant.push(intent)
+        val values = Variant.values(this, intent)
         val startTrip = if (savedInstanceState == null) Variant.startTrip(intent) else null
         val fresh = savedInstanceState == null
         if (fresh) take(intent)
@@ -62,7 +72,7 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             // Already built after a rotation or a fold: no blank first frame then.
             var graph by remember { mutableStateOf(AppGraph.cached()) }
-            LaunchedEffect(Unit) { graph = AppGraph.load(context, demo, secrets, clock, replan) }
+            LaunchedEffect(Unit) { graph = AppGraph.load(context, demo, secrets, clock, replan, push, values) }
             // The appearance chosen in Settings, or the phone's own.
             val chosen = graph?.appearance?.collectAsState()?.value ?: Appearance.system
             val night = when (chosen) {
@@ -80,7 +90,9 @@ class MainActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize().background(polaris.paper)) {
                     graph?.let { g ->
                         val setup = remember(g) { fresh && g.takeSetup() }
-                        PolarisApp(g, night, startTrip, showSetup = setup, goRequest = goRequest.value, goRequestTaken = { goRequest.value = null })
+                        PolarisApp(g, night, startTrip, showSetup = setup, goRequest = goRequest.value, goRequestTaken = { goRequest.value = null },
+                            alertsRequest = alertsRequest.value, alertsRequestTaken = { alertsRequest.value = null },
+                        )
                     }
                 }
             }

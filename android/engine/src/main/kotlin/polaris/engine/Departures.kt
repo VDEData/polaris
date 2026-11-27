@@ -450,7 +450,11 @@ class DepartureStore(
             nearbyInFlight = true
         }
         try {
-            if (nearby?.value == null) set { nearby = Loadable.Loading }
+            // A list from somewhere else or from long ago (a trip has just ended across town)
+            // isn't shown as if it were here and now while the new one loads.
+            val shown = nearbyFetched
+            val elsewhere = shown != null && (JourneyMap.metres(shown.second, coordinate) >= ELSEWHERE_METRES || Duration.between(shown.first, now).seconds >= OLD_SECONDS)
+            if (nearby?.value == null || elsewhere) set { nearby = Loadable.Loading }
             val lines = provider.nearby(coordinate, now)
             nearbyFetched = now to coordinate
             nearbyFailures = null
@@ -478,6 +482,9 @@ class DepartureStore(
         const val MIN_SECONDS = 15L
         /** Between retries after the first, when a request failed for another reason (offline, a timeout, an error). */
         const val RETRY_SECONDS = 5L
+        /** How far from where the nearby list was asked, or how long after, it no longer stands in while a new one loads. */
+        const val ELSEWHERE_METRES = 500.0
+        const val OLD_SECONDS = 600L
 
         fun describe(error: Throwable): Loadable.Reason = when (error) {
             is java.net.UnknownHostException, is java.net.ConnectException -> Loadable.Reason.offline

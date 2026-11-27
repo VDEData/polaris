@@ -56,6 +56,13 @@ class TransportTest {
             exchange.sendResponseHeaders(200, -1)
             exchange.close()
         }
+        // A megabyte: with its length declared, and (chunked) without.
+        createContext("/big") { exchange ->
+            hits.incrementAndGet()
+            val body = ByteArray(1024 * 1024) { 'x'.code.toByte() }
+            exchange.sendResponseHeaders(200, if (exchange.requestURI.query == "chunked") 0 else body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
         // Takes the request, then hangs up without answering: the case an HTTP client may
         // quietly resend. Polaris must not.
         createContext("/drop") { exchange ->
@@ -98,6 +105,20 @@ class TransportTest {
         assertEquals(ProviderError.Http(307), assertFailsWith<ProviderError> { http.data(HttpRequest("$base/elsewhere")) })
         assertEquals(2, hits.get(), "neither redirect was followed")
         assertTrue(seen.isEmpty(), "nothing reached the other host")
+    }
+
+    /** The alerts server is whatever address was entered: a reply over the request's limit is refused, declared or not. */
+    @Test fun aReplyOverTheLimitIsRefused() = runTest {
+        val transport = OkHttpTransport()
+        val base = "http://127.0.0.1:${server.address.port}"
+        for (path in listOf("/big", "/big?chunked")) {
+            val error = runCatching { transport.send(HttpRequest("$base$path", maxBodyBytes = 512 * 1024)) }.exceptionOrNull()
+            assertTrue(error is OkHttpTransport.TooLarge, "$path: $error")
+        }
+        // Within the limit, and with none, it is read whole.
+        assertEquals(1024 * 1024, transport.send(HttpRequest("$base/big", maxBodyBytes = 2L * 1024 * 1024)).body.size)
+        assertEquals(1024 * 1024, transport.send(HttpRequest("$base/big?chunked", maxBodyBytes = 1024L * 1024)).body.size)
+        assertEquals(1024 * 1024, transport.send(HttpRequest("$base/big")).body.size)
     }
 
     @Test fun errorsAreDescribedAsOnIOS() {

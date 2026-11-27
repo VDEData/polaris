@@ -180,6 +180,35 @@ class DepartureTest {
         assertEquals(3, transport.boards)
     }
 
+    @Test fun aNearbyListFromElsewhereOrLongAgoDoesNotStandInWhileTheNewOneLoads() = runTest {
+        var now: Instant = iso("2026-10-31T18:19:00Z")
+        var seenWhileLoading: Loadable<List<NearbyLine>>? = null
+        lateinit var store: DepartureStore
+        val transport = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResponse {
+                seenWhileLoading = store.nearby
+                return HttpResponse(200, Fixtures.bytes("transitous-nearby.json"))
+            }
+        }
+        store = DepartureStore(DepartureProvider(HTTP(transport, "test")), clock = { now })
+        val kingsCross = Coordinate(51.5308, -0.1238)
+        store.loadNearby(kingsCross)
+        assertEquals(Loadable.Loading, seenWhileLoading)
+        // A short walk on, a minute later: the list stays up while it is asked again.
+        now = now.plusSeconds(61)
+        store.loadNearby(Coordinate(51.5330, -0.1238)) // 245 m on
+        assertTrue(seenWhileLoading?.value?.isNotEmpty() == true)
+        // A trip later, across town: the old stops are not shown as here.
+        now = now.plusSeconds(61)
+        store.loadNearby(Coordinate(51.5054, -0.0235))
+        assertEquals(Loadable.Loading, seenWhileLoading)
+        // The same place, but ten minutes on: those departures have gone.
+        now = now.plusSeconds(601)
+        store.loadNearby(Coordinate(51.5054, -0.0235))
+        assertEquals(Loadable.Loading, seenWhileLoading)
+        assertNotNull(store.nearby?.value, "and the new list replaces the wait")
+    }
+
     @Test fun nearbyIsAskedAgainOnlyAfterAMinuteOrAMove() = runTest {
         val transport = CountingTransport()
         var now: Instant = iso("2026-10-31T18:19:00Z")

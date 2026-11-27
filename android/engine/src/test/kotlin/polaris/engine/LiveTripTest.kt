@@ -147,6 +147,8 @@ internal class Drive(
     val alerts = RecordedAlerts()
     val presenter = RecordedPresenter()
     val loaded = mutableListOf<String>()
+    /** What a board request brings back (a test's own answer, put in [boards]). */
+    var onLoad: (Leg) -> Unit = {}
     /** Whether the phone has a way to the internet, for re-plans. */
     var online = true
     /** When the trip last looked (a refresh or its start), to keep the gaps a test means. */
@@ -159,7 +161,7 @@ internal class Drive(
             Place(name = "One Canada Square", coordinate = journey.legs.last().end!!), TimeMode.LeaveNow)
         trip = LiveTrip(
             journey = saved?.journey ?: journey, query = saved?.query ?: query, scope = scope,
-            clock = { clock }, fixSource = { this.fix }, timetable = { this.boards[it.id] }, loadBoard = { loaded += it.id },
+            clock = { clock }, fixSource = { this.fix }, timetable = { this.boards[it.id] }, loadBoard = { loaded += it.id; onLoad(it) },
             alerts = alerts, search = search, isOnline = { online }, presenter = presenter, store = store, saved = saved,
         )
     }
@@ -955,6 +957,79 @@ class LiveTripTest {
         kotlin.test.assertNotEquals(before, drive.trip.serviceNews)
         val later = assertNotNull(drive.trip.liveEta)
         assertTrue(java.time.Duration.between(eta, later).toMinutes() >= 29, "live arrival $later against $eta")
+    }
+
+    /** Aboard, the ride's board is still asked for on every look, so a train held later is seen; on the walk after it, no more. */
+    @Test fun aboardTheRidesBoardIsKeptLive() = runTest {
+        val journey = Go.bakerloo
+        val ride = journey.legs[1]
+        val drive = Drive(this, journey, Go.at("06:40:30"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.tick("06:41:00", Go.paddington)
+        drive.trip.take(LiveTrip.Step.Boarded(ride))
+        testScheduler.runCurrent()
+        drive.loaded.clear()
+        drive.tick("06:42:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id in drive.loaded, "the ride you're on is asked for again: ${drive.loaded}")
+        drive.loaded.clear()
+        drive.tick("06:44:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id in drive.loaded)
+        // Off it: its board is left alone.
+        drive.trip.take(LiveTrip.Step.GotOff(ride))
+        testScheduler.runCurrent()
+        drive.loaded.clear()
+        drive.tick("06:52:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id !in drive.loaded, "left alone once off: ${drive.loaded}")
+    }
+
+    /** Aboard, the board asked for again comes back with the train held half an hour: that is seen, as news and as a later arrival. */
+    @Test fun aTrainHeldAfterBoardingIsSeenThroughTheRefreshedBoard() = runTest {
+        val journey = Go.bakerloo
+        val ride = journey.legs[1]
+        val drive = Drive(this, journey, Go.at("06:40:30"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.tick("06:41:00", Go.paddington)
+        drive.trip.take(LiveTrip.Step.Boarded(ride))
+        drive.tick("06:42:00")
+        testScheduler.runCurrent()
+        val before = drive.trip.serviceNews
+        val eta = drive.trip.eta
+        // From now on the source says the 06:41 takes 38 minutes, not 8.
+        drive.onLoad = { leg -> if (leg.id == ride.id) drive.boards[ride.id] = Go.tubeBoard(ride, listOf("06:37:00", "06:41:00", "06:44:00"), run = 38.0, planned = "06:41:00") }
+        drive.tick("06:43:00")
+        testScheduler.runCurrent()
+        drive.tick("06:43:02")
+        kotlin.test.assertNotEquals(before, drive.trip.serviceNews, "the hold is news")
+        val later = assertNotNull(drive.trip.liveEta)
+        assertTrue(java.time.Duration.between(eta, later).toMinutes() >= 29, "live arrival $later against $eta")
+    }
+
+    /** No board had loaded when you got on (no network on the platform): it is still asked for while aboard. */
+    @Test fun aBoardThatNeverLoadedIsAskedForWhileAboard() = runTest {
+        val journey = Go.bakerloo
+        val ride = journey.legs[1]
+        val boards = Go.bakerlooBoards(journey) - ride.id
+        val drive = Drive(this, journey, Go.at("06:40:30"), boards, Go.paddington)
+        drive.tick("06:41:00", Go.paddington)
+        drive.trip.take(LiveTrip.Step.Boarded(ride))
+        testScheduler.runCurrent()
+        drive.loaded.clear()
+        // Not again in the moment the trip itself has just asked.
+        drive.tick("06:41:02")
+        drive.tick("06:41:10")
+        testScheduler.runCurrent()
+        assertTrue(ride.id !in drive.loaded, "not asked twice at once: ${drive.loaded}")
+        drive.onLoad = { leg -> if (leg.id == ride.id) drive.boards[ride.id] = Go.tubeBoard(ride, listOf("06:37:00", "06:41:00", "06:44:00"), run = 38.0, planned = "06:41:00") }
+        drive.tick("06:41:40")
+        testScheduler.runCurrent()
+        assertTrue(ride.id in drive.loaded, "asked for from aboard: ${drive.loaded}")
+        drive.tick("06:41:42")
+        // The board is in and Go has it for the ride. (Which train you got on isn't known when no
+        // board was there at boarding, so its lateness can't be read off the board: that is seen
+        // only when the boarding was matched to a departure, as in the test above.)
+        assertNotNull(drive.trip.board(ride))
+        assertNotNull(drive.trip.serviceNews)
     }
 
     /** Missed it, and the next is 35 minutes later: news, and the arrival moves with it. */

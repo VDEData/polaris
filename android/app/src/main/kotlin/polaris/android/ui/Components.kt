@@ -1,6 +1,9 @@
 package polaris.android.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -126,12 +129,16 @@ fun shortLineName(line: String): String {
 
 /** A line's label in its own colour: mode icon plus its name. Never truncated: it stays whole. */
 @Composable
-fun LinePill(leg: Leg, modifier: Modifier = Modifier) {
+fun LinePill(leg: Leg, modifier: Modifier = Modifier) = LinePill(leg.mode, leg.line, leg.lineColor, modifier)
+
+/** The same pill for a line that isn't a ride (an alert's line). */
+@Composable
+fun LinePill(mode: LegMode, line: String?, lineColor: RGB?, modifier: Modifier = Modifier) {
     val c = polaris
     // A pill keeps its line's own colour in both appearances, as iOS's `LinePill` does; only lines
     // drawn on the map and down the itinerary lift near-black at night. A dark pill at night, or a
     // pale one by day, gets a hairline edge instead.
-    val own = leg.lineColor ?: JourneyMap.unknownLine
+    val own = lineColor ?: JourneyMap.unknownLine
     val fill = own.toColor()
     val ink = if (own.luminance < 0.6) Color.White else PolarisColors.Navy
     val pale = if (c.isNight) own.luminance < 0.2 else own.luminance > 0.7
@@ -144,8 +151,8 @@ fun LinePill(leg: Leg, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Symbol(modeIcon(leg.mode), null, Modifier.size(14.dp), tint = ink)
-        leg.line?.let { Text(shortLineName(it), color = ink, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) }
+        Symbol(modeIcon(mode), null, Modifier.size(14.dp), tint = ink)
+        line?.let { Text(shortLineName(it), color = ink, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) }
     }
 }
 
@@ -209,4 +216,26 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, trailing: @Compo
         )
         trailing()
     }
+}
+
+/**
+ * For a text field low on a scrolling page: once it has the focus and the keyboard has come up,
+ * the page scrolls to keep it showing, rather than leaving the person typing behind the keyboard.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.staysAboveKeyboard(): Modifier {
+    val requester = androidx.compose.runtime.remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return this
+        .then(Modifier.bringIntoViewRequester(requester))
+        .then(
+            Modifier.onFocusEvent { state ->
+                if (state.isFocused) scope.launch {
+                    // After the keyboard's own animation, when the page knows how much room is left.
+                    kotlinx.coroutines.delay(350)
+                    requester.bringIntoView()
+                }
+            },
+        )
 }

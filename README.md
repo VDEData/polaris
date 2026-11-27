@@ -210,7 +210,15 @@ the plumbing and the first screens:
 - **Settings and setup:** appearance, sources, deep search, the Google and TfL keys and the
   Transitous contact (sealed as above), saved places, the data credits in full and the
   open-source licences. A new install sees setup once; everything in it is optional and can be
-  added later in Settings. Go, live buses and alerts come next.
+  added later in Settings. Live buses come next.
+- **Alerts for your lines:** the list, the editor (lines and stretches, which way, days, times
+  each with its own way, minor delays, a name), "Your lines" on Home, the bell on a route and
+  the alerts server in Settings, as on iOS. Notices come through Firebase Cloud Messaging, on
+  three notification channels: closures and delays (which you can let through Do Not Disturb in
+  the phone's settings, Android's nearest thing to Time Sensitive), minor delays and planned
+  works, and quiet updates. A later notice for an alert replaces the earlier one, and tapping
+  one opens Alerts. Push needs your own Firebase project (below); without one the app builds and
+  runs, and Alerts says notifications aren't set up while still showing what TfL says.
 
 Debug builds add a second launcher entry, "Polaris map check", and can replay recorded answers
 instead of asking TfL or Transitous (`--es demo routes`; see `app/src/debug/.../Variant.kt`);
@@ -249,6 +257,44 @@ of your signing certificate; the app sends both with each request, and neither i
 restriction only stops casual reuse. Restrict the key to the Routes API, set a daily quota cap in
 the Google Cloud console, and prefer entering keys in the app's Settings, which seals them.
 
+### Push on Android: your own Firebase project
+
+Android has no push without Google's Firebase Cloud Messaging (FCM), and FCM only delivers to an
+app from the Firebase project that app was built with. So, as with the APNs key on iOS, each
+person who builds Polaris for Android and wants notifications uses a Firebase project of their
+own (free: FCM has no charge on Firebase's no-cost plan). It gives two files, one for the app
+and one for the alerts server:
+
+1. In the [Firebase console](https://console.firebase.google.com), create a project (Analytics
+   isn't needed) and add an Android app to it whose package name is exactly your
+   `polaris.applicationId` (`com.example.polaris` unless you set your own).
+2. Download the `google-services.json` it offers and put it at `android/app/google-services.json`.
+   It is git-ignored; `android/app/google-services.json.example` shows its shape. Rebuild the app.
+3. For the server: Project settings, Service accounts, Generate new private key. That downloads
+   a JSON key file; give it to your alerts server as the `FCM_SERVICE_ACCOUNT` secret (step 9
+   under "Run your own alerts server"). Keep the file out of the repository and delete your copy
+   once the secret is set.
+
+The app reads the first file at build time (`app/build.gradle.kts`); the Google Services Gradle
+plugin isn't used, because it fails a build that has no such file. With no file, a file for
+another package name, or the example's placeholders, the build says so and makes an app without
+push. Nothing is asked of Firebase until you save an alert with an alerts server set: its
+start-up provider is removed, its registration at launch and Analytics collection are switched
+off in the manifest, and a phone is known to FCM only by a Firebase installation ID, which is
+what the alerts server keeps. Phones without Google Play services can't receive FCM; Alerts says
+so there too.
+
+Firebase's and Google Play services' client libraries come with this: the Firebase ones are
+Apache-licensed, the Play services ones are Google's own (the Android Software Development Kit
+licence), so an Android build with them is not made only of open-source parts
+(`android/THIRD_PARTY_NOTICES.md`).
+
+To see a notice without any of this, a debug build can draw one locally, through the same code a
+real one goes through (`adb shell am broadcast -n <app id>/polaris.android.debug.NoticeCheckReceiver
+-e alert A -e title "Home to work" -e subtitle "Jubilee line: severe delays" -e body "…" -e level
+urgent`), and `--es alerts lines` opens the alerts pages on made-up answers (`Variant.kt` lists the
+states). Neither is in release builds, and neither proves that a push arrives.
+
 The engine's tests read the recordings in `PolarisTests/Fixtures` in place, and both platforms'
 tests assert against `PolarisTests/Fixtures/journey-expectations.json`: for a recorded King's Cross
 to Canary Wharf search and two hand-written TfL answers (an arrive-by search on a day with
@@ -264,9 +310,11 @@ shared one: each person who wants alerts runs their own `worker/`, which fits in
 free plan for a handful of phones. Without one, the app makes no alert requests and doesn't
 ask for push permission; the Alerts page says what to set up.
 
-You need a Cloudflare account, Node 24 or later with pnpm, and, for the pushes themselves, a
-paid Apple Developer Program membership: only that can make the APNs key that lets your server
-send notifications to your build of the app, and sign the app with the push entitlement.
+You need a Cloudflare account, Node 24 or later with pnpm, and, for the pushes themselves: for
+iPhones, a paid Apple Developer Program membership (only that can make the APNs key that lets
+your server send notifications to your build of the app, and sign the app with the push
+entitlement); for Android phones, a Firebase project of your own (free; "Push on Android"
+above). Either can be left out: phones of the other kind are still told.
 
 1. `cd worker && pnpm install`, then `pnpm exec wrangler login`.
 2. Create the database: `pnpm exec wrangler d1 create polaris-alerts`. Copy
@@ -287,13 +335,26 @@ send notifications to your build of the app, and sign the app with the push enti
    pnpm exec wrangler secret put APNS_KEY_ID                         # the key's 10-character ID
    pnpm exec wrangler secret put TFL_APP_KEY                         # optional
    ```
-7. `pnpm run deploy`. Check `https://<your worker>/health` says `{"ok":true,"pushes":true}`;
-   `"pushes":false` means one of `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID` or `APNS_TOPIC` is
-   missing, and until it's set the cron judges nothing, so no disruption is lost.
+7. `pnpm run deploy`. Check `https://<your worker>/health` says `"pushes":true` (iPhones) and,
+   if you set up step 9, `"android":true`. `"pushes":false` means one of `APNS_KEY`,
+   `APNS_KEY_ID`, `APNS_TEAM_ID` or `APNS_TOPIC` is missing; `"android":false` that
+   `FCM_SERVICE_ACCOUNT` is missing or isn't the service-account file. Until a kind of phone can
+   be pushed to, the cron judges nothing for phones of that kind, so no disruption is lost.
 8. Point the app at it: in Settings, Alerts server, enter the address and the `APP_TOKEN`
    and tap Use this server. Or build it in with `POLARIS_ALERTS_URL` and
-   `POLARIS_ALERTS_TOKEN` in `Config/Secrets.xcconfig`. Then Alerts, Add a line, and
+   `POLARIS_ALERTS_TOKEN` in `Config/Secrets.xcconfig` (on Android, `polaris.alertsUrl` and
+   `polaris.alertsToken` in `android/local.properties`). Then Alerts, Add a line, and
    Send a test notification.
+9. For Android phones: give the server your Firebase project's service-account key file (from
+   "Push on Android" above), read from the file so it never passes through your shell history:
+   ```sh
+   pnpm exec wrangler secret put FCM_SERVICE_ACCOUNT < your-project-firebase-adminsdk.json
+   ```
+   No redeploy or migration is needed: a phone's kind is told from what it registers with (an
+   iPhone's APNs token, or an Android phone's Firebase installation ID), and the database is as
+   it was. The server signs in to Google with that key, keeps the access token it gets for 50
+   minutes, and sends through FCM's HTTP v1 API; a phone FCM says is unregistered is forgotten,
+   as a dead APNs token is.
 
 The server only accepts requests with its `APP_TOKEN`, and each install sends its own random
 secret, so only the install that registered a phone can change, test or remove it.
@@ -313,7 +374,10 @@ app sends), and `pnpm exec tsc --noEmit` type-checks. To run it locally, put `AP
 some test value in `.dev.vars` (see `.dev.vars.example`), `pnpm run migrate:local`, then
 `pnpm run dev`; the simulator reaches it at `http://localhost:8787` (plain http is accepted
 for localhost only). To use recorded TfL answers instead of TfL, serve them over HTTP and add
-`--var TFL_BASE:http://127.0.0.1:<port>`. Without `APNS_KEY` it decides pushes but can't send.
+`--var TFL_BASE:http://127.0.0.1:<port>`. With no push key of either kind it registers phones and
+answers what TfL says, but judges and sends nothing. An Android debug build reaches a local
+server at `http://localhost:8787` after `adb reverse tcp:8787 tcp:8787` (plain http to localhost
+is allowed in debug builds only).
 
 ## Being a good client
 
@@ -322,7 +386,8 @@ keeps to these limits, and changes should too:
 
 - **Transitous** (volunteer-run): one request per search, never fanned out into variants.
   Departure boards are one stop-times request per board as it is shown, kept a minute;
-  during Go only the next ride's board refreshes, once a minute. What's leaving near you is one
+  during Go only the next ride's board refreshes, once a minute, and on Android the board of
+  the ride you are on too, for as long as you're on it, so a train held on the way is seen. What's leaving near you is one
   stop-times request within 400 m, only once location is allowed, kept a minute (and until you
   move 150 m); Refresh asks again. A descriptive User-Agent
   with `POLARIS_CONTACT`. Android's place search asks its geocoder only once the text is 3
@@ -385,9 +450,9 @@ MIT. See `LICENSE`.
 - `Polaris/Engine`: `JourneyMerger` (same journey from several sources), `JourneyRanker` (sorts, filters, folding), `SearchModel` (fan-out, live status), `LiveTrip` and `PathProgress` (Go: legs, walking progress, connections).
 - `Polaris/Views`: `RootView` (map plus sheet), `MapCanvas`, then one page per step: `HomeSheet`, `ResultsSheet`, `JourneySheet`, `BoardSheet`, `LineSheet` (a line at a stop near you, live), `LiveGuide`.
 - `Polaris/Shared` and `PolarisWidgets`: the trip's Live Activity (the attributes are compiled into both targets).
-- `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `apns.ts`.
+- `worker/`: the alerts server: `match.ts` (which disruptions touch your stretch), `policy.ts` (when to tell you), `checks.ts` (the cron), `push.ts` (what a notice says), and `deliver.ts` with `apns.ts` (iPhones) and `fcm.ts` (Android phones).
 - `PolarisTests`: parsers against recorded Google/TfL/Transitous responses, boards, walking progress and leg-by-leg tracking, and the merge and ranking rules.
-- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM: also `PlaceSearch`, `PlaceStore`, `Snapshot`, `MapStyle`, `JourneyMap` and the settings storage rules) and `app/` (Compose: `shell/` for the map, the sheet and its pages, `home/`, `search/` and `results/` with their view models, `map/PolarisMap`, `storage/`; the debug-only map check and recorded answers in `src/debug`).
+- `android/`: the Kotlin port so far: `engine/` (plain Kotlin, no Android imports, so its tests run on the JVM: also `PlaceSearch`, `PlaceStore`, `Snapshot`, `MapStyle`, `JourneyMap` and the settings storage rules) and `app/` (Compose: `shell/` for the map, the sheet and its pages, `home/`, `search/` and `results/` with their view models, `map/PolarisMap`, `storage/`, `alerts/` for the alerts pages and the push service; the debug-only map check and recorded answers in `src/debug`).
 - `Polaris/Design/Theme.swift`: the star-atlas palette, light and dark (System, Light or Dark in Settings).
 
 Launch flags for checking screens without tapping (Debug only): `-setup` shows the first-run setup step; `-demo -demoReplan

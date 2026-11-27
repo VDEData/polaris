@@ -3,7 +3,7 @@
 
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { canPush, send } from "./apns.ts";
+import { canPush, platform, send } from "./deliver.ts";
 import { emptyState, runChecks, type Env } from "./checks.ts";
 import { loadLineMaps } from "./linemap.ts";
 import { issuesFor, issuesInRanges, linesToPlace } from "./match.ts";
@@ -15,8 +15,9 @@ import * as valid from "./validate.ts";
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Whether pushes can go out, so a missing push setting shows; never which values are set.
-app.get("/health", (c) => c.json({ ok: true, pushes: canPush(c.env) }));
+// Whether pushes can go out, to iPhones (`pushes`) and to Android phones (`android`), so a
+// missing push setting shows; never which values are set.
+app.get("/health", (c) => c.json({ ok: true, pushes: canPush(c.env, "apns"), android: canPush(c.env, "fcm") }));
 
 // Nothing is told before the token passes: no version, no setup, no counts.
 app.use("/v1/*", async (c, next) => {
@@ -67,7 +68,8 @@ app.put("/v1/devices/:token", async (c) => {
      ON CONFLICT(token) DO UPDATE SET environment = ?2, time_zone = ?3, alerts = ?4, updated_at = ?6`,
   ).bind(token, valid.environment(body.environment), valid.timeZone(body.timeZone), JSON.stringify(alerts), JSON.stringify(emptyState()), Date.now(), hash, maxDevices(c.env)).run();
   if (!result.meta?.changes) return c.json({ error: "This alert server has no room for another phone" }, 503);
-  return c.json({ ok: true, alerts: alerts.length });
+  // `pushes`: whether this server can send to this kind of phone, so the app can say when it can't.
+  return c.json({ ok: true, alerts: alerts.length, pushes: canPush(c.env, platform(token)) });
 });
 
 app.delete("/v1/devices/:token", async (c) => {
@@ -101,14 +103,19 @@ app.post("/v1/devices/:token/test", async (c) => {
   const issues: Issue[] = withIssues?.issues.map((i) => ({ ...i, signature: "test", line: "", from: undefined })) ?? [
     { signature: "test", severity: "delays", line: "", title: "Test: alerts are on", detail: `Good service on ${lineList(alert)} now. A closure or delay will come through like this.` },
   ];
-  if (!canPush(c.env)) return c.json({ error: "The alert server has no push key yet, so it can't send notifications." }, 503);
-  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: collapse(alert.id, "-test") }, now);
+  if (!canPush(c.env, platform(token))) return c.json({ error: "The alert server has no push key yet, so it can't send notifications." }, 503);
+  // A sign-in the push service refuses (a wrong or deleted key) is said as that, not as "something went wrong".
+  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: collapse(alert.id, "-test") }, now, true).catch((error) => {
+    console.error("test push failed", String(error).slice(0, 200));
+    return undefined;
+  });
+  if (!result) return c.json({ error: "The alert server couldn't sign in to the push service. Check its push key." }, 502);
   return c.json(result, result.status === 200 ? 200 : 502);
 });
 
 app.onError((error, c) => {
   if (error instanceof valid.Invalid) return c.json({ error: error.message }, 400);
-  if (error instanceof NotOwner) return c.json({ error: "This phone is registered by another install of Polaris" }, 403);
+  if (error instanceof NotOwner) return c.json({ error: "This phone is registered by another install of Polaris", code: "not_owner" }, 403); // the code tells the app this 403 is the server's own, not a proxy's
   console.error(error);
   return c.json({ error: "Something went wrong" }, 500);
 });

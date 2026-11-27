@@ -59,9 +59,13 @@ class TripSession(
     /** Bumped when the trip on screen may have changed (its own version, or a new or ended trip). */
     val version: StateFlow<Int> = _version.asStateFlow()
 
-    /** Bumped each time a trip ends by itself, so the window goes back to Home (not to a journey page offering the trip again). */
+    /** Bumped each time a trip ends by itself, so the window leaves the trip's page for whatever was open under it. */
     private val _endedItself = MutableStateFlow(0)
     val endedItself: StateFlow<Int> = _endedItself.asStateFlow()
+
+    /** The journey of the trip that last ended by itself: its own page goes with the trip's, rather than offering Go for a trip just made. */
+    var endedJourney: String? = null
+        private set
 
     /** A resumed trip the window should open Go for, once. */
     private val _opens = MutableStateFlow(false)
@@ -166,6 +170,7 @@ class TripSession(
         }
         if (there || (at != null && now > at)) {
             val destination = trip.query.destination.name
+            endedJourney = trip.journey.id
             end()
             _endedItself.value += 1
             endedByItself(there, destination)

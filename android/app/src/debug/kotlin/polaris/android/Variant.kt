@@ -27,9 +27,87 @@ import polaris.engine.TimeMode
  */
 object Variant {
     fun transport(context: Context, intent: Intent?): HttpTransport? {
-        val scenario = intent?.getStringExtra("demo") ?: return null
-        return DemoTransport(context.applicationContext, scenario)
+        // An alerts check alone runs on the recorded answers too (the routes scenario).
+        val scenario = intent?.getStringExtra("demo") ?: if (intent?.getStringExtra("alerts") != null) "routes" else return null
+        return DemoTransport(context.applicationContext, scenario, intent?.getStringExtra("alerts"))
     }
+
+    /**
+     * `--es alerts <state>`: the alerts pages on made-up answers, for checking each of their
+     * states with no alerts server, no Firebase and nothing sent. A made-up server
+     * (alerts.example.com, answered by the demo transport) stands in, in a store kept in memory,
+     * so the real settings and saved alerts are not touched. States:
+     * - `lines`: two saved alerts, one with a station closed and one with planned works; a push
+     *   address made up; "Send a test notification" shows a notice drawn locally (simulated);
+     * - `many`: as `lines` with four more alerts, with long names (a name given, Heathrow, the Overground and the DLR);
+     * - `empty`: the server, no alerts yet;
+     * - `noPush`: as `lines` in a build with no push service;
+     * - `unavailable`: as `lines` on a phone without Google Play services;
+     * - `pushFailed`: as `lines`, the push service giving no address;
+     * - `cantPush`: as `lines`, the server saying it can't send to Android phones;
+     * - `noServer`: no alerts server at all.
+     * Never in release builds; shots of these are labelled simulated.
+     */
+    fun push(intent: Intent?): polaris.engine.PushRegistrar? {
+        val state = intent?.getStringExtra("alerts") ?: return null
+        return object : polaris.engine.PushRegistrar {
+            override val availability = when (state) {
+                "noPush", "noServer" -> polaris.engine.PushAvailability.notSetUp
+                "unavailable" -> polaris.engine.PushAvailability.unavailable
+                else -> polaris.engine.PushAvailability.ready
+            }
+            override suspend fun register(): String {
+                delay(300)
+                if (state == "pushFailed") throw IllegalStateException("simulated: no address")
+                return "c2ltdWxhdGVkLWFkZHJlc3M"
+            }
+        }
+    }
+
+    /** With `--es alerts`: the saved alerts in memory, two of them unless the state has none. */
+    fun values(context: Context, intent: Intent?): polaris.engine.KeyValueStore? {
+        val state = intent?.getStringExtra("alerts") ?: return null
+        return polaris.engine.InMemoryKeyValueStore().apply {
+            if (state !in setOf("empty", "noServer")) putString(polaris.engine.AlertStore.ALERTS, polaris.engine.RouteAlert.encode(when (state) {
+                "many" -> DEMO_ALERTS + MORE_ALERTS
+                // The most a phone can have, and three past it (saved before the limit was kept).
+                "full" -> DEMO_ALERTS + (3..polaris.engine.RouteAlert.MAX_ALERTS).map { DEMO_ALERTS[1].copy(id = "DEMO-$it", name = "Alert $it") }
+                "over" -> DEMO_ALERTS + (3..polaris.engine.RouteAlert.MAX_ALERTS + 3).map { DEMO_ALERTS[1].copy(id = "DEMO-$it", name = "Alert $it") }
+                else -> DEMO_ALERTS
+            }))
+        }
+    }
+
+    private fun stretch(lineId: String, lineName: String, mode: String, from: String, to: String) = polaris.engine.RouteAlert.Segment(
+        polaris.engine.RouteAlert.Line(lineId, lineName), mode, polaris.engine.RouteAlert.Station("demo-$from", from), polaris.engine.RouteAlert.Station("demo-$to", to), listOf("demo-$from", "demo-$to"),
+    )
+
+    /** Long names, for seeing how rows hold them. */
+    val MORE_ALERTS = listOf(
+        polaris.engine.RouteAlert(id = "DEMO-NAMED", name = "Mornings to the office by the river, and back again in the evening", segments = listOf(stretch("jubilee", "Jubilee line", "tube", "Bond Street", "Canary Wharf"))),
+        polaris.engine.RouteAlert(id = "DEMO-HEATHROW", segments = listOf(stretch("elizabeth", "Elizabeth line", "elizabeth-line", "Heathrow Terminals 2 & 3", "Tottenham Court Road"), stretch("piccadilly", "Piccadilly line", "tube", "Heathrow Terminals 2 & 3", "King's Cross St. Pancras"))),
+        polaris.engine.RouteAlert(id = "DEMO-OVERGROUND", days = listOf(1, 3, 5), segments = listOf(stretch("mildmay", "Mildmay line", "overground", "Hampstead Heath", "Stratford"), stretch("windrush", "Windrush line", "overground", "Highbury & Islington", "Clapham Junction"))),
+        polaris.engine.RouteAlert(id = "DEMO-DLR", days = (1..7).toList(), windows = listOf(polaris.engine.RouteAlert.TimeWindow(6 * 60, 23 * 60)), segments = listOf(polaris.engine.RouteAlert.Segment(polaris.engine.RouteAlert.Line("dlr", "DLR"), "dlr"), polaris.engine.RouteAlert.Segment(polaris.engine.RouteAlert.Line("tram", "Tram"), "tram"))),
+    )
+
+    /** Liverpool Street to Canary Wharf on the Elizabeth line, both ways at their own times; and the whole District line at weekends. */
+    val DEMO_ALERTS = listOf(
+        polaris.engine.RouteAlert(
+            id = "DEMO-COMMUTE", direction = polaris.engine.RouteAlert.Direction.out,
+            windows = listOf(polaris.engine.RouteAlert.TimeWindow(7 * 60, 10 * 60), polaris.engine.RouteAlert.TimeWindow(16 * 60 + 30, 19 * 60 + 30, polaris.engine.RouteAlert.Direction.back)),
+            segments = listOf(
+                polaris.engine.RouteAlert.Segment(
+                    polaris.engine.RouteAlert.Line("elizabeth", "Elizabeth line"), "elizabeth-line",
+                    polaris.engine.RouteAlert.Station("910GLIVSTLL|910GLIVST", "Liverpool Street"), polaris.engine.RouteAlert.Station("910GCANWHRF", "Canary Wharf"),
+                    listOf("910GLIVSTLL|910GLIVST", "910GWCHAPXR", "910GCANWHRF"),
+                ),
+            ),
+        ),
+        polaris.engine.RouteAlert(
+            id = "DEMO-WEEKEND", days = listOf(6, 7), windows = listOf(polaris.engine.RouteAlert.TimeWindow(10 * 60, 14 * 60)), minorDelays = false,
+            segments = listOf(polaris.engine.RouteAlert.Segment(polaris.engine.RouteAlert.Line("district", "District line"), "tube")),
+        ),
+    )
 
     /**
      * `--ez unreadableKey true`: a simulated store whose TfL key reads as saved but unreadable
@@ -37,6 +115,12 @@ object Variant {
      * written to it is kept in memory. Never in release builds; the real store is not touched.
      */
     fun secrets(intent: Intent?): polaris.engine.SecretStore? {
+        // An alerts check: the made-up server, entered in a store kept in memory (none for `noServer`).
+        intent?.getStringExtra("alerts")?.let { state ->
+            return polaris.engine.InMemorySecretStore().apply {
+                if (state != "noServer") write(polaris.engine.AlertServer.encodeRecord("https://alerts.example.com", "simulated"), polaris.engine.AlertServer.ACCOUNT)
+            }
+        }
         if (intent?.getBooleanExtra("unreadableKey", false) != true) return null
         return object : polaris.engine.SecretStore {
             private val memory = polaris.engine.InMemorySecretStore()
@@ -120,7 +204,45 @@ private const val CLOSED_LINE = """[
    "reason":"Elizabeth line: no service while engineering work takes place."}]}
 ]"""
 
-private class DemoTransport(private val context: Context, private val scenario: String) : HttpTransport {
+private class DemoTransport(private val context: Context, private val scenario: String, private val alerts: String? = null) : HttpTransport {
+    /**
+     * The made-up alerts server: registration taken, what "TfL says" (a station closed on the
+     * first demo alert, planned works on the second, good service on any other), and a test that
+     * is drawn here as its notice would be, since nothing can be sent.
+     */
+    private fun alertsServer(request: HttpRequest): HttpResponse {
+        fun json(text: String, status: Int = 200) = HttpResponse(status, text.encodeToByteArray())
+        val path = java.net.URI(request.url).path
+        return when {
+            path == "/v1/status" -> {
+                val ids = Regex(""""id":"([^"]+)"""").findAll(request.body?.decodeToString() ?: "").map { it.groupValues[1] }.filter { '|' !in it && it != "elizabeth" && it != "district" }.distinct().toList()
+                val planned = java.time.LocalDate.now().plusDays(1).atTime(4, 30).toInstant(java.time.ZoneOffset.UTC)
+                val entries = ids.map { id ->
+                    when (id) {
+                        "DEMO-COMMUTE" -> """{"id":"$id","issues":[{"severity":"closed","title":"Canary Wharf closed (Elizabeth line)","detail":"Canary Wharf: This station is closed while a faulty escalator is repaired. Use Heron Quays or Canary Wharf Jubilee line station instead."},{"severity":"minor","title":"Elizabeth line: minor delays","detail":"Minor delays between Paddington and Abbey Wood due to an earlier signal failure at Whitechapel."}],"upcoming":[]}"""
+                        "DEMO-WEEKEND" -> """{"id":"$id","issues":[],"upcoming":[{"severity":"closed","title":"District line: part closure","detail":"No service between Earl's Court and Wimbledon while we carry out track work. Replacement buses run.","from":"$planned"}]}"""
+                        else -> """{"id":"$id","issues":[],"upcoming":[]}"""
+                    }
+                }
+                json("""{"checkedAt":"${java.time.Instant.now()}","alerts":[${entries.joinToString(",")}]}""")
+            }
+            path.endsWith("/test") -> {
+                polaris.android.alerts.LineNotice.parse(
+                    mapOf(
+                        "alert" to "DEMO-COMMUTE", "tag" to "DEMO-COMMUTE-test", "title" to "Liverpool Street → Canary Wharf", "subtitle" to "Canary Wharf closed (Elizabeth line)",
+                        // As the server sends a test while TfL has trouble on the alert: that trouble's own words, marked as a test.
+                        "body" to "Canary Wharf: This station is closed while a faulty escalator is repaired.", "level" to "urgent", "test" to "1",
+                    ),
+                    System.currentTimeMillis(),
+                )?.let { polaris.android.alerts.LineNotices.show(context, it) }
+                json("""{"status":200,"gone":false}""")
+            }
+            request.method == "PUT" -> json("""{"ok":true,"alerts":2,"pushes":${alerts != "cantPush"}}""")
+            request.method == "DELETE" -> json("""{"ok":true}""")
+            else -> json("""{"error":"Not found"}""", 404)
+        }
+    }
+
     /** How far the recordings move: their first journey (11:58 on 28 Oct 2026, GMT) to four minutes from now. */
     private val shift: java.time.Duration = if (scenario == "stale") java.time.Duration.ZERO else
         java.time.Duration.between(java.time.Instant.parse("2026-10-28T11:58:00Z"), java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES).plusSeconds(240))
@@ -150,6 +272,10 @@ private class DemoTransport(private val context: Context, private val scenario: 
         }
         fun json(text: String) = HttpResponse(200, text.encodeToByteArray())
         return when {
+            request.host == "alerts.example.com" -> alertsServer(request)
+            // TfL's lines, and one line's stations: the Elizabeth line's stand in for whichever line is opened.
+            "/Line/Mode/" in url && "/Status" !in url -> HttpResponse(200, context.assets.open("demo/tfl-lines.json").use { it.readBytes() })
+            "/Route/Sequence/" in url -> HttpResponse(200, context.assets.open("demo/tfl-route-elizabeth.json").use { it.readBytes() })
             "/api/v1/geocode" in url -> when {
                 scenario == "searchError" -> HttpResponse(503, ByteArray(0))
                 "text=king" in url -> asset("transitous-geocode-kings-cross.json")
