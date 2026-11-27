@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +25,18 @@ import polaris.android.app.AppGraph
 @RunWith(AndroidJUnit4::class)
 class GoDeviceTest {
     @get:Rule val compose = createEmptyComposeRule()
+
+    /** These tests delete the app's saved trip and change its permissions: never on a real phone. */
+    @Before fun onlyOnAnEmulator() {
+        val emulator = android.os.Build.HARDWARE in setOf("ranchu", "goldfish") || android.os.Build.FINGERPRINT.contains("generic") ||
+            android.os.Build.PRODUCT.startsWith("sdk_")
+        check(emulator) { "GoDeviceTest runs only on an emulator; this device is not one" }
+    }
+
+    private fun shell(command: String): String {
+        val fd = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(fd).bufferedReader().use { it.readText() }
+    }
 
     private fun grant(permission: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -79,6 +92,42 @@ class GoDeviceTest {
             end.actionIntent.send()
             compose.waitUntil(15_000) { tripNotification() == null && !serviceRunning() && AppGraph.cached()?.trips?.trip?.value == null }
             compose.waitUntil(10_000) { !java.io.File(context.noBackupFilesDir, "trip.json").exists() }
+        }
+    }
+
+    /**
+     * A fresh install's first Go: notifications not yet allowed when the trip starts, then allowed
+     * on Android's prompt from the same tap. The trip's nudges get their alarms then.
+     */
+    @Test fun nudgesAreSetWhenNotificationsAreAllowedOnTheGoTap() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        grant(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        shell("pm revoke ${context.packageName} ${android.Manifest.permission.POST_NOTIFICATIONS}")
+        shell("pm clear-permission-flags ${context.packageName} ${android.Manifest.permission.POST_NOTIFICATIONS} user-set user-fixed")
+        java.io.File(context.noBackupFilesDir, "trip.json").delete()
+        fun alarmsSet() = shell("dumpsys alarm").lines().count { it.contains(context.packageName) && it.contains(polaris.android.trip.TripNotifier.ACTION_ALERT) }
+        val intent = Intent(context, MainActivity::class.java).putExtra("demo", "routes").putExtra("trip", true)
+        ActivityScenario.launch<MainActivity>(intent).use {
+            compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Best route", substring = true).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodesWithContentDescription("Best route", substring = true).onFirst().performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Go")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodes(hasText("Go")).onFirst().performClick()
+            // Android's own prompt, in its own window: tap Allow as the person would.
+            val deadline = System.currentTimeMillis() + 15_000
+            var tapped = false
+            while (!tapped && System.currentTimeMillis() < deadline) {
+                val ui = instrumentation.uiAutomation
+                val allow = (listOfNotNull(ui.rootInActiveWindow) + runCatching { ui.windows.mapNotNull { it.root } }.getOrDefault(emptyList()))
+                    .flatMap { it.findAccessibilityNodeInfosByText("Allow") }
+                    .firstOrNull { it.isClickable && it.text?.toString() == "Allow" }
+                if (allow != null) tapped = allow.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) else Thread.sleep(300)
+            }
+            check(tapped) { "no notification prompt to allow" }
+            compose.waitUntil(15_000) { alarmsSet() > 0 }
+            compose.onAllNodes(hasText("End")).onFirst().performClick()
+            compose.waitUntil(10_000) { alarmsSet() == 0 }
         }
     }
 }

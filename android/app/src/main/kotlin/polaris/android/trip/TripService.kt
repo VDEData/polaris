@@ -112,14 +112,31 @@ class TripActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** A timed nudge's alarm: posts it, unless the trip has ended (End cancels the alarms too). */
+/**
+ * A timed nudge's alarm: posts it while its trip runs. In this process it asks the trip's notifier
+ * (which may have posted it already); with the process gone it reads the saved trip, so a trip
+ * ended from the shade, or gone stale, gets nothing.
+ */
 class TripAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != TripNotifier.ACTION_ALERT) return
         val id = intent.getStringExtra(TripNotifier.EXTRA_ALERT_ID) ?: return
+        val title = intent.getStringExtra(TripNotifier.EXTRA_TITLE) ?: return
+        val body = intent.getStringExtra(TripNotifier.EXTRA_BODY) ?: ""
         val graph = AppGraph.cached()
-        // In this process with no trip running: it ended, so the nudge is stale.
-        if (graph != null && graph.trips.trip.value == null && !graph.trips.hasPending) return
-        TripNotifier.postAlert(context, id, intent.getStringExtra(TripNotifier.EXTRA_TITLE) ?: return, intent.getStringExtra(TripNotifier.EXTRA_BODY) ?: "")
+        if (graph != null && (graph.trips.trip.value != null || graph.trips.hasPending)) {
+            if (graph.trips.trip.value == null || graph.notifier?.alarmFired(id) != false) TripNotifier.postAlert(context, id, title, body)
+            return
+        }
+        // No trip in this process: only the saved file can say one is still on.
+        val done = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val saved = ReceiverStore.of(context).load()
+                if (saved != null && saved.isResumable(Instant.now())) TripNotifier.postAlert(context, id, title, body)
+            } finally {
+                done.finish()
+            }
+        }
     }
 }

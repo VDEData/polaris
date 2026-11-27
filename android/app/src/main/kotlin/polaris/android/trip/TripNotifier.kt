@@ -78,6 +78,8 @@ class TripNotifier(
         running = true
         shown = null
         update(card)
+        // Allowed only now (asked on this Go tap): the nudges planned before are set.
+        nudges.apply()
         startService()
     }
 
@@ -121,37 +123,43 @@ class TripNotifier(
 
     /**
      * The timed nudges as inexact alarms that may fire while the phone sleeps
-     * (`setAndAllowWhileIdle`, no exact-alarm permission). Android may hold one by a few minutes
-     * in deep sleep (Doze); a nudge already within a minute of its time is posted straight away.
+     * (`setAndAllowWhileIdle`, no exact-alarm permission); Android may hold one by a few minutes in
+     * deep sleep (Doze). [NudgeKeeper] decides which to set, cancel or post now.
      */
-    override fun schedule(alerts: List<TripAlert>) {
-        cancelAlarms()
-        if (!allowed) return
-        val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
-        val now = clock()
-        val w = words
-        for (alert in polaris.engine.TripAlerts.toAdd(alerts, now)) {
-            val (title, body) = w.alert(alert)
+    private val nudges = NudgeKeeper(object : NudgePort {
+        override val allowed get() = this@TripNotifier.allowed
+        override fun setAlarm(alert: TripAlert) {
+            val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
+            val (title, body) = words.alert(alert)
             val intent = Intent(context, TripAlarmReceiver::class.java).setAction(ACTION_ALERT)
                 .putExtra(EXTRA_ALERT_ID, alert.id).putExtra(EXTRA_TITLE, title).putExtra(EXTRA_BODY, body)
             val pending = PendingIntent.getBroadcast(context, TripNoticePlan.alarmRequest(alert.id), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             // The alarm clock runs on the phone's time; the trip's clock may run ahead in a debug check.
-            val inMillis = (alert.date.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(1_000)
+            val inMillis = (alert.date.toEpochMilli() - clock().toEpochMilli()).coerceAtLeast(1_000)
             runCatching { alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + inMillis, pending) }
         }
-    }
-
-    private fun cancelAlarms() {
-        val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
-        for (id in polaris.engine.TripAlerts.allIds) {
-            val intent = Intent(context, TripAlarmReceiver::class.java).setAction(ACTION_ALERT)
-            PendingIntent.getBroadcast(context, TripNoticePlan.alarmRequest(id), intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
-                ?.let { alarms.cancel(it); it.cancel() }
+        override fun cancelAlarm(id: String) = cancelAlarm(context, id)
+        override fun post(alert: TripAlert) {
+            channels()
+            val (title, body) = words.alert(alert)
+            postAlert(context, alert.id, title, body)
         }
+        override fun isShowing(id: String) = runCatching {
+            context.getSystemService(NotificationManager::class.java)?.activeNotifications?.any { it.tag == id && it.id == ID_ALERT } == true
+        }.getOrDefault(false)
+    }, clock)
+
+    override fun schedule(alerts: List<TripAlert>) = nudges.schedule(alerts)
+
+    /** A nudge's alarm fired in this process: shown unless it already was. */
+    fun alarmFired(id: String): Boolean {
+        if (nudges.wasShown(id)) return false
+        nudges.shown(id)
+        return true
     }
 
     override fun cancel() {
-        cancelAlarms()
+        nudges.cancelAll()
         polaris.engine.TripAlerts.allIds.forEach { manager.cancel(it, ID_ALERT) }
     }
 
@@ -352,8 +360,16 @@ class TripNotifier(
             runCatching { NotificationManagerCompat.from(context).notify(id, ID_ALERT, notification) }
         }
 
-        /** A launch with no trip to pick up: whatever the last trip left in the shade goes. */
+        fun cancelAlarm(context: Context, id: String) {
+            val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
+            val intent = Intent(context, TripAlarmReceiver::class.java).setAction(ACTION_ALERT)
+            PendingIntent.getBroadcast(context, TripNoticePlan.alarmRequest(id), intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+                ?.let { alarms.cancel(it); it.cancel() }
+        }
+
+        /** A launch with no trip to pick up, or End with the process gone: whatever the last trip left in the shade, and its alarms, go. */
         fun removeLeftovers(context: Context) {
+            polaris.engine.TripAlerts.allIds.forEach { cancelAlarm(context, it) }
             val manager = NotificationManagerCompat.from(context)
             manager.cancel(ID_TRIP)
             manager.cancel(ID_OFFER)
