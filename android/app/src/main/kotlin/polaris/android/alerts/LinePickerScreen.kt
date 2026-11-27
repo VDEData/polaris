@@ -122,6 +122,10 @@ fun LinePickerScreen(lines: TfLLines, night: Boolean, onPick: (TfLLines.Line) ->
     val c = polaris
     var search by rememberSaveable { mutableStateOf("") }
     val (state, retry) = loaded(lines) { lines.lines() }
+    // The keyboard goes with the search it was for, rather than staying up over the stations.
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val pick: (TfLLines.Line) -> Unit = { line -> focus.clearFocus(); keyboard?.hide(); onPick(line) }
     CoverPage(night) {
         PickerHeader(stringResource(R.string.lines_title), stringResource(R.string.lines_close), onBack)
         SearchField(search, stringResource(R.string.lines_search)) { search = it }
@@ -144,7 +148,7 @@ fun LinePickerScreen(lines: TfLLines, night: Boolean, onPick: (TfLLines.Line) ->
                                 shown.forEachIndexed { index, line ->
                                     if (index > 0) HorizontalDivider(color = c.hairline)
                                     Row(
-                                        Modifier.fillMaxWidth().clickable(role = Role.Button) { onPick(line) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                                        Modifier.fillMaxWidth().clickable(role = Role.Button) { pick(line) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
                                         // The line's own colour and kind, with no name on it: the name is beside it.

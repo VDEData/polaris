@@ -57,12 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import polaris.android.R
 import polaris.android.settings.CoverPage
-import polaris.android.settings.coverBottom
+import polaris.android.settings.coverKeyboardPadding
 import polaris.android.ui.HalfDialog
 import polaris.android.ui.LinePill
 import polaris.android.ui.SectionHeader
 import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
+import polaris.android.ui.staysAboveKeyboard
 import polaris.android.ui.surface
 import polaris.engine.AlertStore
 import polaris.engine.PushAvailability
@@ -113,9 +114,10 @@ fun AlertEditorScreen(
             )
             Button(onClick = save, enabled = alert.isValid, modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alert_save)) }
         }
+        val (aboveKeyboard, underLast) = coverKeyboardPadding()
         LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = coverBottom()),
+            Modifier.fillMaxSize().padding(bottom = aboveKeyboard),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = underLast),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val status = if (model.isNew) null else state.status[alert.id]
@@ -244,7 +246,7 @@ fun AlertEditorScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(AlertEditorViewModel.MAX_NAME); model.setName(name) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).staysAboveKeyboard(),
                     label = { Text(stringResource(R.string.alert_name)) },
                     placeholder = { Text(alert.defaultName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     singleLine = true,

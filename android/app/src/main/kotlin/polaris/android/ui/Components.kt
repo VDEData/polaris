@@ -1,6 +1,9 @@
 package polaris.android.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -213,4 +216,26 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, trailing: @Compo
         )
         trailing()
     }
+}
+
+/**
+ * For a text field low on a scrolling page: once it has the focus and the keyboard has come up,
+ * the page scrolls to keep it showing, rather than leaving the person typing behind the keyboard.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.staysAboveKeyboard(): Modifier {
+    val requester = androidx.compose.runtime.remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return this
+        .then(Modifier.bringIntoViewRequester(requester))
+        .then(
+            Modifier.onFocusEvent { state ->
+                if (state.isFocused) scope.launch {
+                    // After the keyboard's own animation, when the page knows how much room is left.
+                    kotlinx.coroutines.delay(350)
+                    requester.bringIntoView()
+                }
+            },
+        )
 }

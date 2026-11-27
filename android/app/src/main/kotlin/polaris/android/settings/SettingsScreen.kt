@@ -86,6 +86,7 @@ import polaris.android.ui.SectionHeader
 import polaris.android.ui.SourceBadge
 import polaris.android.ui.Symbol
 import polaris.android.ui.polaris
+import polaris.android.ui.staysAboveKeyboard
 import polaris.android.ui.surface
 import polaris.engine.Appearance
 import polaris.engine.AlertStore
@@ -143,6 +144,20 @@ fun CoverPage(night: Boolean, content: @Composable androidx.compose.foundation.l
 @Composable
 fun coverBottom(): androidx.compose.ui.unit.Dp = 24.dp + coverInset()
 
+/**
+ * For a cover page's list that has text fields: the list ends above the keyboard while it is up
+ * (so the field being typed in is scrolled into what is left showing), and otherwise runs to the
+ * foot of the page with [coverBottom] under its last row. Returns the list's bottom padding and
+ * its content's.
+ */
+@Composable
+fun coverKeyboardPadding(): Pair<androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp> {
+    // Wide, the page is a card whose window already ends above the keyboard.
+    if (LocalWindowLayout.current.wide) return 0.dp to coverBottom()
+    val keyboard = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    return if (keyboard > 0.dp) keyboard to 24.dp else 0.dp to coverBottom()
+}
+
 /** What covers the foot of a cover page: the keyboard or the navigation bar; nothing when wide (a card). */
 @Composable
 fun coverInset(): androidx.compose.ui.unit.Dp =
@@ -165,10 +180,11 @@ fun SettingsScreen(graph: AppGraph, shell: ShellViewModel, night: Boolean, openS
             Text(stringResource(R.string.settings_title), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall, color = c.ink)
         }
         val list = rememberLazyListState()
+        val (aboveKeyboard, underLast) = coverKeyboardPadding()
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().padding(bottom = aboveKeyboard),
             state = list,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = coverBottom()),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = underLast),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (ui.lost.isNotEmpty()) item(key = "lost") { LostNotice(ui.lost, model::acknowledgeLost) }
@@ -459,7 +475,7 @@ private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
         OutlinedTextField(
             value = url,
             onValueChange = { url = it; problem = null },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().staysAboveKeyboard(),
             label = { Text(stringResource(R.string.item_server_title)) },
             placeholder = { Text(stringResource(R.string.item_server_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             singleLine = true,
@@ -471,7 +487,7 @@ private fun AlertServerItem(graph: AppGraph, showLater: Boolean) {
         OutlinedTextField(
             value = token,
             onValueChange = { token = it; problem = null },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().staysAboveKeyboard(),
             label = { Text(tokenName) },
             singleLine = true,
             visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),

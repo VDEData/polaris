@@ -279,7 +279,13 @@ private const val ASKED_FILE = "polaris-notices-asked"
 /** Whether Polaris has asked for notifications for alerts before (after a refusal Android may not ask again: then the way is its settings). */
 fun askedForNotifications(context: Context): Boolean = context.getSharedPreferences(ASKED_FILE, Context.MODE_PRIVATE).getBoolean("asked", false)
 
-private fun markAsked(context: Context) = context.getSharedPreferences(ASKED_FILE, Context.MODE_PRIVATE).edit().putBoolean("asked", true).apply()
+/** Bumped when the ask has been answered, so every page showing the permission's state (the list under the editor) reads it again. */
+private val askedChanges = androidx.compose.runtime.mutableIntStateOf(0)
+
+private fun markAsked(context: Context) {
+    context.getSharedPreferences(ASKED_FILE, Context.MODE_PRIVATE).edit().putBoolean("asked", true).apply()
+    askedChanges.intValue++
+}
 
 /**
  * Android 13 and later ask; before that notifications are on unless turned off in settings, so
@@ -288,8 +294,9 @@ private fun markAsked(context: Context) = context.getSharedPreferences(ASKED_FIL
 @Composable
 fun rememberNotificationPermission(then: () -> Unit = {}): NotificationPermission {
     val context = LocalContext.current
-    var granted by remember { mutableStateOf(LineNotices.allowed(context)) }
-    var asked by remember { mutableStateOf(Build.VERSION.SDK_INT < 33 || askedForNotifications(context)) }
+    val changes = askedChanges.intValue
+    var granted by remember(changes) { mutableStateOf(LineNotices.allowed(context)) }
+    var asked by remember(changes) { mutableStateOf(Build.VERSION.SDK_INT < 33 || askedForNotifications(context)) }
     LifecycleResumeEffect(Unit) {
         granted = LineNotices.allowed(context)
         onPauseOrDispose { }
