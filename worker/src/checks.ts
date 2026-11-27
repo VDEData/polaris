@@ -2,7 +2,7 @@
 // while after a time ends, any disruption told until it has ended. Nothing is fetched when
 // nobody is travelling or waiting to hear. The evening before, planned works on tomorrow's trips.
 
-import { canPush, send, type ApnsEnv } from "./apns.ts";
+import { canPush, platform, send, type PushEnv } from "./deliver.ts";
 import { loadLineMaps } from "./linemap.ts";
 import { hash, issuesFor, issuesInRanges, linesToPlace, troubled, type LineMaps } from "./match.ts";
 import { follow, following, forget, MAX_RETRIES, place, plannedStep, step, type AlertState, type Context, type DeviceState, type Ways } from "./policy.ts";
@@ -11,7 +11,7 @@ import { activeWindows, dateKey, during, eachWay, localTime, PLANNED_CHECK_AT, t
 import { fetchTfL, lineStatusURL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL, type LineStatus, type StationDisruption } from "./tfl.ts";
 import type { Alert, Device, Direction } from "./types.ts";
 
-export interface Env extends ApnsEnv {
+export interface Env extends PushEnv {
   APP_TOKEN?: string;
   TFL_APP_KEY?: string;
   /** How many phones may register (a var; default 100). */
@@ -51,13 +51,16 @@ export async function loadDevices(env: Env): Promise<(Device & { state: DeviceSt
 
 export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: number; checked: number; sent: number }> {
   const devices = await loadDevices(env);
-  // Without the push key, key ID, team and topic nothing can be sent, so nothing is judged:
-  // a disruption marked told that no phone heard about would never be told.
-  if (!canPush(env)) {
-    if (devices.length) console.error("pushes not configured: set APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID and APNS_TOPIC");
-    return { devices: devices.length, checked: 0, sent: 0 };
+  // Without the push key, key ID, team and topic (for an Android phone, the Firebase service
+  // account) nothing can be sent to a phone, so nothing is judged for it: a disruption marked
+  // told that no phone heard about would never be told. Phones on the other service still run.
+  const reachable = devices.filter((d) => canPush(env, platform(d.token)));
+  if (reachable.length < devices.length) {
+    if (devices.some((d) => platform(d.token) === "apns") && !canPush(env, "apns")) console.error("pushes not configured: set APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID and APNS_TOPIC");
+    if (devices.some((d) => platform(d.token) === "fcm") && !canPush(env, "fcm")) console.error("Android pushes not configured: set FCM_SERVICE_ACCOUNT");
   }
-  const work = devices.flatMap((device) => {
+  if (!reachable.length) return { devices: devices.length, checked: 0, sent: 0 };
+  const work = reachable.flatMap((device) => {
     try {
       return [plan(device)];
     } catch (error) {
@@ -282,9 +285,9 @@ export function waysFor(alert: Alert, base: Alert, lines: LineStatus[], stations
   };
 }
 
-/** One push: sent; the phone is gone; worth trying again (APNs busy or rate limited, a network
- * failure, an expired provider token it has just dropped); or refused for good (bad topic,
- * payload, key), which is logged loudly and not retried. */
+/** One push: sent; the phone is gone; worth trying again (APNs or FCM busy or rate limited, a
+ * network failure, an expired provider or access token it has just dropped); or refused for good
+ * (bad topic, payload, key), which is logged loudly and not retried. */
 async function attempt(env: Env, token: string, environment: Device["environment"], push: Push, now: number): Promise<"sent" | "gone" | "retry" | "refused"> {
   try {
     const result = await send(env, token, environment, push, now);
@@ -293,11 +296,12 @@ async function attempt(env: Env, token: string, environment: Device["environment
       return "gone";
     }
     if (result.status === 200) return "sent";
-    if (result.status === 429 || result.status >= 500 || result.reason === "ExpiredProviderToken") {
-      console.error("APNs busy, will retry", result.status, result.reason);
+    const service = platform(token) === "apns" ? "APNs" : "FCM";
+    if (result.status === 429 || result.status >= 500 || result.reason === "ExpiredProviderToken" || result.retry) {
+      console.error(`${service} busy, will retry`, result.status, result.reason);
       return "retry";
     }
-    console.error("APNs REFUSED for good: check the push setup", result.status, result.reason);
+    console.error(`${service} REFUSED for good: check the push setup`, result.status, result.reason);
     return "refused";
   } catch (error) {
     console.error("push failed, will retry", String(error));

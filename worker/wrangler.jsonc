@@ -16,6 +16,8 @@
   // APNS_TEAM_ID (your Apple team ID) and APNS_TOPIC (the app's bundle ID, POLARIS_BUNDLE_ID)
   // are vars in wrangler.local.jsonc, or secrets. Secrets (wrangler secret put): APP_TOKEN,
   // shared with the app; APNS_KEY and APNS_KEY_ID, the .p8 push key. TFL_APP_KEY is optional.
+  // For Android phones, FCM_SERVICE_ACCOUNT (a secret): your Firebase project's service-account
+  // file. Either push service can be left out; phones on the other are still told.
   // MAX_DEVICES (a var, default 100) caps how many phones can register.
   "d1_databases": [
     {

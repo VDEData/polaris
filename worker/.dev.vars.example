@@ -4,3 +4,7 @@ APP_TOKEN=
 # Apple Push Notifications key (developer.apple.com, Keys): the .p8 file's contents and its key ID.
 APNS_KEY=
 APNS_KEY_ID=
+# Android phones (optional): the Firebase service-account file's contents, on one line. In the
+# Firebase console: Project settings, Service accounts, Generate new private key. Live, set it
+# from the file itself: `pnpm exec wrangler secret put FCM_SERVICE_ACCOUNT < the-file.json`.
+FCM_SERVICE_ACCOUNT=
