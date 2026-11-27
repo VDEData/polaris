@@ -154,15 +154,26 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, shell: polaris.android.shel
     // if it hasn't been allowed (Go still runs on the timetable without it).
     val tripVersion by graph.trips.version.collectAsStateWithLifecycle()
     val following = remember(tripVersion, journey?.id) { journey?.let { graph.trips.following(it.id) } }
+    // Then notifications, for the trip in the shade and its alerts (Android 13 and later ask).
+    val askNotifications = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) graph.trips.trip.value?.let { trip -> graph.notifier?.let { n -> n.start(trip.query.destination.name, trip.card(), adopt = true) } }
+    }
+    val notificationsNeeded = { android.os.Build.VERSION.SDK_INT >= 33 && graph.notifier?.allowed == false }
     val askLocation = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.values.any { it }) shell.locationAllowed()
+        if (result.values.any { it }) {
+            shell.locationAllowed()
+            graph.notifier?.startService()
+        }
+        if (notificationsNeeded()) askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
     }
     val go: () -> Unit = go@{
         val j = journey ?: return@go
         val q = query ?: return@go
         if (following == null) {
             graph.trips.start(j, q)
+            // Asked here, on the tap that needs them, never at launch: location first, then notifications.
             if (!graph.locator.hasPermission) askLocation.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION))
+            else if (notificationsNeeded()) askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         openGo()
     }

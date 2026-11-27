@@ -116,7 +116,14 @@ inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: 
  * use the sheet.
  */
 @Composable
-fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null, showSetup: Boolean = false) {
+fun PolarisApp(
+    graph: AppGraph,
+    night: Boolean,
+    startTrip: polaris.engine.JourneyQuery? = null,
+    showSetup: Boolean = false,
+    goRequest: polaris.android.GoRequest? = null,
+    goRequestTaken: () -> Unit = {},
+) {
     val shell: ShellViewModel = viewModel(factory = factory { ShellViewModel(graph) })
     // First-run setup is over everything on a fresh start; after that the saved stack decides.
     val window = rememberNavBackStack(*(if (showSetup) arrayOf<NavKey>(MainWindow, SetupWindow) else arrayOf<NavKey>(MainWindow)))
@@ -142,6 +149,21 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // Before any page is composed: a Go page restored with the stack finds its trip already back,
     // rather than closing itself for want of one (and losing its sheet height and scroll place).
     remember(graph) { graph.trips.resumePending() }
+    // Go's notification tapped: Go on top, and Switch taken there (after a cold launch the trip is
+    // the resumed one, whose offer wasn't kept: it says the faster way has gone).
+    LaunchedEffect(goRequest) {
+        val request = goRequest ?: return@LaunchedEffect
+        goRequestTaken()
+        graph.trips.resumePending()
+        val trip = graph.trips.trip.value ?: return@LaunchedEffect
+        // A verified tap takes the offer; an unverified one (after a cold launch the token is new)
+        // only reaches a trip with no live offer, which then says the faster way has gone.
+        if (request.switch && (request.verified || trip.offer == null)) trip.acceptOffer()
+        if (pages.lastOrNull() != GoPage) {
+            pages.removeAll { it == GoPage }
+            pages.add(GoPage)
+        }
+    }
     LaunchedEffect(tripOpens) {
         if (!tripOpens) return@LaunchedEffect
         graph.trips.opened()

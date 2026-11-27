@@ -56,4 +56,29 @@ class GoDeviceTest {
             compose.waitUntil(10_000) { !java.io.File(context.noBackupFilesDir, "trip.json").exists() }
         }
     }
+
+    /** The trip's notification is up while Go runs, and End tapped on it ends the trip: the service, the notification and the saved file go. */
+    @Test fun endOnTheNotificationEndsTheTrip() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        grant(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        if (android.os.Build.VERSION.SDK_INT >= 33) grant(android.Manifest.permission.POST_NOTIFICATIONS)
+        java.io.File(context.noBackupFilesDir, "trip.json").delete()
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        val activities = context.getSystemService(android.app.ActivityManager::class.java)
+        @Suppress("DEPRECATION")
+        fun serviceRunning() = activities.getRunningServices(50).any { it.service.className == polaris.android.trip.TripService::class.java.name }
+        fun tripNotification() = manager.activeNotifications.firstOrNull { it.id == polaris.android.trip.TripNotifier.ID_TRIP }
+        val intent = Intent(context, MainActivity::class.java).putExtra("demo", "routes").putExtra("trip", true)
+        ActivityScenario.launch<MainActivity>(intent).use {
+            compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Best route", substring = true).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodesWithContentDescription("Best route", substring = true).onFirst().performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Go")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodes(hasText("Go")).onFirst().performClick()
+            compose.waitUntil(15_000) { tripNotification() != null && serviceRunning() }
+            val end = tripNotification()!!.notification.actions.first { it.title.toString() == "End" }
+            end.actionIntent.send()
+            compose.waitUntil(15_000) { tripNotification() == null && !serviceRunning() && AppGraph.cached()?.trips?.trip?.value == null }
+            compose.waitUntil(10_000) { !java.io.File(context.noBackupFilesDir, "trip.json").exists() }
+        }
+    }
 }

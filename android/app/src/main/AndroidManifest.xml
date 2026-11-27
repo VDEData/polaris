@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Whether there is a network at all: during Go, no re-plan is sent without one (underground). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Go's ongoing notification and trip alerts: asked for on the Go tap, never at launch.
+         Refused, Go carries on in the app only. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- While a trip runs and location is allowed: a foreground service of the location type
+         keeps Go's time and fixes with the app in the background, showing the trip's notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- Whether a maps app is there for "Search in your maps app" (Android 11 and later hide
          other apps unless asked about). Polaris receives no links: no intent filters for them. -->
@@ -33,5 +40,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".trip.TripService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <receiver
+            android:name=".trip.TripActionReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".trip.TripAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>

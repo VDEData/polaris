@@ -52,6 +52,8 @@ class AppGraph(
     pendingTrip: polaris.engine.SavedTrip? = null,
     /** A re-plan's search in place of the real one (a debug check's canned answer). */
     private val replanSearch: (suspend (polaris.engine.JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null,
+    /** The app, for the trip's notification and its service (none in JVM tests: the trip keeps to itself there). */
+    private val appContext: Context? = null,
     /** Where the trip runs: the main thread in the app (it is confined to one thread). */
     tripScope: () -> kotlinx.coroutines.CoroutineScope = { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate) },
 ) {
@@ -76,7 +78,14 @@ class AppGraph(
             scope = tripScope(), departures = departures, tracker = tracker, store = tripStore, clock = clock,
             search = replanSearch ?: polaris.engine.ReplanSearch.live(settings, usage, http, identity, networkCache),
             isOnline = online, pending = pendingTrip,
+            alerts = notifier ?: polaris.engine.TripAlertScheduling.None,
+            presenter = notifier ?: polaris.engine.TripPresenter.None,
         )
+    }
+
+    /** Go's ongoing notification, trip alerts and foreground service ([polaris.android.trip.TripNotifier]). */
+    val notifier: polaris.android.trip.TripNotifier? by lazy {
+        appContext?.let { polaris.android.trip.TripNotifier(it, { trips.trip.value }, clock) }
     }
 
     /** The appearance chosen in Settings, which the activity follows at once. */
@@ -109,7 +118,9 @@ class AppGraph(
             return withContext(Dispatchers.IO) {
                 val trips = polaris.engine.FileTripStore(File(app.noBackupFilesDir, "trip.json"))
                 // A trip the app was stopped during: picked up again, or cleared away, before any screen is up.
-                val resumable = polaris.engine.TripResume.decide(trips, (clock ?: java.time.Instant::now)())
+                val resumable = polaris.engine.TripResume.decide(trips, (clock ?: java.time.Instant::now)()) {
+                    polaris.android.trip.TripNotifier.removeLeftovers(app)
+                }
                 AppGraph(
                     settings = settings,
                     usage = usage,
@@ -126,6 +137,7 @@ class AppGraph(
                     pendingTrip = resumable,
                     clock = clock ?: java.time.Instant::now,
                     replanSearch = replanSearch,
+                    appContext = app,
                 )
             }.also { loaded = it }
         }

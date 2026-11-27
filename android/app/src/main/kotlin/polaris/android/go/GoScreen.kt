@@ -114,6 +114,17 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
     // Read on every change of the trip (its own two-second looks, a tap, a board coming in).
     @Suppress("UNUSED_EXPRESSION") version
     val now = secondsWhenClose(trip, graph.clock)
+    // Checked when the page comes back on screen (from the system settings, say).
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val resumed by lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+    val notificationsOff = remember(resumed, version) { android.os.Build.VERSION.SDK_INT >= 33 && graph.notifier?.allowed == false }
+    // Turned on in the settings during the trip: the trip appears in the shade at once. Only on
+    // that change, not each time the page is shown (the service is already running then).
+    var wasOff by rememberSaveable { mutableStateOf(notificationsOff) }
+    LaunchedEffect(notificationsOff) {
+        if (wasOff && !notificationsOff) graph.notifier?.let { n -> n.start(trip.query.destination.name, trip.card(), adopt = true) }
+        wasOff = notificationsOff
+    }
     val end: () -> Unit = {
         graph.trips.end()
         onLeave()
@@ -176,6 +187,18 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
                 }
             }) else null)
             slot("steps") { Steps(trip, words) }
+            if (notificationsOff) item(key = "notifications") {
+                // Refused: Go carries on here; the way to change it, never asked again unprompted.
+                val context = LocalContext.current
+                Column(Modifier.fillMaxWidth().surface(c).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.go_notifications_off), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+                    TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        }
+                    }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.go_notifications_settings)) }
+                }
+            }
         }
     }
 }

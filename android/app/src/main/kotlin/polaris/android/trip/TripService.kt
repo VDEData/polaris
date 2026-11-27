@@ -1,0 +1,125 @@
+package polaris.android.trip
+
+import android.app.Notification
+import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.ServiceCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import polaris.android.R
+import polaris.android.app.AppGraph
+import polaris.engine.FileTripStore
+import polaris.engine.TripStore
+import java.io.File
+import java.time.Instant
+
+/**
+ * Keeps a live trip going with Polaris in the background: a foreground service of the location
+ * type, showing the trip's own ongoing notification. It does no work of its own; the trip runs in
+ * the app's process ([TripSession]) and this keeps that process and its location updates alive.
+ * Not restarted by Android if it is stopped: the saved trip brings Go back at the next launch.
+ */
+class TripService : Service() {
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Android requires startForeground after startForegroundService, even when there is
+        // nothing to show (the trip ended in between): a minimal notification, then stop.
+        val notification = current ?: minimal(this)
+        val type = if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+        val started = runCatching { ServiceCompat.startForeground(this, TripNotifier.ID_TRIP, notification, type) }.isSuccess
+        if (!started || current == null) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+        return START_NOT_STICKY
+    }
+
+    companion object {
+        /** The trip's notification as last built, for the service to show. */
+        @Volatile var current: Notification? = null
+
+        fun minimal(context: Context): Notification = NotificationCompat.Builder(context, TripNotifier.CHANNEL_TRIP)
+            .setSmallIcon(R.drawable.go_arrow)
+            .setContentTitle(context.getString(R.string.go_channel_trip))
+            .setSilent(true)
+            .build()
+    }
+}
+
+/** One store for the receivers when the app's process had none: its writer thread is made once. */
+internal object ReceiverStore {
+    @Volatile private var store: FileTripStore? = null
+    fun of(context: Context): TripStore =
+        (AppGraph.cached()?.tripStore) ?: synchronized(this) {
+            store ?: FileTripStore(File(context.applicationContext.noBackupFilesDir, "trip.json")).also { store = it }
+        }
+}
+
+/**
+ * Keep my route, End and a swipe-away, from the shade. With the trip running they go to it; with
+ * the app's process gone (no service: location wasn't allowed) they act on the saved trip itself,
+ * as iOS holds the tap until the trip is back: End deletes it (and a trip found at launch but not
+ * yet resumed is dropped too, so End is final), Keep declines the offer's reason. Work on the file
+ * runs off the main thread ([goAsync]).
+ */
+class TripActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val graph = AppGraph.cached()
+        val trips = graph?.trips
+        val trip = trips?.trip?.value
+        when (intent.action) {
+            TripNotifier.ACTION_DISMISSED -> graph?.notifier?.repost()
+            TripNotifier.ACTION_END -> {
+                trips?.dropPending()
+                if (trip != null) trips.end() else onFile(context) { store ->
+                    store.clear()
+                    TripNotifier.removeLeftovers(context)
+                }
+            }
+            TripNotifier.ACTION_KEEP -> {
+                NotificationManagerCompat.from(context).cancel(TripNotifier.ID_OFFER)
+                if (trip != null) trip.keepRoute() else onFile(context) { store ->
+                    store.load()?.let { saved ->
+                        val key = saved.offerKey
+                        if (key != null && saved.isResumable(Instant.now())) store.save(saved.copy(replanWatch = saved.replanWatch.declined(key), offerKey = null))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onFile(context: Context, work: (TripStore) -> Unit) {
+        val done = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val store = ReceiverStore.of(context)
+                work(store)
+                (store as? FileTripStore)?.flush()
+            } finally {
+                done.finish()
+            }
+        }
+    }
+}
+
+/** A timed nudge's alarm: posts it, unless the trip has ended (End cancels the alarms too). */
+class TripAlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != TripNotifier.ACTION_ALERT) return
+        val id = intent.getStringExtra(TripNotifier.EXTRA_ALERT_ID) ?: return
+        val graph = AppGraph.cached()
+        // In this process with no trip running: it ended, so the nudge is stale.
+        if (graph != null && graph.trips.trip.value == null && !graph.trips.hasPending) return
+        TripNotifier.postAlert(context, id, intent.getStringExtra(TripNotifier.EXTRA_TITLE) ?: return, intent.getStringExtra(TripNotifier.EXTRA_BODY) ?: "")
+    }
+}
