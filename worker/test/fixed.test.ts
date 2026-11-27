@@ -366,12 +366,10 @@ test("review 1: severe and minor delays flipping on one line every six minutes: 
     return [Math.floor((m - 450) / 6) % 2 === 0 ? JUB_SEVERE : JUB_MINOR, CEN_GOOD];
   };
   const { sent } = await simulate("07:30", "08:30", lines);
-  // Severe at 07:30, then minor (a new status) at 07:36. Back to severe is worse than the notice
-  // standing says, so it is told, but once in half an hour at most for the line: 08:06.
+  // As main: severe at 07:30, then minor (a new status) at 07:36; back and forth after is no news.
   assert.deepEqual(seen(sent), [
     "07:30 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
     "07:36 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
-    "08:06 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
   ]);
 });
 
@@ -522,10 +520,11 @@ test("round 2, 3: severe, eased to minor, then severe again and staying: told ag
   const lines = (at: string) => { const t = at.slice(11); return t < "07:40" ? [JUB_SEVERE, CEN_GOOD] : t < "08:00" ? [JUB_MINOR, CEN_GOOD] : t < "09:30" ? [JUB_SEVERE, CEN_GOOD] : [JUB_GOOD, CEN_GOOD]; };
   const allDay = { ...commute, windows: [{ start: 420, end: 720 }] };
   const { sent } = await simulate("07:30", "10:00", lines, [allDay]);
+  // As main: severe back within half an hour of easing isn't told again (it was told, and never
+  // told ended). One ended notice when it all stops.
   assert.deepEqual(seen(sent), [
     "07:30 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
     "07:40 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
-    "08:10 Jubilee line: severe delays | Severe delays due to an earlier signal failure at Canary Wharf.",
     "09:34 Severe delays on the Jubilee line have cleared. Good service again.",
   ]);
 });
@@ -592,8 +591,8 @@ test("round 3, 1: severe and minor taking turns all morning: the severe notice i
     return m >= 660 ? [JUB_GOOD, CEN_GOOD] : [Math.floor((m - 450) / 6) % 2 === 0 ? JUB_SEVERE : JUB_MINOR, CEN_GOOD];
   };
   const { sent } = await simulate("07:30", "11:30", lines, [allDay]);
-  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30", "07:36", "08:06", "11:04"]);
-  assert.match(seen(sent)[3], /cleared/);
+  assert.deepEqual(seen(sent).map((x) => x.slice(0, 5)), ["07:30", "07:36", "11:04"]);
+  assert.match(seen(sent)[2], /cleared/);
 });
 
 test("round 3, 2: way turned round, two disruptions on one line, the one-way one still on: settled quietly", async () => {
@@ -612,6 +611,38 @@ test("round 3, 3: an edit just after a disruption cleared: the ended notice stil
     "07:30 Jubilee line: minor delays | Minor delays due to an earlier signal failure at Canary Wharf.",
     "07:54 Minor delays on the Jubilee line have cleared. Good service again.",
   ]);
+});
+
+
+// Review of PR #9, fourth round: the "worse again" rule is gone; a disruption back after it was
+// told ended is told again.
+
+const JUB_REASON = "JUBILEE LINE: Severe delays between Stratford and North Greenwich. Minor delays on the rest of the line.";
+const jub = (...parts: [number, string][]) => ({ id: "jubilee", name: "Jubilee line", lineStatuses: parts.map(([severity, description]) => ({ statusSeverity: severity, statusSeverityDescription: description, reason: severity === 9 && parts.length === 1 ? "JUBILEE LINE: Minor delays due to an earlier signal failure." : severity === 6 && parts.length === 1 ? "JUBILEE LINE: Severe delays between Stratford and North Greenwich." : JUB_REASON, validityPeriods: [], disruption: { category: "RealTime", affectedStops: [] } })) });
+const JUB_BOTH = jub([6, "Severe Delays"], [9, "Minor Delays"]);
+const JUB_SECTION = jub([6, "Severe Delays"]);
+const JUB_REST = jub([9, "Minor Delays"]);
+
+test("round 4: severe told ended, then back: told again at once", async () => {
+  const jubileeOnly = { ...commute, segments: [commute.segments[0]] };
+  const lines = (at: string) => {
+    const t = at.slice(11);
+    return [t < "07:10" ? JUB_BOTH : t < "07:16" ? JUB_SECTION : t < "07:20" ? JUB_REST : t < "07:24" ? JUB_BOTH : t < "07:30" ? JUB_REST : t < "08:30" ? JUB_BOTH : JUB_GOOD];
+  };
+  const { sent } = await simulate("07:00", "09:10", lines, [{ ...jubileeOnly, windows: [{ start: 420, end: 600 }] }]);
+  const SEVERE = "Jubilee line: severe delays | Severe delays between Stratford and North Greenwich.\n\nAlso: Jubilee line: minor delays.";
+  assert.deepEqual(seen(sent), [
+    `07:00 ${SEVERE}`,
+    "07:14 Minor delays on the Jubilee line have cleared. Severe delays on the Jubilee line continue.",
+    // Each back after it was told ended: told again.
+    "07:16 Jubilee line: minor delays | Minor delays due to an earlier signal failure.",
+    // Severe back at 07:20 (it eased, it wasn't told ended): not told again, as main.
+    "07:28 Severe delays on the Jubilee line have cleared. Minor delays on the Jubilee line continue.",
+    `07:30 ${SEVERE}`,
+    // Both came back soon after an ended notice: told ended after half an hour without them.
+    "09:00 Severe delays on the Jubilee line have cleared. Minor delays on the Jubilee line have cleared. Good service again.",
+  ]);
+  assertEnded(sent, jubileeOnly);
 });
 
 });

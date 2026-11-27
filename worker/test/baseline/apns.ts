@@ -1,0 +1,82 @@
+// Frozen copy of worker/src/apns.ts at commit b24bdf5 (main before alerts told you when a disruption ends), for tests only:
+// test/diff.test.ts drives it beside the new code. Not part of the Worker; never edit it.
+
+// Apple Push Notifications over HTTP/2, signed with a .p8 key (ES256 JWT).
+// APNs refuses a new provider token more often than every 20 minutes, so the token
+// lives in D1 for 50 minutes rather than in one isolate's memory.
+
+import type { Environment } from "./types.ts";
+import type { Push } from "./push.ts";
+
+export interface ApnsEnv {
+  DB: D1Database;
+  APNS_KEY?: string;
+  APNS_KEY_ID?: string;
+  /** Your Apple team ID, and the app's bundle ID: vars in wrangler.local.jsonc, or secrets. */
+  APNS_TEAM_ID?: string;
+  APNS_TOPIC?: string;
+}
+
+/** Everything a push needs: the .p8 key, its ID, the team and the app. */
+export const canPush = (env: ApnsEnv) => Boolean(env.APNS_KEY && env.APNS_KEY_ID && env.APNS_TEAM_ID && env.APNS_TOPIC);
+
+export interface Sent {
+  status: number;
+  reason?: string;
+  /** The token is dead (app deleted, notifications reset): forget the phone. */
+  gone: boolean;
+}
+
+const HOSTS: Record<Environment, string> = {
+  sandbox: "https://api.sandbox.push.apple.com",
+  production: "https://api.push.apple.com",
+};
+
+export async function send(env: ApnsEnv, token: string, environment: Environment, push: Push, now = Date.now()): Promise<Sent> {
+  const jwt = await providerToken(env, now);
+  const response = await fetch(`${HOSTS[environment]}/3/device/${token}`, {
+    method: "POST",
+    headers: {
+      authorization: `bearer ${jwt}`,
+      "apns-topic": String(env.APNS_TOPIC),
+      "apns-push-type": "alert",
+      "apns-priority": String(push.priority),
+      "apns-collapse-id": push.collapseId,
+      "apns-expiration": String(push.expiration),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(push.payload),
+  });
+  if (response.ok) return { status: response.status, gone: false };
+  const reason = ((await response.json().catch(() => ({}))) as { reason?: string }).reason;
+  if (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken") await env.DB.prepare("DELETE FROM meta WHERE key = 'apns_jwt'").run();
+  const gone = response.status === 410 || reason === "BadDeviceToken" || reason === "DeviceTokenNotForTopic";
+  return { status: response.status, reason, gone };
+}
+
+async function providerToken(env: ApnsEnv, now: number): Promise<string> {
+  if (!env.APNS_KEY || !env.APNS_KEY_ID || !env.APNS_TEAM_ID || !env.APNS_TOPIC) throw new Error("APNs key, key ID, team or topic not set");
+  const cached = await env.DB.prepare("SELECT value, updated_at FROM meta WHERE key = 'apns_jwt'").first<{ value: string; updated_at: number }>();
+  if (cached && now - cached.updated_at < 50 * 60_000) return cached.value;
+  // An all-digit team ID or key ID written unquoted in wrangler's vars arrives as a number.
+  const jwt = await sign(String(env.APNS_KEY), String(env.APNS_KEY_ID), String(env.APNS_TEAM_ID), now);
+  await env.DB.prepare("INSERT INTO meta (key, value, updated_at) VALUES ('apns_jwt', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
+    .bind(jwt, now).run();
+  return jwt;
+}
+
+export async function sign(p8: string, keyId: string, teamId: string, now: number): Promise<string> {
+  const der = Uint8Array.from(atob(p8.replace(/-----[^-]+-----|\s/g, "")), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", der, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const encode = (value: object) => base64url(new TextEncoder().encode(JSON.stringify(value)));
+  const unsigned = `${encode({ alg: "ES256", kid: keyId })}.${encode({ iss: teamId, iat: Math.floor(now / 1000) })}`;
+  // WebCrypto gives ECDSA signatures as r||s, which is what JWS wants.
+  const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsigned));
+  return `${unsigned}.${base64url(new Uint8Array(signature))}`;
+}
+
+function base64url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
