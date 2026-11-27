@@ -159,7 +159,7 @@
     <string name="item_server_use_built_in">Use the built-in server</string>
     <string name="item_server_remove">Remove this server</string>
     <string name="item_server_state_none">No alerts server: alerts are off.</string>
-    <string name="item_server_state_typing">Not in use until you tap Use this server.</string>
+    <string name="item_server_state_typing">Not in use yet. Enter its token, then tap Use this server, or Done on the keyboard.</string>
     <string name="item_server_state_built_in">Using the built-in server, %s.</string>
     <string name="item_server_state_entered">Using %s.</string>
     <string name="item_server_state_unreadable">A server is saved but can\'t be read right now, so alerts are waiting.</string>
@@ -170,4 +170,5 @@
     <string name="item_server_hide">Hide</string>
     <string name="alerts_not_watched">The alerts server keeps %1$s alerts for a phone, and you have more saved. These aren\'t being watched: %2$s. Delete an alert to make room.</string>
     <string name="stations_getting_on_off">Get off at (getting on at %s)</string>
+    <string name="alerts_row_not_watched">Not watched: more alerts than the alerts server keeps</string>
 </resources>

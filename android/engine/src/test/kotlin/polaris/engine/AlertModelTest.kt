@@ -268,4 +268,11 @@ class AlertModelTest {
         assertEquals(22 * 60 + 30, late.start)
         assertEquals(23 * 60 + 45, late.end)
     }
+
+    /** What is saved and can't be read is told apart from nothing saved: a notice isn't dropped for it. */
+    @Test fun aSavedListThatCannotBeReadIsNotAnEmptyOne() {
+        assertEquals(emptyList(), RouteAlert.decodeListOrNull(null))
+        assertEquals(null, RouteAlert.decodeListOrNull("{not json"))
+        assertEquals(listOf("A"), RouteAlert.decodeListOrNull(RouteAlert.encode(listOf(RouteAlert(id = "A"))))?.map { it.id })
+    }
 }

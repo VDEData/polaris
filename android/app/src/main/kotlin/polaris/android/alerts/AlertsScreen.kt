@@ -1,6 +1,7 @@
 package polaris.android.alerts
 
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -122,7 +123,7 @@ fun AlertsScreen(graph: AppGraph, night: Boolean, openEditor: (RouteAlert, Boole
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), failed = state.statusFailed)
+                                AlertRow(alert, state.status[alert.id], state.configured, Modifier.weight(1f), failed = state.statusFailed, notWatched = alert in state.notWatched)
                                 Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
                             }
                         }
@@ -220,7 +221,10 @@ private fun NotificationsCard(graph: AppGraph, state: AlertStore.State) {
                 if (state.pushFailed) {
                     Note(R.drawable.sym_warning, stringResource(R.string.alerts_push_failed), null, warning = true)
                     // Up under its note (whose own foot is padded), so the two read as one.
-                    TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.padding(start = 32.dp).offset(y = (-10).dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
+                    Box(Modifier.padding(start = 32.dp).height(36.dp), contentAlignment = Alignment.BottomStart) {
+                        // A full-height target that reaches up into the note's own foot, rather than a gap between the two.
+                        TextButton(onClick = { scope.launch { graph.alerts.enablePush() } }, modifier = Modifier.requiredHeight(48.dp)) { Text(stringResource(R.string.alerts_try_again)) }
+                    }
                     HorizontalDivider(color = c.hairline)
                 }
                 // Allowed, an address asked for, but the server doesn't have this phone yet (no connection, or it is on its way).

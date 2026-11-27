@@ -68,7 +68,13 @@ object Variant {
     fun values(context: Context, intent: Intent?): polaris.engine.KeyValueStore? {
         val state = intent?.getStringExtra("alerts") ?: return null
         return polaris.engine.InMemoryKeyValueStore().apply {
-            if (state !in setOf("empty", "noServer")) putString(polaris.engine.AlertStore.ALERTS, polaris.engine.RouteAlert.encode(if (state == "many") DEMO_ALERTS + MORE_ALERTS else DEMO_ALERTS))
+            if (state !in setOf("empty", "noServer")) putString(polaris.engine.AlertStore.ALERTS, polaris.engine.RouteAlert.encode(when (state) {
+                "many" -> DEMO_ALERTS + MORE_ALERTS
+                // The most a phone can have, and three past it (saved before the limit was kept).
+                "full" -> DEMO_ALERTS + (3..polaris.engine.RouteAlert.MAX_ALERTS).map { DEMO_ALERTS[1].copy(id = "DEMO-$it", name = "Alert $it") }
+                "over" -> DEMO_ALERTS + (3..polaris.engine.RouteAlert.MAX_ALERTS + 3).map { DEMO_ALERTS[1].copy(id = "DEMO-$it", name = "Alert $it") }
+                else -> DEMO_ALERTS
+            }))
         }
     }
 

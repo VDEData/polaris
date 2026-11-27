@@ -669,6 +669,47 @@ class AlertStoreTest {
         assertEquals(1, before.push.resets)
     }
 
+    /** The installation is deleted but no new address comes in time: the phone isn't left on a dead address; the next try gets the new one and registers it. */
+    @Test fun registeringAfreshThatGetsNoAnswerIsPickedUpLater() = runTest {
+        val wire = Wire()
+        wire.statusFor = { request -> if ("/v1/devices/$ID" in request.url) 403 else null }
+        val push = Push()
+        val rig = rig(wire = wire, push = push)
+        push.duringReset = { kotlinx.coroutines.awaitCancellation() } // never answers
+        rig.store.resume()
+        advanceUntilIdle()
+        assertTrue(rig.store.state.value.pushFailed, "said, with Try again")
+        assertNotNull(rig.store.state.value.syncTrouble)
+        assertEquals(1, push.resets, "not tried round and round")
+        // In front again: the push service now gives the new installation's address.
+        push.duringReset = {}
+        push.id = AFRESH
+        rig.store.enablePush()
+        advanceUntilIdle()
+        assertTrue(rig.store.state.value.registered)
+        assertEquals(AFRESH, rig.values.getString(AlertStore.REGISTERED))
+        assertNull(rig.store.state.value.syncTrouble)
+        assertEquals("PUT /v1/devices/$AFRESH", wire.said("built.example.com").last { !it.endsWith("/status") })
+    }
+
+    /** Told only when the server in use becomes another: not at launch, and not for a new token on the same address. */
+    @Test fun aChangedServerIsSaidOnce() = runTest {
+        var changed = 0
+        val secrets = Secrets(); val values = InMemoryKeyValueStore(); val wire = Wire()
+        val settings = AppSettings(secrets, BuildDefaults(alertsUrl = "https://built.example.com", alertsToken = "built-token"), values)
+        val store = AlertStore(settings, secrets, values, wire, { "Polaris/test" }, Push(), this, syncDelayMillis = 0, io = StandardTestDispatcher(testScheduler), onServerChanged = { changed++ })
+        advanceUntilIdle()
+        store.resume()
+        advanceUntilIdle()
+        assertEquals(0, changed, "nothing at launch")
+        store.useServer("https://BUILT.example.com/", "another-token")
+        assertEquals(0, changed, "the same server")
+        store.useServer("https://mine.example.org", "my-token")
+        assertEquals(1, changed)
+        store.useServer("", "")
+        assertEquals(2, changed, "back to the built-in one")
+    }
+
     /** One request out at a time, and what is sent last is the latest. */
     @Test fun changesWhileARequestIsOutAreSentAfterItInOrder() = runTest {
         val wire = Wire()
@@ -691,7 +732,8 @@ class AlertStoreTest {
     /** More alerts saved than the server keeps: the first 30 are sent, so it doesn't refuse them all, and the rest are said. */
     @Test fun alertsBeyondTheServersCountAreNotSent() = runTest {
         val many = (1..33).map { district.copy(id = "A$it") }
-        val rig = rig(alerts = many)
+        val wire = Wire().apply { reply = """{"checkedAt":"2026-11-24T12:00:00Z","alerts":[${(1..30).joinToString(",") { """{"id":"A$it","issues":[],"upcoming":[]}""" }}]}""" }
+        val rig = rig(alerts = many, wire = wire)
         rig.store.resume()
         rig.store.refreshStatus(force = true)
         advanceUntilIdle()
@@ -700,6 +742,11 @@ class AlertStoreTest {
         val status = rig.wire.requests.last { it.url.endsWith("/status") }
         assertEquals(30, HTTP.json.parseToJsonElement(status.body!!.decodeToString()).jsonObject["alerts"]!!.jsonArray.size)
         assertEquals(listOf("A31", "A32", "A33"), rig.store.state.value.notWatched.map { it.id })
+        // What TfL says is still asked at most once a minute (the three never asked about don't make every look a new question).
+        val asked = rig.wire.requests.count { it.url.endsWith("/status") }
+        rig.store.refreshStatus()
+        advanceUntilIdle()
+        assertEquals(asked, rig.wire.requests.count { it.url.endsWith("/status") })
         assertTrue(rig.store.state.value.isFull)
     }
 

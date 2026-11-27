@@ -104,16 +104,17 @@ object LineNotices {
         val headline = if (notice.isTest) context.getString(R.string.alerts_notice_test_headline, notice.headline) else notice.headline
         val detail = notice.detail
         val expanded = listOfNotNull(
-            // The whole of what happened when there is nothing under it (the title is one line).
+            // The whole of what happened when there is nothing under it (shut, the title is one line, cut short).
             if (detail == null) headline else detail,
-            context.getString(R.string.alerts_notice_for, notice.title),
+            // Opened, such a notice is headed by its alert instead, so the sentence is said once.
+            if (detail == null) null else context.getString(R.string.alerts_notice_for, notice.title),
             if (notice.isTest) context.getString(R.string.alerts_notice_test_note) else null,
         ).joinToString("\n\n")
         return NotificationCompat.Builder(context, channel(notice.level))
             .setSmallIcon(R.drawable.sym_notifications)
             .setContentTitle(headline)
             .setContentText(detail ?: context.getString(R.string.alerts_notice_for, notice.title))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded).also { if (detail == null) it.setBigContentTitle(if (notice.isTest) context.getString(R.string.alerts_notice_test_headline, notice.title) else notice.title) })
             .setWhen(notice.shownAt(System.currentTimeMillis()))
             .setShowWhen(true)
             .setAutoCancel(true)

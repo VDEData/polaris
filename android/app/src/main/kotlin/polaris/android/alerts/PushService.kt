@@ -22,9 +22,13 @@ class PushService : FirebaseMessagingService() {
             .onFailure { android.util.Log.w("Polaris", "a line notice couldn't be shown: ${it.javaClass.simpleName}") }
     }
 
-    /** A message or a new address for this install means pushes are in use: Firebase is set up before its own service code runs, whatever the start-up marker says. */
+    /**
+     * Firebase is set up before its own service code runs, whatever the start-up marker says (a
+     * phone registered before the marker existed; a message already on its way when the last alert
+     * was deleted). For this run only: the marker is set by registering, never from here.
+     */
     override fun onCreate() {
-        FirebasePush.use(applicationContext)
+        FirebasePush.setUp(applicationContext)
         super.onCreate()
     }
 

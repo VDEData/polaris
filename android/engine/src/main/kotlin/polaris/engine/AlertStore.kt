@@ -91,6 +91,8 @@ class AlertStore(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     /** How long the push service is given to answer before the page is told it hasn't (offline, it waits without a word). */
     private val registerTimeoutMillis: Long = 30_000,
+    /** The server in use became another (never at launch): what was kept about the old one's notices no longer applies. */
+    private val onServerChanged: () -> Unit = {},
 ) {
     /** Why the server's copy may be out of date. */
     sealed interface Trouble {
@@ -351,7 +353,8 @@ class AlertStore(
     private fun registerAfresh(refused: String) {
         if (registeredAfresh || afresh?.isActive == true || push.availability != PushAvailability.ready) return
         afresh = scope.launch {
-            withContext(kotlinx.coroutines.NonCancellable) {
+            // Only a new address is worth sending: with none had, sending again would only be refused again, round and round.
+            val had = withContext(kotlinx.coroutines.NonCancellable) {
                 val id = try {
                     kotlinx.coroutines.withTimeoutOrNull(registerTimeoutMillis) { push.reset() }
                 } catch (e: Exception) {
@@ -360,16 +363,17 @@ class AlertStore(
                 if (id == null) {
                     // The old address may be gone and no new one had: the push service is asked again when the app is next in front.
                     _state.update { it.copy(pushFailed = true) }
-                    return@withContext
+                    return@withContext false
                 }
-                if (id == refused) return@withContext
+                if (id == refused) return@withContext false
                 registeredAfresh = true
                 pushId = id
                 // The refused address is the other install's to the server: nothing to remove from here.
                 registered = null
                 _state.update { it.copy(reRegistered = true, serverCanPush = null, pushFailed = false) }
+                true
             }
-            if (alerts.isNotEmpty()) sync()
+            if (had && alerts.isNotEmpty()) sync()
         }
     }
 
@@ -449,7 +453,7 @@ class AlertStore(
         if (alerts.isEmpty()) return
         val server = readServer() ?: return
         val now = _state.value
-        if (!force && now.checkedAt != null && Duration.between(now.checkedAt, clock()).seconds < 60 && now.status.keys == alerts.map { it.id }.toSet()) return
+        if (!force && now.checkedAt != null && Duration.between(now.checkedAt, clock()).seconds < 60 && now.status.keys == alerts.take(RouteAlert.MAX_ALERTS).map { it.id }.toSet()) return
         statusJob?.cancel()
         val job = scope.launch {
             try {
@@ -520,6 +524,7 @@ class AlertStore(
             }
         }
         registered = null
+        if (old?.url != now?.url) onServerChanged()
         _state.update { it.copy(status = emptyMap(), checkedAt = null, statusFailed = false, syncTrouble = null, serverCanPush = null) }
         if (now != null && alerts.isNotEmpty()) {
             // Not waited for: a push service slow to answer mustn't hold Settings; its address registers when it comes.
