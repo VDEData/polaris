@@ -103,11 +103,15 @@ class GoDeviceTest {
         if (android.os.Build.VERSION.SDK_INT < 33) return
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
+        // Revoking a permission ends the app's process, this test's own, so it can't be done here:
+        // run it after `pm revoke <package> android.permission.POST_NOTIFICATIONS` (and clearing the
+        // user-set flag). With notifications already allowed (another test granted them) it is skipped.
+        val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        org.junit.Assume.assumeFalse("notifications already allowed: run after revoking them", granted)
         grant(android.Manifest.permission.ACCESS_FINE_LOCATION)
-        shell("pm revoke ${context.packageName} ${android.Manifest.permission.POST_NOTIFICATIONS}")
-        shell("pm clear-permission-flags ${context.packageName} ${android.Manifest.permission.POST_NOTIFICATIONS} user-set user-fixed")
         java.io.File(context.noBackupFilesDir, "trip.json").delete()
-        fun alarmsSet() = shell("dumpsys alarm").lines().count { it.contains(context.packageName) && it.contains(polaris.android.trip.TripNotifier.ACTION_ALERT) }
+        // A pending alarm is listed with its tag on a line of its own (the history repeats it after "type=").
+        fun alarmsSet() = shell("dumpsys alarm").lines().count { it.trim() == "tag=*walarm*:${polaris.android.trip.TripNotifier.ACTION_ALERT}" }
         val intent = Intent(context, MainActivity::class.java).putExtra("demo", "routes").putExtra("trip", true)
         ActivityScenario.launch<MainActivity>(intent).use {
             compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Best route", substring = true).fetchSemanticsNodes().isNotEmpty() }
