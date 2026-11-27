@@ -957,6 +957,31 @@ class LiveTripTest {
         assertTrue(java.time.Duration.between(eta, later).toMinutes() >= 29, "live arrival $later against $eta")
     }
 
+    /** Aboard, the ride's board is still asked for on every look, so a train held later is seen; on the walk after it, no more. */
+    @Test fun aboardTheRidesBoardIsKeptLive() = runTest {
+        val journey = Go.bakerloo
+        val ride = journey.legs[1]
+        val drive = Drive(this, journey, Go.at("06:40:30"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.tick("06:41:00", Go.paddington)
+        drive.trip.take(LiveTrip.Step.Boarded(ride))
+        testScheduler.runCurrent()
+        drive.loaded.clear()
+        drive.tick("06:42:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id in drive.loaded, "the ride you're on is asked for again: ${drive.loaded}")
+        drive.loaded.clear()
+        drive.tick("06:44:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id in drive.loaded)
+        // Off it: its board is left alone.
+        drive.trip.take(LiveTrip.Step.GotOff(ride))
+        testScheduler.runCurrent()
+        drive.loaded.clear()
+        drive.tick("06:52:00")
+        testScheduler.runCurrent()
+        assertTrue(ride.id !in drive.loaded, "left alone once off: ${drive.loaded}")
+    }
+
     /** Missed it, and the next is 35 minutes later: news, and the arrival moves with it. */
     @Test fun aMissedTrainWithALongWaitIsNews() = runTest {
         val journey = Go.bakerloo

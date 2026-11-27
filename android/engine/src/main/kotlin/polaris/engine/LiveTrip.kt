@@ -481,6 +481,13 @@ class LiveTrip(
                 val leaves = timeline.steps[index].departure
                 if ((leaves since now) < 45 * 60 && now < leaves.plusSeconds(5 * 60.0)) scope.launch { loadBoard(ride) }
             }
+        } else if (leg.mode.isTransit && rawBoard(leg) != null) {
+            // Aboard (or the ride has gone with you on it): its board stays live for as long as
+            // you're on this ride, so a train held on the way is seen as it happens (`serviceNews`,
+            // `liveEta`) rather than left as it stood when you got on. A board not in yet is
+            // already being asked for (at the start, or when the plan changed).
+            val riding = leg
+            scope.launch { loadBoard(riding) }
         }
         retime()
         publish()
