@@ -62,6 +62,8 @@ test("a closure for Android: the same words, urgent, at once, under the alert's 
     sent: String(now),
   });
   assert.deepEqual(m.android, { priority: "HIGH", ttl: "10800s" });
+  assert.equal(m.data.test, undefined, "a real notice is never marked as a test");
+  assert.equal((message(ANDROID, push, now, true) as any).data.test, "1");
   assert.equal(m.notification, undefined, "data only: the app draws it, open or not");
   assert.equal(m.android.collapse_key, undefined, "FCM keeps four collapse keys a phone; the app replaces by tag");
 });
@@ -142,7 +144,12 @@ function fakeDB(rows: Record<string, any>[]) {
 }
 
 const row = (token: string) => ({ token, environment: token === IPHONE ? "sandbox" : "production", time_zone: "Europe/London", alerts: JSON.stringify([commute]), state: JSON.stringify({ alerts: {}, planned: {} }) });
-const fcmError = (code: number, errorCode: string) => new Response(JSON.stringify({ error: { code, message: "refused", status: errorCode, details: [{ "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode }] } }), { status: code });
+/** FCM's answers as it gives them: the HTTP status, google.rpc's word for it, and (when it is about the
+ * message or the phone) its own word in `details`. The two words differ: 404 is NOT_FOUND with UNREGISTERED. */
+const STATUS: Record<number, string> = { 400: "INVALID_ARGUMENT", 401: "UNAUTHENTICATED", 403: "PERMISSION_DENIED", 404: "NOT_FOUND", 429: "RESOURCE_EXHAUSTED", 500: "INTERNAL", 503: "UNAVAILABLE" };
+const fcmError = (code: number, errorCode?: string) => new Response(JSON.stringify({
+  error: { code, message: "refused", status: STATUS[code], details: errorCode ? [{ "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode }] : [] },
+}), { status: code });
 
 interface Setup {
   tokens?: string[];
@@ -268,10 +275,21 @@ test("FCM says the phone is unregistered: it is forgotten, as a dead APNs token 
   assert.deepEqual(db.rows.map((r) => r.token), [IPHONE]);
 });
 
-test("registered with another Firebase project: forgotten too", async () => {
-  const { env, db } = await setup({ tokens: [ANDROID], answer: () => fcmError(403, "SENDER_ID_MISMATCH") });
+test("the reason is read from FCM's own word, not the status's", async () => {
+  // NOT_FOUND alone is not a dead phone (next test); NOT_FOUND with UNREGISTERED is.
+  const { env, db } = await setup({ tokens: [ANDROID], answer: () => fcmError(404, "UNREGISTERED") });
   await runChecks(env, now);
   assert.equal(db.rows.length, 0);
+});
+
+test("a service account from the wrong Firebase project (SENDER_ID_MISMATCH for every phone) removes nobody", async () => {
+  const { env, db, fcmSends, told } = await setup({ tokens: [ANDROID, "QW5vdGhlclBob25lXzAwMQ"], answer: () => fcmError(403, "SENDER_ID_MISMATCH") });
+  await runChecks(env, now);
+  await runChecks(env, now + 120_000);
+  assert.equal(db.rows.length, 2, "refused and logged, not forgotten");
+  assert.equal(fcmSends().length, 2, "and not sent again");
+  assert.ok(told(ANDROID));
+  assert.ok(db.meta.has("fcm_token"), "it is about the phone, not the sign-in: the token is kept");
 });
 
 test("a 400 is not a dead phone: refused for good, kept, and not sent again", async () => {
@@ -308,13 +326,48 @@ test("FCM busy: tried again next run, a bounded number of times, then once it go
 });
 
 test("an access token FCM no longer takes is dropped, and the next run signs in again", async () => {
-  const { env, db, fcmSends, signIns } = await setup({ tokens: [ANDROID], answer: (n) => (n === 1 ? fcmError(401, "UNAUTHENTICATED") : Response.json({ name: "x" })) });
+  const { env, db, fcmSends, signIns } = await setup({ tokens: [ANDROID], answer: (n) => (n === 1 ? fcmError(401) : Response.json({ name: "x" })) });
   assert.equal((await runChecks(env, now)).sent, 0);
   assert.equal(db.meta.has("fcm_token"), false);
   assert.equal(db.rows.length, 1);
   assert.equal((await runChecks(env, now + 120_000)).sent, 1);
   assert.equal(signIns().length, 2);
   assert.equal((fcmSends()[1].init!.headers as Record<string, string>).authorization, "Bearer access-2");
+});
+
+test("a 403 that isn't about the phone (the account may not send for this project): the token is dropped and it is tried again", async () => {
+  const { env, db, fcmSends, signIns, told } = await setup({ tokens: [ANDROID], answer: (n) => (n === 1 ? fcmError(403) : Response.json({ name: "x" })) });
+  assert.equal((await runChecks(env, now)).sent, 0);
+  assert.equal(db.meta.has("fcm_token"), false);
+  assert.ok(!told(ANDROID), "not marked told on a refusal that may pass");
+  assert.equal(db.rows.length, 1);
+  assert.equal((await runChecks(env, now + 120_000)).sent, 1);
+  assert.equal(signIns().length, 2);
+  assert.equal(fcmSends().length, 2);
+});
+
+test("the service account changed for another: the first one's token isn't used", async () => {
+  const { env, db, fcmSends, signIns } = await setup({ tokens: [ANDROID] });
+  await runChecks(env, now);
+  assert.equal(signIns().length, 1);
+  assert.match(db.meta.get("fcm_token")!.value, /^push@polaris-test\.iam\.gserviceaccount\.com polaris-test\n/, "kept with whose it is");
+  // The secret now holds another project's account; a minute later another phone is due a notice.
+  (env as any).FCM_SERVICE_ACCOUNT = (await account("polaris-second")).file;
+  db.rows.push(row("QW5vdGhlclBob25lXzAwMQ"));
+  await runChecks(env, now + 120_000);
+  assert.equal(signIns().length, 2, "signed in again as the new account");
+  assert.equal(fcmSends()[1].url, "https://fcm.googleapis.com/v1/projects/polaris-second/messages:send");
+  assert.equal((fcmSends()[1].init!.headers as Record<string, string>).authorization, "Bearer access-2");
+});
+
+test("Google keeps refusing the service account: tried a bounded number of times, then given up and logged", async () => {
+  const { env, db, fcmSends, signIns, told } = await setup({ tokens: [ANDROID], oauth: () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }) });
+  for (let i = 0; i < 6; i++) await runChecks(env, now + i * 120_000);
+  assert.equal(signIns().length, 3, "as many tries as any passing failure gets");
+  assert.equal(fcmSends().length, 0);
+  assert.equal(db.rows.length, 1, "the phone is kept");
+  // As for APNs: after the last try the notice counts as handled, so the cron doesn't try it for ever.
+  assert.ok(told(ANDROID));
 });
 
 test("Google refuses the service account: retried, never a crash, and the iPhone is still told", async () => {
@@ -381,6 +434,7 @@ test("a test notification to an Android phone goes through FCM; without the serv
   assert.equal(sent.length, 1);
   assert.equal(sent[0].fid, ANDROID);
   assert.equal(sent[0].data.subtitle, "Test: alerts are on");
+  assert.equal(sent[0].data.test, "1", "marked, so the app says it is a test whatever words it carries");
   assert.equal(sent[0].data.tag, `${contract().alerts[0].id}-test`, "its own tag: it replaces no real notice");
   // A key Google refuses: said plainly, with nothing of the key.
   globalThis.fetch = (async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 })) as typeof fetch;

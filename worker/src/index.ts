@@ -105,7 +105,7 @@ app.post("/v1/devices/:token/test", async (c) => {
   ];
   if (!canPush(c.env, platform(token))) return c.json({ error: "The alert server has no push key yet, so it can't send notifications." }, 503);
   // A sign-in the push service refuses (a wrong or deleted key) is said as that, not as "something went wrong".
-  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: collapse(alert.id, "-test") }, now).catch((error) => {
+  const result = await send(c.env, token, row.environment, { ...issuesPush(alert, issues, now), collapseId: collapse(alert.id, "-test") }, now, true).catch((error) => {
     console.error("test push failed", String(error).slice(0, 200));
     return undefined;
   });

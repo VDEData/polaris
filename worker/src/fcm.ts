@@ -58,7 +58,7 @@ export type Level = "urgent" | "normal" | "quiet";
  * later notice for the same alert replaces the earlier one, and drops one older (`sent`) than
  * the notice it already shows. No collapse key: FCM keeps at most four per phone, fewer than
  * the alerts a phone may have. */
-export function message(fid: string, push: Push, now: number): Record<string, unknown> {
+export function message(fid: string, push: Push, now: number, test = false): Record<string, unknown> {
   const aps = (push.payload.aps ?? {}) as { alert?: { title?: string; subtitle?: string; body?: string }; "interruption-level"?: string };
   const level: Level = aps["interruption-level"] === "time-sensitive" ? "urgent" : aps["interruption-level"] === "passive" ? "quiet" : "normal";
   const data: Record<string, string> = {
@@ -70,6 +70,9 @@ export function message(fid: string, push: Push, now: number): Record<string, un
     sent: String(now),
   };
   if (aps.alert?.subtitle) data.subtitle = aps.alert.subtitle;
+  // "Send a test notification": the app says so on the notice, whatever words it carries (when
+  // TfL has trouble on the alert now, a test carries that trouble's own words).
+  if (test) data.test = "1";
   return {
     fid,
     data,
@@ -82,32 +85,37 @@ export function message(fid: string, push: Push, now: number): Record<string, un
   };
 }
 
-export async function send(env: FcmEnv, fid: string, push: Push, now = Date.now()): Promise<Sent> {
+export async function send(env: FcmEnv, fid: string, push: Push, now = Date.now(), test = false): Promise<Sent> {
   const account = serviceAccount(env);
   if (!account) throw new Error("FCM service account not set");
   const token = await accessToken(env, account, now);
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${account.projectId}/messages:send`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ message: message(fid, push, now) }),
+    body: JSON.stringify({ message: message(fid, push, now, test) }),
   });
   if (response.ok) return { status: 200, gone: false };
   const error = ((await response.json().catch(() => ({}))) as { error?: { status?: string; details?: { errorCode?: string }[] } }).error;
+  // FCM's own word for what is wrong (in `details`), else the status's general one.
   const reason = error?.details?.find((d) => d.errorCode)?.errorCode ?? error?.status;
-  // The access token wasn't taken: dropped, so the next run signs in again.
-  const unauthenticated = response.status === 401 || reason === "UNAUTHENTICATED";
-  if (unauthenticated) await env.DB.prepare("DELETE FROM meta WHERE key = 'fcm_token'").run();
-  // Only what FCM says means this phone: unregistered, or registered with another project (as
-  // APNs' DeviceTokenNotForTopic). A 400 is not: it also covers a payload FCM won't take. Nor a
-  // 404 that doesn't say UNREGISTERED: a wrong project in the service account answers 404 for
-  // every phone. One mistake in the setup mustn't remove every phone.
-  const gone = reason === "UNREGISTERED" || reason === "SENDER_ID_MISMATCH";
-  return { status: response.status, reason, gone, retry: unauthenticated || response.status === 429 || response.status >= 500 };
+  // The access token wasn't taken, or isn't allowed to send for this project (a 403 that isn't
+  // about the phone): dropped, so the next run signs in again with the account as it is now.
+  const signInAgain = response.status === 401 || reason === "UNAUTHENTICATED" || (response.status === 403 && reason !== "SENDER_ID_MISMATCH");
+  if (signInAgain) await env.DB.prepare("DELETE FROM meta WHERE key = 'fcm_token'").run();
+  // Only FCM saying this phone is unregistered forgets it. Not a phone registered with another
+  // Firebase project (SENDER_ID_MISMATCH): a service account from the wrong project gets that for
+  // every phone. Not a 400 (it also covers a payload FCM won't take), nor a 404 that doesn't say
+  // UNREGISTERED (a wrong project id). One mistake in the setup mustn't remove every phone: those
+  // are refused and logged.
+  const gone = reason === "UNREGISTERED";
+  return { status: response.status, reason, gone, retry: signInAgain || response.status === 429 || response.status >= 500 };
 }
 
 async function accessToken(env: FcmEnv, account: ServiceAccount, now: number): Promise<string> {
+  // Kept with whose it is: after the secret is changed to another account, the old one's token isn't used.
+  const owner = `${account.clientEmail} ${account.projectId}\n`;
   const cached = await env.DB.prepare("SELECT value, updated_at FROM meta WHERE key = 'fcm_token'").first<{ value: string; updated_at: number }>();
-  if (cached && now - cached.updated_at < 50 * 60_000) return cached.value;
+  if (cached && now - cached.updated_at < 50 * 60_000 && cached.value.startsWith(owner)) return cached.value.slice(owner.length);
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -117,7 +125,7 @@ async function accessToken(env: FcmEnv, account: ServiceAccount, now: number): P
   // Google's word for what's wrong (invalid_grant: a deleted key, a wrong clock), never the key.
   if (!response.ok || typeof body.access_token !== "string") throw new FcmSignIn(response.status, String(body.error ?? "").slice(0, 80));
   await env.DB.prepare("INSERT INTO meta (key, value, updated_at) VALUES ('fcm_token', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
-    .bind(body.access_token, now).run();
+    .bind(owner + body.access_token, now).run();
   return body.access_token;
 }
 

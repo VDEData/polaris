@@ -31,6 +31,7 @@ export function canPush(env: PushEnv, to: Platform): boolean {
   return to === "apns" ? apns.canPush(env) : fcm.canPush(env);
 }
 
-export function send(env: PushEnv, token: string, environment: Environment, push: Push, now = Date.now()): Promise<Sent> {
-  return platform(token) === "apns" ? apns.send(env, token, environment, push, now) : fcm.send(env, token, push, now);
+/** [test]: "Send a test notification". An Android phone is told so; what an iPhone is sent is as it was. */
+export function send(env: PushEnv, token: string, environment: Environment, push: Push, now = Date.now(), test = false): Promise<Sent> {
+  return platform(token) === "apns" ? apns.send(env, token, environment, push, now) : fcm.send(env, token, push, now, test);
 }
