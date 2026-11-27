@@ -84,4 +84,27 @@ class NudgeKeeperTest {
         keeper.cancelAll()
         assertTrue(port.alarms.isEmpty())
     }
+
+    /**
+     * Android delivers an inexact alarm anywhere in a window of 75% of the time to it, after the
+     * time asked. Asked early enough, the window ends at the nudge's time; each early delivery asks
+     * again for what is left, so it closes in on the time and never comes late.
+     */
+    @Test fun alarmsAreAskedEarlySoTheirWindowEndsAtTheNudge() {
+        val due = at(25 * 60)
+        var t = at(0)
+        var steps = 0
+        while (true) {
+            val ask = polaris.android.trip.TripNoticePlan.alarmAsk(t, due) ?: break
+            // The latest Android may deliver it is never after the nudge.
+            val latest = ask.plusMillis((java.time.Duration.between(t, ask).toMillis() * 0.75).toLong())
+            assertTrue(!latest.isAfter(due.plusSeconds(1)), "could come at $latest, after $due")
+            // The earliest it may come: asked again from there.
+            t = ask
+            steps += 1
+            assertTrue(steps < 12, "never closes in")
+        }
+        // Within a minute of it: posted, not asked again.
+        assertTrue(java.time.Duration.between(t, due).seconds <= 60)
+    }
 }

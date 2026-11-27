@@ -123,6 +123,12 @@ class TripAlarmReceiver : BroadcastReceiver() {
         val id = intent.getStringExtra(TripNotifier.EXTRA_ALERT_ID) ?: return
         val title = intent.getStringExtra(TripNotifier.EXTRA_TITLE) ?: return
         val body = intent.getStringExtra(TripNotifier.EXTRA_BODY) ?: ""
+        // Come early (Android's window for it ends at the nudge): asked again for what's left.
+        val due = intent.getLongExtra(TripNotifier.EXTRA_DUE, 0L)
+        if (due > 0 && TripNoticePlan.alarmAsk(Instant.now(), Instant.ofEpochMilli(due)) != null) {
+            TripNotifier.armNudge(context, id, title, body, due)
+            return
+        }
         val graph = AppGraph.cached()
         if (graph != null && (graph.trips.trip.value != null || graph.trips.hasPending)) {
             if (graph.trips.trip.value == null || graph.notifier?.alarmFired(id) != false) TripNotifier.postAlert(context, id, title, body)

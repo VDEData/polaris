@@ -24,6 +24,18 @@ object TripNoticePlan {
     /** Post again only when what's shown changes (the card is already to the minute and to the distance shown). */
     fun changed(shown: TripCard?, card: TripCard): Boolean = shown != card
 
+    /**
+     * When to ask for a nudge's alarm. Android delivers an inexact alarm anywhere in a window of
+     * 75% of the time to it, after the time asked, so asking at the time itself could bring it
+     * many minutes late. Asked this early the window ends at the nudge; delivered early, it is asked
+     * again for what is left. Null within a minute of it: post it.
+     */
+    fun alarmAsk(now: Instant, due: Instant): Instant? {
+        val left = Duration.between(now, due).toMillis()
+        if (left <= 60_000) return null
+        return now.plusMillis((left / 1.75).toLong())
+    }
+
     /** Each nudge's own alarm, so a re-plan replaces exactly the ones it moves. */
     fun alarmRequest(alertId: String): Int = 1000 + (alertId.hashCode() and 0xFFFF)
 }

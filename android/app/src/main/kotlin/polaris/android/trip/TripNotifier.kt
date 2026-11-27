@@ -128,14 +128,10 @@ class TripNotifier(
     private val nudges = NudgeKeeper(object : NudgePort {
         override val allowed get() = this@TripNotifier.allowed
         override fun setAlarm(alert: TripAlert) {
-            val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
             val (title, body) = words.alert(alert)
-            val intent = Intent(context, TripAlarmReceiver::class.java).setAction(ACTION_ALERT)
-                .putExtra(EXTRA_ALERT_ID, alert.id).putExtra(EXTRA_TITLE, title).putExtra(EXTRA_BODY, body)
-            val pending = PendingIntent.getBroadcast(context, TripNoticePlan.alarmRequest(alert.id), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             // The alarm clock runs on the phone's time; the trip's clock may run ahead in a debug check.
-            val inMillis = (alert.date.toEpochMilli() - clock().toEpochMilli()).coerceAtLeast(1_000)
-            runCatching { alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + inMillis, pending) }
+            val due = System.currentTimeMillis() + (alert.date.toEpochMilli() - clock().toEpochMilli())
+            armNudge(context, alert.id, title, body, due)
         }
         override fun cancelAlarm(id: String) = cancelAlarm(context, id)
         override fun post(alert: TripAlert) {
@@ -357,6 +353,22 @@ class TripNotifier(
                 .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
                 .build()
             runCatching { NotificationManagerCompat.from(context).notify(id, ID_ALERT, notification) }
+        }
+
+        const val EXTRA_DUE = "polaris.go.due"
+
+        /**
+         * A nudge's alarm, asked early enough that Android's window for an inexact alarm ends at
+         * [dueMillis] (the phone's clock); delivered early, the receiver asks again for what's left.
+         */
+        fun armNudge(context: Context, id: String, title: String, body: String, dueMillis: Long) {
+            val alarms = context.getSystemService(android.app.AlarmManager::class.java) ?: return
+            val now = System.currentTimeMillis()
+            val ask = TripNoticePlan.alarmAsk(Instant.ofEpochMilli(now), Instant.ofEpochMilli(dueMillis))?.toEpochMilli() ?: dueMillis
+            val intent = Intent(context, TripAlarmReceiver::class.java).setAction(ACTION_ALERT)
+                .putExtra(EXTRA_ALERT_ID, id).putExtra(EXTRA_TITLE, title).putExtra(EXTRA_BODY, body).putExtra(EXTRA_DUE, dueMillis)
+            val pending = PendingIntent.getBroadcast(context, TripNoticePlan.alarmRequest(id), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            runCatching { alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, maxOf(ask, now + 1_000), pending) }
         }
 
         fun cancelAlarm(context: Context, id: String) {
