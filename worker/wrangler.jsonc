@@ -10,7 +10,8 @@
   // Copy wrangler.local.example.jsonc to start. Without a "routes" entry the Worker is
   // served on its workers.dev address.
   // Every two minutes. A run with nobody inside their travel times reads D1 and stops:
-  // TfL is only asked while someone is travelling, and the evening before for planned works.
+  // TfL is only asked while someone is travelling, for up to three hours after a time ends while
+  // a disruption told hasn't ended (to say when it does), and the evening before for planned works.
   "triggers": { "crons": ["*/2 * * * *"] },
   // APNS_TEAM_ID (your Apple team ID) and APNS_TOPIC (the app's bundle ID, POLARIS_BUNDLE_ID)
   // are vars in wrangler.local.jsonc, or secrets. Secrets (wrangler secret put): APP_TOKEN,

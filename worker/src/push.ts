@@ -1,7 +1,8 @@
 // What each notification says. Closures and delays are Time Sensitive, so they come
-// through a Focus; minor delays and planned works are ordinary; "good service again" is quiet.
+// through a Focus; minor delays, planned works and "it has ended" are ordinary, with a sound.
 
-import type { Alert, Issue } from "./types.ts";
+import type { Decision } from "./policy.ts";
+import type { Alert, Issue, Segment } from "./types.ts";
 
 export interface Push {
   payload: Record<string, unknown>;
@@ -35,22 +36,111 @@ export function issuesPush(alert: Alert, issues: Issue[], now: number): Push {
   };
 }
 
-export function clearPush(alert: Alert, now: number): Push {
+/** A disruption told has ended, in the words it was told: "Minor delays on the Jubilee line have
+ * cleared. Good service again." With others told still on, it says so instead. It has the
+ * collapse ID of the notice it settles, which APNs documents as merging the two into one
+ * notification, so Notification Centre shows how things stand now rather than trouble that is
+ * over. Whether the merged one still sounds and shows a banner hasn't been seen on a phone. */
+/** `quiet`: sent the way the server before this change sent "good service again": passive, with
+ * no sound, at priority 5. For a notice that says something told goes on, and for a second ended
+ * notice within half an hour; the notice on the phone still changes. */
+export function clearPush(alert: Alert, decision: Extract<Decision, { kind: "clear" }>, now: number, quiet = false): Push {
+  // State from before the words were kept: what was told isn't known, only whether all is well.
+  const body = !decision.ended.length
+    ? decision.all ? `Good service again on ${lineList(alert)}.` : `What you were told about on ${lineList(alert)} has cleared.`
+    : [...sentences(alert, decision.ended, decision.still), ...(!decision.still.length && decision.all ? ["Good service again."] : [])].join(" ");
   return {
     payload: {
-      aps: {
-        alert: { title: alert.name, body: `Good service again on ${lineList(alert)}.` },
-        "interruption-level": "passive",
-        "relevance-score": 0.2,
-        "thread-id": alert.id,
-      },
+      aps: quiet
+        ? { alert: { title: alert.name, body: trim(body, MAX_BODY) }, "interruption-level": "passive", "relevance-score": 0.2, "thread-id": alert.id }
+        : { alert: { title: alert.name, body: trim(body, MAX_BODY) }, sound: "default", "interruption-level": "active", "relevance-score": 0.5, "thread-id": alert.id },
       alert: alert.id,
     },
-    priority: 5,
+    priority: quiet ? 5 : 10,
     collapseId: alert.id,
     expiration: Math.floor(now / 1000) + 3600,
   };
 }
+
+/** Whether an ended notice goes out quietly: when it says something told goes on, or another
+ * that sounded went out less than half an hour ago. */
+export function endsQuietly(decision: Extract<Decision, { kind: "clear" }>, lastLoud: number | undefined, now: number): boolean {
+  // Within half an hour, counted to the minute (a run a few seconds late is still within it).
+  return decision.still.length > 0 || (lastLoud !== undefined && now - lastLoud < 31 * 60_000);
+}
+
+/** What ended, then what goes on. Two told in the same words (two part suspensions on one line)
+ * are told apart by number: "One of the part suspensions on the Jubilee line has ended. One continues." */
+function sentences(alert: Alert, ended: string[], still: string[]): string[] {
+  const count = (list: string[], title: string) => list.filter((t) => t === title).length;
+  const out: string[] = [];
+  for (const title of new Set(ended)) {
+    const e = count(ended, title), s = count(still, title);
+    out.push(s ? some(alert, title, e).ended : e > 1 ? some(alert, title, e, true).ended : words(alert, title).ended);
+  }
+  for (const title of new Set(still)) {
+    const e = count(ended, title), s = count(still, title);
+    out.push(e ? some(alert, title, s).still : words(alert, title).still);
+  }
+  return out;
+}
+
+/** Several told in the same words: `n` of them ended (or, for `still`, go on); `all` when every one ended. */
+function some(alert: Alert, title: string, n: number, all = false): { ended: string; still: string } {
+  for (const segment of alert.segments) {
+    const prefix = `${segment.line.name}: `;
+    if (!title.startsWith(prefix)) continue;
+    const what = title.slice(prefix.length);
+    const on = lineName(segment);
+    if (/delays$|^issues reported$/.test(what)) {
+      return all
+        ? { ended: `${capital(what)} on ${on} have cleared.`, still: "" }
+        : { ended: `${capital(what)} on part of ${on} have cleared.`, still: "They continue elsewhere on the line." };
+    }
+    const noun = what === "bus service" ? "replacement bus service" : NOUNS[what] ?? what;
+    const nouns = plural(noun);
+    const trains = what === "bus service" ? "; trains are running again." : ".";
+    return {
+      ended: all ? `The ${nouns} on ${on} have ended${trains}` : n === 1 ? `One of the ${nouns} on ${on} has ended.` : `${n} of the ${nouns} on ${on} have ended.`,
+      still: n === 1 ? "One continues." : `${n} continue.`,
+    };
+  }
+  return { ended: words(alert, title).ended, still: words(alert, title).still };
+}
+
+/** "part suspensions", "changes of frequency". */
+const plural = (noun: string): string => (/ of /.test(noun) ? noun.replace(/^(\w+)/, (w: string) => plural(w)) : /s$/.test(noun) ? noun : `${noun}s`);
+
+// TfL's words for a line's trouble, as things that end: "the part suspension".
+const NOUNS: Record<string, string> = { suspended: "suspension", "part suspended": "part suspension", closed: "closure", "service closed": "closure", "part closed": "part closure", diverted: "diversion" };
+
+/** How to say that something told has ended, or goes on, from the title it was told with
+ * ("Jubilee line: minor delays", "Canary Wharf closed (Elizabeth line)"). */
+export function words(alert: Alert, title: string): { ended: string; still: string } {
+  for (const segment of alert.segments) {
+    const prefix = `${segment.line.name}: `;
+    if (!title.startsWith(prefix)) continue;
+    const what = title.slice(prefix.length);
+    const on = lineName(segment);
+    if (/delays$|^issues reported$/.test(what)) return { ended: `${capital(what)} on ${on} have cleared.`, still: `${capital(what)} on ${on} continue.` };
+    if (/^(?:no service|not running|no trains)$/.test(what)) return { ended: `${capital(on)} is running again.`, still: `${capital(on)} is still not running.` };
+    // TfL's "Bus Service": buses run in place of trains.
+    if (what === "bus service") return { ended: `The replacement bus service on ${on} has ended; trains are running again.`, still: `Replacement buses are still running on ${on}.` };
+    const noun = NOUNS[what] ?? what;
+    return { ended: `The ${noun} on ${on} has ended.`, still: `The ${noun} on ${on} continues.` };
+  }
+  const station = title.match(/^(.+?) (part closed|closed) \((.+)\)$/);
+  if (station) {
+    const [, name, how, line] = station;
+    return how === "closed"
+      ? { ended: `${name} has reopened (${line}).`, still: `${name} is still closed (${line}).` }
+      : { ended: `${name} is no longer part closed (${line}).`, still: `${name} is still part closed (${line}).` };
+  }
+  return { ended: `Ended: ${title}.`, still: `Still on: ${title}.` };
+}
+
+const lineName = (s: Segment) => (s.mode === "national-rail" ? s.line.name : `the ${s.line.name}`);
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export function plannedPush(alert: Alert, issues: Issue[], now: number): Push {
   const body = issues.map((i) => i.detail || i.title).join("\n\n");
@@ -70,14 +160,20 @@ export function plannedPush(alert: Alert, issues: Issue[], now: number): Push {
       alert: alert.id,
     },
     priority: 10,
-    collapseId: `${alert.id}-planned`,
+    collapseId: collapse(alert.id, "-planned"),
     expiration: Math.floor(now / 1000) + 12 * 3600,
   };
 }
 
+/** An alert's ID with a suffix, within APNs' 64 bytes for a collapse ID (IDs are up to 64 characters
+ * of ASCII; the app's are 36). */
+export function collapse(id: string, suffix: string): string {
+  return `${id.slice(0, 64 - suffix.length)}${suffix}`;
+}
+
 /** "the Elizabeth line and the Central line"; train operators go without "the". */
 export function lineList(alert: Alert): string {
-  const names = [...new Set(alert.segments.map((s) => (s.mode === "national-rail" ? s.line.name : `the ${s.line.name}`)))];
+  const names = [...new Set(alert.segments.map(lineName))];
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "your lines";
 }
 

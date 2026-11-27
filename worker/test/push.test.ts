@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sign } from "../src/apns.ts";
-import { clearPush, issuesPush, lineList, plannedPush } from "../src/push.ts";
+import { clearPush, issuesPush, lineList, plannedPush, words } from "../src/push.ts";
 import type { Issue } from "../src/types.ts";
 import * as valid from "../src/validate.ts";
 import { contract } from "./helpers.ts";
@@ -20,12 +20,47 @@ test("a closure is Time Sensitive, says where, and replaces the last one for thi
   assert.equal((push.payload as any).alert, commute.id);
 });
 
-test("minor delays don't break through a Focus; good service again is quiet", () => {
+test("minor delays don't break through a Focus; nor does 'it has ended', but it sounds and comes at once", () => {
   assert.equal((issuesPush(commute, [minor], now).payload as any).aps["interruption-level"], "active");
-  const clear = clearPush(commute, now);
-  assert.equal((clear.payload as any).aps["interruption-level"], "passive");
-  assert.equal((clear.payload as any).aps.alert.body, "Good service again on the Elizabeth line.");
+  const clear = clearPush(commute, { kind: "clear", ended: ["Elizabeth line: minor delays"], still: [], all: true }, now);
+  const aps = (clear.payload as any).aps;
+  assert.equal(aps["interruption-level"], "active");
+  assert.equal(aps.sound, "default");
+  assert.equal(clear.priority, 10);
+  assert.equal(aps.alert.title, commute.name);
+  assert.equal(aps.alert.body, "Minor delays on the Elizabeth line have cleared. Good service again.");
   assert.equal(clear.collapseId, commute.id);
+  assert.equal(aps["thread-id"], commute.id);
+  assert.equal(clear.expiration, now / 1000 + 3600);
+  // State from before the words were kept: the old sentence, now with a sound.
+  assert.equal((clearPush(commute, { kind: "clear", ended: [], still: [], all: true }, now).payload as any).aps.alert.body, "Good service again on the Elizabeth line.");
+});
+
+test("what ended is said in the words it was told, and what goes on too", () => {
+  const two = { ...commute, segments: [...commute.segments, { line: { id: "southeastern", name: "Southeastern" }, mode: "national-rail", stations: [] }] };
+  const say = (title: string) => words(two, title);
+  assert.deepEqual(say("Elizabeth line: severe delays"), { ended: "Severe delays on the Elizabeth line have cleared.", still: "Severe delays on the Elizabeth line continue." });
+  assert.deepEqual(say("Southeastern: minor delays"), { ended: "Minor delays on Southeastern have cleared.", still: "Minor delays on Southeastern continue." });
+  assert.deepEqual(say("Elizabeth line: part suspended"), { ended: "The part suspension on the Elizabeth line has ended.", still: "The part suspension on the Elizabeth line continues." });
+  assert.deepEqual(say("Elizabeth line: part closure"), { ended: "The part closure on the Elizabeth line has ended.", still: "The part closure on the Elizabeth line continues." });
+  assert.deepEqual(say("Elizabeth line: no service"), { ended: "The Elizabeth line is running again.", still: "The Elizabeth line is still not running." });
+  assert.deepEqual(say("Canary Wharf closed (Elizabeth line)"), { ended: "Canary Wharf has reopened (Elizabeth line).", still: "Canary Wharf is still closed (Elizabeth line)." });
+  assert.deepEqual(say("Canary Wharf part closed (Elizabeth line)"), { ended: "Canary Wharf is no longer part closed (Elizabeth line).", still: "Canary Wharf is still part closed (Elizabeth line)." });
+  assert.deepEqual(say("Something else"), { ended: "Ended: Something else.", still: "Still on: Something else." });
+  assert.deepEqual(say("Elizabeth line: bus service"), { ended: "The replacement bus service on the Elizabeth line has ended; trains are running again.", still: "Replacement buses are still running on the Elizabeth line." });
+  // Two told with the same words, one ended.
+  const same = clearPush(two, { kind: "clear", ended: ["Elizabeth line: part suspended"], still: ["Elizabeth line: part suspended"], all: false }, now);
+  assert.equal((same.payload as any).aps.alert.body, "One of the part suspensions on the Elizabeth line has ended. One continues.");
+  const delays = clearPush(two, { kind: "clear", ended: ["Elizabeth line: minor delays"], still: ["Elizabeth line: minor delays", "Elizabeth line: minor delays"], all: false }, now);
+  assert.equal((delays.payload as any).aps.alert.body, "Minor delays on part of the Elizabeth line have cleared. They continue elsewhere on the line.");
+  const body = (ended: string[], still: string[]) => (clearPush(two, { kind: "clear", ended, still, all: false }, now).payload as any).aps.alert.body;
+  assert.equal(body(["Elizabeth line: change of frequency"], ["Elizabeth line: change of frequency"]), "One of the changes of frequency on the Elizabeth line has ended. One continues.");
+  assert.equal(body(["Elizabeth line: bus service"], ["Elizabeth line: bus service"]), "One of the replacement bus services on the Elizabeth line has ended. One continues.");
+  assert.equal(body(["Elizabeth line: bus service", "Elizabeth line: bus service"], []), "The replacement bus services on the Elizabeth line have ended; trains are running again.");
+  // State from before the words were kept, with something still reported on the line.
+  assert.equal(body([], []), "What you were told about on the Elizabeth line and Southeastern has cleared.");
+  const partial = clearPush(two, { kind: "clear", ended: ["Elizabeth line: severe delays"], still: ["Southeastern: minor delays"], all: false }, now);
+  assert.equal((partial.payload as any).aps.alert.body, "Severe delays on the Elizabeth line have cleared. Minor delays on Southeastern continue.");
 });
 
 test("planned works say what and when", () => {

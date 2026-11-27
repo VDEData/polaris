@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { plannedStep, step, type AlertState } from "../src/policy.ts";
+import { follow, following, plannedStep, step, type AlertState } from "../src/policy.ts";
 import type { Issue } from "../src/types.ts";
 
 const MIN = 60_000;
@@ -85,4 +85,39 @@ test("ways told: what was pushed, read from older memory as the alert's own way,
   // Both ways when pushed: told both.
   const both = step(undefined, [issue("line:b")], t0, ways("out", { "line:b": ["out", "back"] }));
   assert.equal(step(both.state, [issue("line:b")], t0 + 2 * MIN, ways("back", { "line:b": ["out", "back"] })).push, undefined);
+});
+
+test("what was told is kept with its words, and told ended once it has gone a few minutes", () => {
+  let r = step(undefined, [issue("line:a"), { ...issue("line:b", "minor"), title: "B: minor delays" }], t0);
+  assert.deepEqual(r.state.said, { "line:a": { title: "t" }, "line:b": { title: "B: minor delays" } });
+  r = step(r.state, [issue("line:a")], t0 + 2 * MIN);
+  assert.equal(r.push, undefined);
+  assert.equal(r.state.said!["line:b"].gone, t0 + 2 * MIN);
+  r = step(r.state, [issue("line:a")], t0 + 6 * MIN);
+  assert.deepEqual(r.push, { kind: "clear", ended: ["B: minor delays"], still: ["t"], all: false });
+  assert.ok(r.state.open, "the other is still open");
+});
+
+test("old state (no words kept): what is still there is adopted as told, without a push", () => {
+  const old: AlertState = { live: { "line:a": { severity: "delays", seen: t0 } }, open: t0 };
+  const r = step(old, [issue("line:a")], t0 + 2 * MIN);
+  assert.equal(r.push, undefined);
+  assert.deepEqual(r.state.said, { "line:a": { title: "t", watched: t0 + 2 * MIN } });
+});
+
+test("following: only after a told disruption, for a limited time, and new trouble isn't told", () => {
+  const told = step(undefined, [issue("line:a")], t0).state;
+  assert.equal(following(told, t0 + 2 * MIN), true);
+  assert.equal(following({ live: {} }, t0), false);
+  assert.equal(following({ live: told.live, open: t0 }, t0 + 2 * MIN), false, "state from before: not followed");
+  let r = follow(told, [issue("line:a"), issue("line:b", "closed")], t0 + 2 * MIN);
+  assert.equal(r.push, undefined);
+  assert.equal(r.state.following, t0 + 2 * MIN);
+  assert.ok(!("line:b" in r.state.live), "not remembered as told");
+  assert.equal(following(r.state, t0 + 3 * 60 * MIN + 2 * MIN), true);
+  assert.equal(following(r.state, t0 + 3 * 60 * MIN + 4 * MIN), false, "the limit");
+  r = follow(r.state, [], t0 + 4 * MIN);
+  r = follow(r.state, [], t0 + 8 * MIN);
+  assert.deepEqual(r.push, { kind: "clear", ended: ["t"], still: [], all: true });
+  assert.equal(following(r.state, t0 + 10 * MIN), false, "done once told");
 });
