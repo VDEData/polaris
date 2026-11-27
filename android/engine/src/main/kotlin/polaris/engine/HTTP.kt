@@ -90,6 +90,12 @@ data class HttpRequest(
     val body: ByteArray? = null,
     /** Whether a redirect to the same host may be followed. Never to another host. */
     val followRedirects: Boolean = true,
+    /**
+     * The most the reply may be, for a server that is whatever address was entered (the alerts
+     * server): a longer one is refused from its Content-Length, or as it arrives, before it is
+     * all in memory. Null (the journey sources) is no limit.
+     */
+    val maxBodyBytes: Long? = null,
 ) {
     val host: String get() = URI(url).host ?: ""
 
@@ -185,12 +191,24 @@ class OkHttpTransport(client: OkHttpClient? = null) : HttpTransport {
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    val result = runCatching { response.use { HttpResponse(it.code, it.body.bytes(), it.header("Location")) } }
+                    val result = runCatching { response.use { HttpResponse(it.code, bounded(it, request.maxBodyBytes), it.header("Location")) } }
                     result.fold(continuation::resume, continuation::resumeWithException)
                 }
             })
         }
     }
+
+    /** The body, or [TooLarge] once it is known to pass [max]: from the length it declares, else after reading one byte past it. */
+    private fun bounded(response: Response, max: Long?): ByteArray {
+        if (max == null) return response.body.bytes()
+        if (response.body.contentLength() > max) throw TooLarge()
+        val source = response.body.source()
+        if (source.request(max + 1)) throw TooLarge()
+        return source.readByteArray()
+    }
+
+    /** A reply longer than the request allowed. */
+    class TooLarge : IOException("The reply was larger than allowed")
 
     private companion object {
         const val MAX_REDIRECTS = 5
