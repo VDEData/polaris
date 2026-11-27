@@ -216,6 +216,40 @@ class LiveTrip(
     /** When the ride you're on gets you there. */
     val rideArrival: Instant get() = timeline.steps.getOrNull(legIndex)?.arrival ?: leg.arrival
 
+    /** The live board's entry for the departure you're on, if the board has it. */
+    private val yourLiveDeparture: Departure?
+        get() = yourDeparture?.let { mine -> board(leg)?.departures?.firstOrNull { it.id == mine.id } }
+
+    /**
+     * The ride you're at or on, as the boards have it: which departure, and when it gets in. Its
+     * change is news of the trip (a train held, the next one after a miss). Null on a walk: there
+     * the timeline's choice of train only drifts with the clock.
+     */
+    val serviceNews: Pair<String?, Instant?>?
+        get() {
+            if (!leg.mode.isTransit) return null
+            val mine = yourDeparture
+            if (mine != null) {
+                val live = yourLiveDeparture
+                return mine.id to (live?.arrivalThere ?: live?.expected?.plusSeconds(leg.duration) ?: mine.arrivalThere)
+            }
+            val step = timeline.steps.getOrNull(legIndex)
+            return step?.service?.id to step?.arrival
+        }
+
+    /**
+     * The arrival with the ride you're on as late as its live board says (the timeline keeps the
+     * departure you boarded): the rest of the trip moves with it. Null when the board doesn't say.
+     */
+    val liveEta: Instant?
+        get() {
+            if (!leg.mode.isTransit) return null
+            val live = yourLiveDeparture ?: return null
+            val there = live.arrivalThere ?: live.expected.plusSeconds(leg.duration)
+            val step = timeline.steps.getOrNull(legIndex) ?: return null
+            return eta.plus(java.time.Duration.between(step.arrival, there)).takeIf { there > step.arrival } ?: eta
+        }
+
     /** The departure you're on, once Go knows which. */
     val yourDeparture: Departure? get() = log.boardings[legIndex]?.departure
 

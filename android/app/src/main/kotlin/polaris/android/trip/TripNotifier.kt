@@ -139,12 +139,12 @@ class TripNotifier(
             val (title, body) = words.alert(alert)
             postAlert(context, alert.id, title, body)
         }
-        override fun isShowing(id: String) = runCatching {
-            context.getSystemService(NotificationManager::class.java)?.activeNotifications?.any { it.tag == id && it.id == ID_ALERT } == true
-        }.getOrDefault(false)
+        override fun isShowing(id: String) = isShowing(context, id)
     }, clock)
 
     override fun schedule(alerts: List<TripAlert>) = nudges.schedule(alerts)
+
+    fun wasShown(id: String) = nudges.wasShown(id)
 
     /** A nudge's alarm fired in this process: shown unless it already was. */
     fun alarmFired(id: String): Boolean {
@@ -356,6 +356,11 @@ class TripNotifier(
         }
 
         const val EXTRA_DUE = "polaris.go.due"
+
+        /** The nudge [id] is up in the shade now. */
+        fun isShowing(context: Context, id: String): Boolean = runCatching {
+            context.getSystemService(NotificationManager::class.java)?.activeNotifications?.any { it.tag == id && it.id == ID_ALERT } == true
+        }.getOrDefault(false)
 
         /**
          * A nudge's alarm, asked early enough that Android's window for an inexact alarm ends at

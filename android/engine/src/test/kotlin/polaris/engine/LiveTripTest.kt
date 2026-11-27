@@ -938,4 +938,46 @@ class LiveTripTest {
         val connection = drive.trip.connection!!
         kotlin.test.assertNotEquals(Connection.Verdict.missing, connection.verdict, "timeline holds to the ${drive.trip.nextRideDeparture}, the pace check misses it")
     }
+
+    /** Aboard a train the board says is held 30 minutes: that is news, and the arrival it gives is half an hour later. */
+    @Test fun aHeldTrainIsNewsWithItsLaterArrival() = runTest {
+        val journey = Go.bakerloo
+        val boards = Go.bakerlooBoards(journey)
+        val drive = Drive(this, journey, Go.at("06:40:30"), boards, Go.paddington)
+        drive.tick("06:41:00", Go.paddington)
+        drive.trip.take(LiveTrip.Step.Boarded(journey.legs[1]))
+        drive.tick("06:42:00", Go.paddington)
+        val before = drive.trip.serviceNews
+        val eta = drive.trip.eta
+        val ride = journey.legs[1]
+        drive.boards[ride.id] = Go.tubeBoard(ride, listOf("06:37:00", "06:41:00", "06:44:00"), run = 38.0, planned = "06:41:00")
+        drive.tick("06:43:00", Go.paddington)
+        kotlin.test.assertNotEquals(before, drive.trip.serviceNews)
+        val later = assertNotNull(drive.trip.liveEta)
+        assertTrue(java.time.Duration.between(eta, later).toMinutes() >= 29, "live arrival $later against $eta")
+    }
+
+    /** Missed it, and the next is 35 minutes later: news, and the arrival moves with it. */
+    @Test fun aMissedTrainWithALongWaitIsNews() = runTest {
+        val journey = Go.bakerloo
+        val ride = journey.legs[1]
+        val boards = mutableMapOf(ride.id to Go.tubeBoard(ride, listOf("06:41:00", "07:16:00"), run = 8.0, planned = "06:41:00"))
+        val drive = Drive(this, journey, Go.at("06:40:00"), boards, Go.paddington)
+        drive.tick("06:40:00", Go.paddington)
+        val before = drive.trip.serviceNews
+        drive.steady("06:43:00")
+        drive.tick("06:43:00", Go.paddington)
+        kotlin.test.assertNotEquals(before, drive.trip.serviceNews)
+        assertTrue(drive.trip.eta > journey.arrival.plusSeconds(30 * 60L))
+    }
+
+    /** Still at the start, the clock running on: no ride news (the estimate drifting isn't news). */
+    @Test fun walkingThereIsNoServiceNews() = runTest {
+        val journey = Go.bakerloo
+        val drive = Drive(this, journey, Go.at("06:30:00"), Go.bakerlooBoards(journey), Go.start)
+        drive.tick("06:30:00", Go.start)
+        val first = drive.trip.serviceNews
+        drive.tick("06:50:00", Go.start)
+        assertEquals(first, drive.trip.serviceNews)
+    }
 }

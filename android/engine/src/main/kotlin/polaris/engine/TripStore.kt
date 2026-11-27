@@ -29,7 +29,7 @@ data class SavedTrip(
 ) {
     /** Still worth putting you back in Go: no more than half an hour past the arrival it had. */
     fun isResumable(now: Instant): Boolean =
-        version == CURRENT_VERSION && journey.legs.isNotEmpty() && legIndex in journey.legs.indices && now <= endsAt(arrival)
+        version == CURRENT_VERSION && journey.legs.isNotEmpty() && legIndex in journey.legs.indices && now <= cutoff(journey, arrival)
 
     /** The same trip as far as saving goes: the arrival counts only once it moves by five minutes or more. */
     fun sameAs(other: SavedTrip): Boolean =
@@ -45,6 +45,12 @@ data class SavedTrip(
 
         /** When a trip arriving at [arrival] ends by itself if nothing more is heard: the running trip and a resumed one use this. */
         fun endsAt(arrival: Instant): Instant = arrival.plusSeconds(STALE_AFTER)
+
+        /** However much news comes, no later than this past the planned arrival. */
+        const val LONGEST_AFTER_PLAN = 3 * 3600L
+
+        /** When a trip on [journey] arriving at [arrival] (as last known) ends: half an hour on, and never past the plan's arrival plus three hours. */
+        fun cutoff(journey: Journey, arrival: Instant): Instant = minOf(endsAt(arrival), journey.arrival.plusSeconds(LONGEST_AFTER_PLAN))
 
         fun encode(trip: SavedTrip): String = HTTP.json.encodeToString(TripDTO.of(trip))
 

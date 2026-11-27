@@ -36,6 +36,21 @@ object TripNoticePlan {
         return now.plusMillis((left / 1.75).toLong())
     }
 
+    enum class AlarmAction { Rearm, Post, Drop }
+
+    /**
+     * What a nudge's alarm does when it comes: asked again while more than a minute early; dropped
+     * when more than [NudgeKeeper.LATE_SECONDS] late (as the keeper drops one), when it is already
+     * showing, or when it was already shown in this process; otherwise posted.
+     */
+    fun onAlarm(now: Instant, due: Instant, shownHere: Boolean, showing: Boolean): AlarmAction = when {
+        shownHere -> AlarmAction.Drop
+        alarmAsk(now, due) != null -> AlarmAction.Rearm
+        Duration.between(due, now).seconds > NudgeKeeper.LATE_SECONDS -> AlarmAction.Drop
+        showing -> AlarmAction.Drop
+        else -> AlarmAction.Post
+    }
+
     /** Each nudge's own alarm, so a re-plan replaces exactly the ones it moves. */
     fun alarmRequest(alertId: String): Int = 1000 + (alertId.hashCode() and 0xFFFF)
 }

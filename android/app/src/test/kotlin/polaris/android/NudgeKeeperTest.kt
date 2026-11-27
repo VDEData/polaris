@@ -121,4 +121,19 @@ class NudgeKeeperTest {
         keeper.schedule(emptyList())
         assertEquals(listOf("getoff.1", "getoff.1"), port.posted)
     }
+
+    /** What an alarm does when it comes: asked again while early, dropped when long late or already shown, otherwise posted. */
+    @Test fun anAlarmLateOrAlreadyShownPostsNothing() {
+        val plan = polaris.android.trip.TripNoticePlan
+        val now = at(0)
+        // Six minutes late (the process was gone, the phone asleep): nothing.
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Drop, plan.onAlarm(now, at(-6 * 60), shownHere = false, showing = false))
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Post, plan.onAlarm(now, at(-30), shownHere = false, showing = false))
+        // Already up, or already shown in this process: not again.
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Drop, plan.onAlarm(now, at(-30), shownHere = false, showing = true))
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Drop, plan.onAlarm(now, at(-30), shownHere = true, showing = false))
+        // Early: asked again, unless it was already shown here.
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Rearm, plan.onAlarm(now, at(10 * 60), shownHere = false, showing = false))
+        assertEquals(polaris.android.trip.TripNoticePlan.AlarmAction.Drop, plan.onAlarm(now, at(10 * 60), shownHere = true, showing = false))
+    }
 }

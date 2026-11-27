@@ -273,4 +273,42 @@ class TripSessionTest {
         assertNull(trips.trip.value, "still running three hours later")
         assertTrue(now <= journey().arrival.plusSeconds(31 * 60L), "ended only at $now")
     }
+
+    /** Indoors, fixes wander between two spots 150 m apart, both as far from the destination: not news, so the trip still ends. */
+    @Test fun wanderingFixesAreNotNews() = runTest {
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(TripStore.Memory(), { now }, tracker = tracker)
+        trips.start(journey(), query)
+        runCurrent()
+        val east = Coordinate(c.latitude + 0.01, c.longitude + 0.0011)
+        val west = Coordinate(c.latitude + 0.01, c.longitude - 0.0011)
+        var i = 0
+        while (now < t0.plusSeconds(4 * 3600L) && trips.trip.value != null) {
+            now = now.plusSeconds(5 * 60L)
+            tracker.latest = LiveTrip.Fix(if (i++ % 2 == 0) east else west, now)
+            advanceTimeBy(2_000); runCurrent()
+        }
+        assertNull(trips.trip.value, "still running four hours later")
+        assertTrue(now < t0.plusSeconds(2 * 3600L), "ended only at $now, by the cap rather than the rule")
+    }
+
+    /** However much news comes, a trip ends three hours past its planned arrival. */
+    @Test fun aTripEndsThreeHoursPastItsPlannedArrival() = runTest {
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(TripStore.Memory(), { now }, tracker = tracker)
+        trips.start(journey(), query)
+        runCurrent()
+        // Coming steadily closer to the destination every five minutes (news each time), and never there.
+        var lat = c.latitude + 0.5
+        while (now < t0.plusSeconds(5 * 3600L) && trips.trip.value != null) {
+            now = now.plusSeconds(5 * 60L)
+            lat -= 0.0015
+            tracker.latest = LiveTrip.Fix(Coordinate(lat, c.longitude), now)
+            advanceTimeBy(2_000); runCurrent()
+        }
+        assertNull(trips.trip.value)
+        assertTrue(now <= journey().arrival.plusSeconds(3 * 3600L + 5 * 60L), "ended only at $now")
+    }
 }

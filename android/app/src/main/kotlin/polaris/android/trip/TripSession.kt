@@ -116,18 +116,19 @@ class TripSession(
     private var known: Instant? = null
     private var knownLeg = -1
     private var knownLogged = 0
-    private var knownAt: polaris.engine.Coordinate? = null
+    private var knownLeft: Double? = null
+    private var knownService: Pair<String?, Instant?>? = null
     private var armed: Instant? = null
 
     /** When the trip ends by itself if nothing more is heard, the same rule a saved trip is resumed by. */
-    val cutoff: Instant? get() = known?.let(SavedTrip::endsAt)
+    val cutoff: Instant? get() = known?.let { k -> _trip.value?.let { SavedTrip.cutoff(it.journey, k) } ?: SavedTrip.endsAt(k) }
 
     /**
      * A trip ends by itself:
      * - [ARRIVED_SECONDS] after you're seen at the destination and still there (long enough to glance
      *   at Go saying so, short enough that GPS, the service and the notification don't run on in a pocket);
-     * - or at [cutoff], half an hour past the arrival as last known. Only news updates that arrival
-     *   (a change of leg, a boarding or a leg finished, a fresh fix 100 m from the last news): with nothing heard (no fix underground, the phone left behind) the
+     * - or at [cutoff], half an hour past the arrival as last known, and never past the planned
+     *   arrival plus three hours. Only news updates that arrival (see below): with nothing heard (no fix underground, the phone left behind) the
      *   timeline keeps moving the estimate on, and that alone mustn't keep the trip alive. A long
      *   delay that is seen keeps it going.
      * An alarm at the cut-off ends it with the phone asleep and no fixes coming.
@@ -136,17 +137,23 @@ class TripSession(
         val now = clock()
         if (!trip.arrived) arrivedAt = null else if (arrivedAt == null) arrivedAt = now
         val there = arrivedAt?.let { java.time.Duration.between(it, now).seconds >= ARRIVED_SECONDS } ?: false
-        // News: a change of leg, a boarding or a leg finished, or a fresh fix somewhere else (100 m
-        // on). Fresh fixes from a phone that isn't going anywhere aren't news: the estimate drifts
-        // on with the clock while it stays put, and that mustn't keep the trip alive.
+        // News: a change of leg, a boarding or a leg finished; the ride you're at or on changing on
+        // its board (a train held, the next after a miss); or a fresh fix that has come closer to
+        // the destination by more than its own wander (100 m, or twice its accuracy). Fixes that
+        // only wander, or come from a phone going nowhere, aren't news: the estimate drifts on with
+        // the clock meanwhile, and that mustn't keep the trip alive.
         val fix = tracker.latest?.takeIf { java.time.Duration.between(it.at, now).seconds < FRESH_SECONDS }
-        val moved = fix != null && (knownAt == null || fix.coordinate.distance(knownAt!!) >= MOVED_METRES)
+        val left = fix?.coordinate?.distance(trip.query.destination.coordinate)
+        val wander = maxOf(MOVED_METRES, 2 * (fix?.accuracy ?: 0.0))
+        val closer = left != null && (knownLeft == null || left < knownLeft!! - wander)
         val logged = trip.log.boardings.size + trip.log.ended.size
-        if (known == null || moved || trip.legIndex != knownLeg || logged != knownLogged) {
-            known = trip.eta
+        val service = trip.serviceNews
+        if (known == null || closer || trip.legIndex != knownLeg || logged != knownLogged || service != knownService) {
+            known = maxOf(trip.eta, trip.liveEta ?: trip.eta)
             knownLeg = trip.legIndex
             knownLogged = logged
-            if (fix != null) knownAt = fix.coordinate
+            knownService = service
+            if (left != null && (knownLeft == null || left < knownLeft!!)) knownLeft = left
         }
         val at = cutoff
         if (at != null && (armed == null || kotlin.math.abs(java.time.Duration.between(armed, at).seconds) >= 60)) {
@@ -182,7 +189,8 @@ class TripSession(
         known = arrival
         knownLeg = if (arrival != null) trip.legIndex else -1
         knownLogged = trip.log.boardings.size + trip.log.ended.size
-        knownAt = null
+        knownLeft = null
+        knownService = trip.serviceNews
         armed = null
         _trip.value = trip
         tracker.start()
