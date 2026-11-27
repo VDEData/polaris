@@ -10,4 +10,6 @@ object Variant {
     fun transport(context: Context, intent: Intent?): HttpTransport? = null
     fun startTrip(intent: Intent?): JourneyQuery? = null
     fun secrets(intent: Intent?): polaris.engine.SecretStore? = null
+    fun clock(intent: Intent?): (() -> java.time.Instant)? = null
+    fun replanSearch(intent: Intent?): (suspend (JourneyQuery, polaris.engine.Replan.Watch) -> polaris.engine.ReplanAnswer)? = null
 }

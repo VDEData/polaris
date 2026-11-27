@@ -35,10 +35,15 @@ class MapScene {
         val drawing: JourneyMap.Drawing? = null,
         val others: List<JourneyMap.Drawing> = emptyList(),
         val frame: JourneyMap.Bounds? = drawing?.bounds,
+        /** During Go on a ride with no fix: where it has got to by the clock. */
+        val estimate: polaris.engine.Coordinate? = null,
+        /** See `PolarisMap`'s fitKey: Go refits when the window changes shape. */
+        val fitKey: String? = null,
     )
 
     private val contents = mutableStateMapOf<NavKey, Content>()
     private val docks = mutableStateMapOf<NavKey, @Composable () -> Unit>()
+    private val banners = mutableStateMapOf<NavKey, @Composable () -> Unit>()
 
     fun set(key: NavKey, content: Content) {
         contents[key] = content
@@ -47,6 +52,7 @@ class MapScene {
     fun clear(key: NavKey) {
         contents.remove(key)
         docks.remove(key)
+        banners.remove(key)
     }
 
     fun of(key: NavKey?): Content = key?.let { contents[it] } ?: Content()
@@ -57,6 +63,13 @@ class MapScene {
     }
 
     fun dockOf(key: NavKey?): (@Composable () -> Unit)? = key?.let { docks[it] }
+
+    /** A card across the top of the map (Go's instruction banner), below the status bar; on the map half when wide. */
+    fun banner(key: NavKey, card: (@Composable () -> Unit)?) {
+        if (card == null) banners.remove(key) else banners[key] = card
+    }
+
+    fun bannerOf(key: NavKey?): (@Composable () -> Unit)? = key?.let { banners[it] }
 }
 
 /** The sheet as a page sees it: its rest, whether the window is wide (no sheet: a card), and how to ask for a rest. */

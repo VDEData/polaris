@@ -93,9 +93,6 @@ data class Leg(
     /** Seconds, as Swift's `TimeInterval`. */
     val duration: Double get() = arrival.seconds - departure.seconds
 
-    /** "platform 2", or for a bus "stop G". A no-break space keeps the word and its number together. */
-    fun standing(at: String): String =
-        if (mode == LegMode.bus || mode == LegMode.coach) "stop $at" else "platform $at"
 
     val start: Coordinate? get() = path.firstOrNull()
     val end: Coordinate? get() = path.lastOrNull()

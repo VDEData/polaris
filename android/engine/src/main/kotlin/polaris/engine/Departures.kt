@@ -75,6 +75,12 @@ data class DepartureBoard(
         return (other.arrivalThere ?: other.expected).seconds - mine.seconds
     }
 
+    /** Minutes later you'd reach the stop off on [other], as the two arrival times are shown (to the minute). */
+    fun arrivalMinutes(other: Departure): Int? {
+        val planned = planned ?: return null
+        return Strip.shownMinutes(planned.arrivalThere ?: planned.expected, other.arrivalThere ?: other.expected)
+    }
+
     private fun soonestThere(departures: List<Departure>): Departure? =
         departures.minWithOrNull(compareBy<Departure>({ it.arrivalThere ?: it.expected }, { it.expected }))
 }
@@ -410,6 +416,9 @@ class DepartureStore(
         }
     }
 
+    /** The last request for [leg]'s board failed (a board already held is kept, so its state alone doesn't say). */
+    fun boardFailed(leg: Leg): Boolean = failures.containsKey(key(leg))
+
     /** Whether nearby was fetched within the minute: checked before asking for a fix at all. */
     fun nearbyIsFresh(): Boolean = fresh(nearbyFetched?.first, clock())
 
@@ -516,8 +525,8 @@ object Strip {
         if (departure.isCancelled) return Caption.Cancelled
         if (departure.id == board.plannedId) return if (departure.expected < now) Caption.Gone else Caption.Yours
         if (departure.expected < now) return Caption.Gone
-        val difference = board.arrivalDifference(departure) ?: (departure.expected.seconds - legDeparture.seconds)
-        return if (kotlin.math.abs(difference) < 30) Caption.Same else Caption.Minutes(signedMinutes(difference))
+        val minutes = board.arrivalMinutes(departure) ?: Strip.shownMinutes(legDeparture, departure.expected)
+        return if (minutes == 0) Caption.Same else Caption.Minutes(minutes)
     }
 
     fun verdict(board: DepartureBoard, now: Instant, reachable: Instant? = null): Verdict? {
@@ -528,18 +537,18 @@ object Strip {
         var earlier: Instant? = null
         var gain: Int? = null
         board.earlierThanPlanned(after)?.let { e ->
-            val g = board.arrivalDifference(e)
-            if (g != null && g < -30) {
+            val g = board.arrivalMinutes(e)
+            if (g != null && g < 0) {
                 earlier = e.expected
-                gain = roundAway(-g / 60)
+                gain = -g
             }
         }
         var next: Instant? = null
         var cost: Int? = null
         board.nextAfterPlanned?.let { n ->
-            board.arrivalDifference(n)?.let { c ->
+            board.arrivalMinutes(n)?.let { c ->
                 next = n.expected
-                cost = roundAway(c / 60)
+                cost = c
             }
         }
         if (late == null && earlier == null && next == null) return null
@@ -551,4 +560,11 @@ object Strip {
 
     /** Swift's `rounded()`: halves away from zero (Kotlin's `Math.round` takes -2.5 to -2). */
     fun roundAway(value: Double): Int = (kotlin.math.sign(value) * kotlin.math.floor(kotlin.math.abs(value) + 0.5)).toInt()
+
+    /**
+     * Minutes from [earlier] to [later] as their clock times show them (each to the minute, as the
+     * app's clock cuts the seconds), so "N min sooner" always matches the two times beside it.
+     */
+    fun shownMinutes(earlier: java.time.Instant, later: java.time.Instant): Int =
+        (Math.floorDiv(later.epochSecond, 60L) - Math.floorDiv(earlier.epochSecond, 60L)).toInt()
 }

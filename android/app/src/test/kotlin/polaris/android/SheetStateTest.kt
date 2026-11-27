@@ -64,4 +64,31 @@ class SheetStateTest {
         s.updateAnchors(this, mapOf(Rest.Low to 900f, Rest.Half to 400f))
         assertEquals(400f, s.top)
     }
+
+    /**
+     * A list scrolled up pulls the sheet to full height through the nested scroll, landing exactly
+     * on the full rest with no fling to settle it. The rest it is saved with (and comes back at
+     * after Android stops the app) must be full, not the half it started from.
+     */
+    @Test fun aScrollThatPullsTheSheetToFullHeightIsRememberedAsFull() = runTest {
+        val s = sheet()
+        val connection = polaris.android.shell.sheetNestedScroll(s, this)
+        connection.onPreScroll(androidx.compose.ui.geometry.Offset(0f, -2000f), androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput)
+        assertEquals(0f, s.top)
+        connection.onPreFling(androidx.compose.ui.unit.Velocity.Zero)
+        connection.onPostFling(androidx.compose.ui.unit.Velocity.Zero, androidx.compose.ui.unit.Velocity.Zero)
+        advanceUntilIdle()
+        assertEquals(Rest.Full, s.rest)
+        assertEquals(Rest.Full, s.remembered)
+    }
+
+    /** A list flung inside a sheet a page asked for doesn't make that rest the person's own. */
+    @Test fun aListFlungInsideTheSheetChoosesNoRest() = runTest {
+        val s = SheetState(Rest.Low, Rest.Low, instant).also { it.updateAnchors(this, anchors) }
+        s.request(this, Rest.Half); advanceUntilIdle()
+        val connection = polaris.android.shell.sheetNestedScroll(s, this)
+        connection.onPostFling(androidx.compose.ui.unit.Velocity.Zero, androidx.compose.ui.unit.Velocity.Zero)
+        assertEquals(Rest.Half, s.rest)
+        assertEquals(Rest.Low, s.remembered)
+    }
 }

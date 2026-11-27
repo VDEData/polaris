@@ -62,6 +62,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -96,16 +97,16 @@ import polaris.engine.ServiceNotice
 import java.time.Instant
 
 /**
- * One route (iOS's `JourneySheet`): the times and fare, when to leave, Share, the itinerary with a
- * departure strip under each ride, who found it, and the hand-off to another app. Go (following
- * the trip live) comes with the next update, so there is no Go button yet; the alert bell waits
- * for alerts.
+ * One route (iOS's `JourneySheet`): the times and fare, when to leave, Go and Share, the itinerary
+ * with a departure strip under each ride, who found it, and the hand-off to another app. Go starts
+ * the live trip and opens its page; while that trip runs the button returns to it. The alert bell
+ * waits for alerts.
  *
  * On a phone a strip opens its board as a page; wide, the board docks at the foot of the map half
  * beside the itinerary, as iOS does on the Duo.
  */
 @Composable
-fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoard: (Leg) -> Unit) {
+fun JourneyScreen(key: JourneyPage, graph: AppGraph, shell: polaris.android.shell.ShellViewModel, onBack: () -> Unit, openGo: () -> Unit, openBoard: (Leg) -> Unit) {
     val model: JourneyViewModel = viewModel(factory = factory { JourneyViewModel(graph, key.searchId, key.journeyId) })
     val ui by model.ui.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
@@ -147,6 +148,34 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
             docked = null
             openBoard(dockedLeg)
         }
+    }
+
+    // Go: starts the live trip for this route (or goes back to it), asking for location on the tap
+    // if it hasn't been allowed (Go still runs on the timetable without it).
+    val tripVersion by graph.trips.version.collectAsStateWithLifecycle()
+    val following = remember(tripVersion, journey?.id) { journey?.let { graph.trips.following(it.id) } }
+    // Then notifications, for the trip in the shade and its alerts (Android 13 and later ask).
+    val askNotifications = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) graph.trips.trip.value?.let { trip -> graph.notifier?.let { n -> n.start(trip.query.destination.name, trip.card(), adopt = true) } }
+    }
+    val notificationsNeeded = { android.os.Build.VERSION.SDK_INT >= 33 && graph.notifier?.allowed == false }
+    val askLocation = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.values.any { it }) {
+            shell.locationAllowed()
+            graph.notifier?.startService()
+        }
+        if (notificationsNeeded()) askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+    val go: () -> Unit = go@{
+        val j = journey ?: return@go
+        val q = query ?: return@go
+        if (following == null) {
+            graph.trips.start(j, q)
+            // Asked here, on the tap that needs them, never at launch: location first, then notifications.
+            if (!graph.locator.hasPermission) askLocation.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION))
+            else if (notificationsNeeded()) askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        openGo()
     }
 
     // Once for the page, whichever layout shows the countdown (a fold or a turn changes it).
@@ -202,7 +231,7 @@ fun JourneyScreen(key: JourneyPage, graph: AppGraph, onBack: () -> Unit, openBoa
                     }
                 }
                 else -> {
-                    if (!layout.short) item(key = "leave") { LeaveAndShare(journey, query, Modifier.padding(horizontal = 16.dp)) }
+                    item(key = "leave") { LeaveAndShare(journey, query, following != null, go, short = layout.short, modifier = Modifier.padding(horizontal = 16.dp)) }
                     item(key = "itinerary") {
                         Itinerary(
                             journey, query, ui,
@@ -302,16 +331,33 @@ private fun shareAction(journey: Journey, query: JourneyQuery): () -> Unit {
     return { launchIntent(context, Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareText), chooser)) }
 }
 
-/** When to leave, ticking, in the warning colour inside two minutes; and Share. Stacked at large text. */
+/**
+ * When to leave, ticking, in the warning colour inside two minutes; then Go, the one filled gold
+ * button, beside Share (as the mock-up places them). Stacked at large text. On a short window when
+ * to leave is in the subtitle and Share in the overflow, so only Go is here.
+ */
 @Composable
-private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modifier) {
+private fun LeaveAndShare(journey: Journey, query: JourneyQuery, live: Boolean, go: () -> Unit, short: Boolean, modifier: Modifier) {
     val c = polaris
     val (leave, urgent) = leaveText(journey)
     val share = shareAction(journey, query)
+    val large = LocalDensity.current.fontScale >= 1.5f
     val leaveRow: @Composable (Modifier) -> Unit = { m ->
         Row(m.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Symbol(R.drawable.sym_schedule, null, Modifier.size(18.dp), tint = if (urgent) c.warning else c.ink)
             Text(leave, style = MaterialTheme.typography.titleSmall, color = if (urgent) c.warning else c.ink)
+        }
+    }
+    val goButton: @Composable (Modifier) -> Unit = { m ->
+        val hint = stringResource(R.string.go_hint)
+        androidx.compose.material3.Button(
+            onClick = go,
+            modifier = m.heightIn(min = 48.dp).semantics { onClick(label = hint) { go(); true } },
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = c.gold, contentColor = c.navy),
+        ) {
+            Symbol(R.drawable.go_arrow, null, Modifier.size(18.dp), tint = c.navy)
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(if (live) R.string.go_back_to_trip else R.string.go_start), fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
     val shareButton: @Composable (Modifier) -> Unit = { m ->
@@ -319,15 +365,18 @@ private fun LeaveAndShare(journey: Journey, query: JourneyQuery, modifier: Modif
             Text(stringResource(R.string.journey_share), fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
-    if (LocalDensity.current.fontScale >= 1.5f) {
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            leaveRow(Modifier)
-            shareButton(Modifier.fillMaxWidth())
-        }
-    } else {
-        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            leaveRow(Modifier.weight(1f))
-            shareButton(Modifier)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (short) 4.dp else 10.dp)) {
+        if (!short) leaveRow(Modifier)
+        when {
+            short -> goButton(Modifier.fillMaxWidth())
+            large -> {
+                goButton(Modifier.fillMaxWidth())
+                shareButton(Modifier.fillMaxWidth())
+            }
+            else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                goButton(Modifier.weight(1f))
+                shareButton(Modifier)
+            }
         }
     }
 }

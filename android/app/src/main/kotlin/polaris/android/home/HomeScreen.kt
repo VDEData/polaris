@@ -69,6 +69,7 @@ import polaris.android.ui.FractalStar
 import polaris.android.ui.PolarisType
 import polaris.android.ui.SectionHeader
 import polaris.android.ui.Symbol
+import polaris.android.ui.Clock
 import polaris.android.ui.polaris
 import polaris.android.ui.surface
 import polaris.engine.Place
@@ -89,8 +90,12 @@ fun HomeScreen(
     openSearch: (SearchFor) -> Unit,
     openSettings: () -> Unit,
     openLine: (polaris.engine.NearbyLine) -> Unit,
+    openGo: () -> Unit = {},
 ) {
     val places by shell.places.collectAsStateWithLifecycle()
+    // A trip running while Go's page isn't on top (left with back): the way back to it, first.
+    val tripVersion by graph.trips.version.collectAsStateWithLifecycle()
+    val trip = remember(tripVersion) { graph.trips.trip.value }
     val finding by shell.finding.collectAsStateWithLifecycle()
     val sheet = LocalSheet.current
     val c = polaris
@@ -129,6 +134,7 @@ fun HomeScreen(
                     SettingsMenu(openSettings)
                 }
             }
+            if (trip != null) item(key = "trip") { TripRow(trip, openGo) }
             item { WhereTo(Modifier.fillMaxWidth()) { openSearch(SearchFor.Destination) } }
             if (finding) item {
                 Row(
@@ -299,4 +305,27 @@ private fun RecentRow(place: Place, go: () -> Unit, setHome: () -> Unit, setWork
 @Composable
 private fun SettingsMenu(openSettings: () -> Unit) {
     IconButton(onClick = openSettings) { Symbol(R.drawable.sym_settings, stringResource(R.string.settings_open), tint = polaris.inkSoft) }
+}
+
+
+/** The live trip, while Go's page isn't showing: where to and when, and the way back to it. */
+@Composable
+private fun TripRow(trip: polaris.engine.LiveTrip, openGo: () -> Unit) {
+    val c = polaris
+    val open = stringResource(R.string.go_home_open)
+    Row(
+        Modifier.fillMaxWidth().surface(c, highlighted = true)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = open, onClick = openGo)
+            .heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Symbol(R.drawable.go_arrow, null, Modifier.size(22.dp), tint = c.goldInk)
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.go_home_trip, trip.query.destination.name), style = MaterialTheme.typography.titleSmall, color = c.ink, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(stringResource(R.string.go_arrive, Clock.of(trip.eta)), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+        }
+        Symbol(R.drawable.sym_chevron_right, null, Modifier.size(20.dp), tint = c.inkFaint)
+    }
 }

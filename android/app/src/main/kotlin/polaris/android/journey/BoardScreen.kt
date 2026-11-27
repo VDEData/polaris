@@ -151,13 +151,14 @@ fun BoardContent(
                 if (close != null) IconButton(onClick = close) { Symbol(R.drawable.sym_close, stringResource(R.string.board_close), tint = c.inkSoft) }
             }
             androidx.compose.foundation.layout.FlowRow(
-                Modifier.padding(start = 4.dp, bottom = 12.dp),
+                Modifier.padding(start = 4.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 LinePill(leg)
                 Text(stringResource(R.string.board_and_else, leg.toName), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
             }
+            Text(stringResource(R.string.board_columns, leg.toName), Modifier.padding(start = 4.dp, bottom = 12.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
     }
     LazyColumn(
         Modifier.fillMaxWidth().weight(1f, fill = !narrow),
@@ -177,7 +178,7 @@ fun BoardContent(
                     rows(board, now, leg.toName, narrow)
                 }
                 item(key = "source") {
-                    Text(stringResource(R.string.board_source, leg.toName), Modifier.padding(horizontal = 4.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
+                    Text(stringResource(R.string.board_source), Modifier.padding(horizontal = 4.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
                 }
             }
             state is Loadable.Failed -> item(key = "failed") { Note(reasonText(state.reason)) }
@@ -205,7 +206,7 @@ private fun LazyListScope.rows(board: DepartureBoard, now: java.time.Instant, de
         )
         Column(Modifier.fillMaxWidth().clip(shape).background(c.surface, shape)) {
             if (!first) HorizontalDivider(Modifier.padding(start = 74.dp), color = c.hairline)
-            BoardRow(d, isPlanned = d.id == board.plannedId, now = now, difference = if (d.id == board.plannedId) null else board.arrivalDifference(d), destination = destination, narrow = narrow)
+            BoardRow(d, isPlanned = d.id == board.plannedId, now = now, minutes = if (d.id == board.plannedId) null else board.arrivalMinutes(d), destination = destination, narrow = narrow)
         }
     }
 }

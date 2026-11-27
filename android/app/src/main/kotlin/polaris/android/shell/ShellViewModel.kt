@@ -112,6 +112,11 @@ class ShellViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    /** Location was allowed from a page's own ask (Go's tap): the map shows the dot from now on. */
+    fun locationAllowed() {
+        _showsLocation.value = true
+    }
+
     fun locateMe() {
         if (graph.locator.hasPermission) recentreOnFix() else _need.value = Need.Map()
     }

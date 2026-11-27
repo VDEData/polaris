@@ -4,6 +4,7 @@ import polaris.android.settings.SettingsScreen
 import polaris.android.settings.LicencesScreen
 import polaris.android.settings.SetupScreen
 import polaris.android.journey.JourneyScreen
+import polaris.android.go.GoScreen
 import polaris.android.journey.BoardScreen
 import polaris.android.journey.LineScreen
 import android.Manifest
@@ -115,7 +116,14 @@ inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: 
  * use the sheet.
  */
 @Composable
-fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.JourneyQuery? = null, showSetup: Boolean = false) {
+fun PolarisApp(
+    graph: AppGraph,
+    night: Boolean,
+    startTrip: polaris.engine.JourneyQuery? = null,
+    showSetup: Boolean = false,
+    goRequest: polaris.android.GoRequest? = null,
+    goRequestTaken: () -> Unit = {},
+) {
     val shell: ShellViewModel = viewModel(factory = factory { ShellViewModel(graph) })
     // First-run setup is over everything on a fresh start; after that the saved stack decides.
     val window = rememberNavBackStack(*(if (showSetup) arrayOf<NavKey>(MainWindow, SetupWindow) else arrayOf<NavKey>(MainWindow)))
@@ -135,6 +143,42 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     LaunchedEffect(startTrip) {
         if (startTrip != null && !startedTrip && pages.size == 1) pages.add(ResultsPage(startTrip))
         startedTrip = true
+    }
+    // A trip the app was stopped during: back in Go, on top of whatever the saved stack had.
+    val tripOpens by graph.trips.opens.collectAsStateLifecycle()
+    // Before any page is composed: a Go page restored with the stack finds its trip already back,
+    // rather than closing itself for want of one (and losing its sheet height and scroll place).
+    remember(graph) { graph.trips.resumePending() }
+    // Go's notification tapped: Go on top, and Switch taken there (after a cold launch the trip is
+    // the resumed one, whose offer wasn't kept: it says the faster way has gone).
+    LaunchedEffect(goRequest) {
+        val request = goRequest ?: return@LaunchedEffect
+        goRequestTaken()
+        graph.trips.resumePending()
+        val trip = graph.trips.trip.value ?: return@LaunchedEffect
+        // A verified tap takes the offer; an unverified one (after a cold launch the token is new)
+        // only reaches a trip with no live offer, which then says the faster way has gone.
+        if (request.switch && (request.verified || trip.offer == null)) trip.acceptOffer()
+        if (pages.lastOrNull() != GoPage) {
+            pages.removeAll { it == GoPage }
+            pages.add(GoPage)
+        }
+    }
+    // A trip that ended by itself (arrived, or past its time): back to Home, where the message shows.
+    val endedItself by graph.trips.endedItself.collectAsStateLifecycle()
+    var endingsSeen by rememberSaveable { mutableStateOf(endedItself) }
+    LaunchedEffect(endedItself) {
+        if (endedItself == endingsSeen) return@LaunchedEffect
+        endingsSeen = endedItself
+        pages.removeAll { it !is HomePage }
+    }
+    LaunchedEffect(tripOpens) {
+        if (!tripOpens) return@LaunchedEffect
+        graph.trips.opened()
+        if (pages.lastOrNull() != GoPage) {
+            pages.removeAll { it == GoPage }
+            pages.add(GoPage)
+        }
     }
     LaunchedEffect(shell) {
         shell.closedSearches.collect { kind -> window.removeAll { it is SearchWindow && it.kind == kind } }
@@ -167,12 +211,15 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     val hinge = hinges.firstOrNull { it.isVertical }
     // A fold running across the window (an unfolded book-style phone turned tall): the phone
     // layout with more room, as the proposal decides for tall-open, not a card above the fold.
+    // With no hinge reported, the window's shape decides: a book-style foldable open and turned on
+    // its side is near-square and wider than tall (its fold now runs across), so it is open tall.
     val foldAcross = hinges.any { !it.isVertical }
     val foldBottom = hinges.firstOrNull { !it.isVertical }?.bounds?.bottom
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Wide: an unfolded phone held wide, a tablet in landscape, and a phone in landscape (under
     // 480 dp tall a sheet leaves no room for a route card; a card beside the map does).
-    val wide = !foldAcross && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
+    val turnedOpen = hinges.isEmpty() && maxWidth >= 840.dp && maxHeight >= 840.dp && maxWidth > maxHeight && maxHeight >= maxWidth * 0.8f
+    val wide = !foldAcross && !turnedOpen && ((maxWidth >= 840.dp && maxHeight >= 480.dp) || (maxHeight < 480.dp && maxWidth >= 600.dp))
     val widthPx = constraints.maxWidth.toFloat()
     // Up to the fold, 48 dp short of it; with no fold, 400 dp (less on a short landscape phone). The card starts 16 dp in.
     // A book-style foldable held open wide whose fold WindowManager didn't report (it can be late
@@ -195,7 +242,7 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
     // and what it frames stay clear of a hinge there. On a tablet this only nudges the map's start.
     val middle = maxWidth / 2
     val mapStart: Dp = if (wide && hinge == null && besideCard > middle - 24.dp && besideCard < middle + 24.dp) middle + 24.dp else besideCard
-    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom)
+    val layout = WindowLayout(wide = wide, short = maxHeight < 480.dp, cardWidth = cardWidth, mapStart = mapStart, safeStart = safeStart, foldBottomPx = foldBottom ?: if (turnedOpen) constraints.maxHeight / 2f else null)
     CompositionLocalProvider(LocalWindowLayout provides layout) {
     NavDisplay(
         backStack = window,
@@ -273,7 +320,12 @@ fun PolarisApp(graph: AppGraph, night: Boolean, startTrip: polaris.engine.Journe
 private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateLifecycle(): androidx.compose.runtime.State<T> = collectAsStateWithLifecycle()
 
 /** Which rest a page asks for when it comes on top: Home goes back to the person's own, the others to half. */
-private fun preferredRest(key: NavKey?): Rest? = if (key is HomePage || key == null) null else Rest.Half
+private fun preferredRest(key: NavKey?): Rest? = when (key) {
+    null, is HomePage -> null
+    // Go's rest is the low bar (its header and the step button), as iOS's Go rest is: the map leads.
+    is GoPage -> Rest.Low
+    else -> Rest.Half
+}
 
 @Composable
 private fun MapAndSheet(
@@ -300,6 +352,8 @@ private fun MapAndSheet(
         }
     }
     var dockHeight by remember { mutableStateOf(0) }
+    var bannerHeight by remember { mutableStateOf(0) }
+    val banner = scene.bannerOf(top)
 
     // A page coming on top asks for its rest; a rotation (same page on top) asks for nothing.
     var lastTop by rememberSaveable { mutableStateOf<String?>(null) }
@@ -332,11 +386,18 @@ private fun MapAndSheet(
             val handlePx = with(density) { 28.dp.toPx() }
             val anchors = buildMap {
                 put(Rest.Low, heightPx - (barPx + handlePx + with(density) { navBottom.toPx() }))
-                // At the largest text the half rest sits higher, so a route card fits under the page's controls.
+                // At the largest text the half rest sits higher (70% of the window), so the first route card
+                // fits whole under the page's two-row trip and wrapped controls.
                 // Open tall, the half rest is 48 dp below the fold, so neither the sheet's edge nor the map's
                 // credit sits on it.
                 val foldRest = layout.foldBottomPx?.let { it + with(density) { 48.dp.toPx() } }?.takeIf { it < heightPx * 0.7f }
-                put(Rest.Half, foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.40f else 0.52f))
+                val half = foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.30f else 0.52f)
+                // Go's banner, however many lines it grows to, stays whole above the half rest, with the
+                // credit and a strip of map under it, so the credit never sits on the banner.
+                // 176 dp: the map fits only with 120 dp clear inside its padding (24 dp under the
+                // banner, 32 dp over the credit), so your dot is framed above the credit.
+                val underBanner = if (banner != null && bannerHeight > 0) with(density) { statusTop.toPx() + 12.dp.toPx() + bannerHeight + 176.dp.toPx() } else 0f
+                put(Rest.Half, maxOf(half, underBanner).coerceAtMost(heightPx * 0.6f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
             }
@@ -354,11 +415,12 @@ private fun MapAndSheet(
         }
 
         // What covers the map, for its credit and for fitting routes into the part left showing.
+        val bannerDp = if (banner != null) with(density) { bannerHeight.toDp() } + 8.dp else 0.dp
         val covered = if (wide) {
-            PaddingValues(start = layout.mapStart, top = statusTop + 16.dp, end = 72.dp, bottom = navBottom)
+            PaddingValues(start = layout.mapStart, top = statusTop + 16.dp + bannerDp, end = 72.dp, bottom = navBottom)
         } else {
             val sheetTop = if (sheet.top.isNaN()) heightPx else sheet.top
-            PaddingValues(top = statusTop + 8.dp, end = 64.dp, bottom = with(density) { (heightPx - sheetTop).coerceAtLeast(0f).toDp() })
+            PaddingValues(top = statusTop + 8.dp + bannerDp, end = 64.dp, bottom = with(density) { (heightPx - sheetTop).coerceAtLeast(0f).toDp() })
         }
 
         PolarisMap(
@@ -369,13 +431,23 @@ private fun MapAndSheet(
             modifier = Modifier.fillMaxSize().semantics { isTraversalGroup = true; traversalIndex = 1f },
             contentPadding = covered,
             // Wide, routes are fitted above the docked card too (the credit stays at the foot).
+            // Routes are framed above the credit too, so it never covers the start of a walk or your dot.
             fitPadding = if (wide && scene.dockOf(top) != null) PaddingValues(
                 start = covered.calculateStartPadding(direction), top = covered.calculateTopPadding(), end = covered.calculateEndPadding(direction),
                 bottom = with(density) { dockHeight.toDp() } + 64.dp,
-            ) else covered,
-            refitOn = if (wide) dockHeight else null,
+            ) else PaddingValues(
+                start = covered.calculateStartPadding(direction), top = covered.calculateTopPadding(), end = covered.calculateEndPadding(direction),
+                bottom = covered.calculateBottomPadding() + 32.dp,
+            ),
+            // The docked card (wide) and Go's banner are measured after the routes come: a change
+            // in either fits the frame again inside the room left.
+            // On Go the step is framed again in whatever the sheet's rest leaves showing, so your dot and
+            // the next point stay above the credit when the sheet rises (an offer raises it).
+            refitOn = listOf(if (wide) dockHeight else null, if (banner != null) bannerHeight else null, if (banner != null && !wide) sheet.rest else null),
             showLocation = showsLocation,
             recentre = recentre,
+            estimate = content.estimate,
+            fitKey = content.fitKey,
             overlay = {
                 // The status bar's clock and icons sit on a soft band of paper, not straight on map labels.
                 // Opaque behind the bar itself, fading out over 16 dp below it, at every rest.
@@ -390,10 +462,21 @@ private fun MapAndSheet(
                             ),
                         ),
                 )
+                banner?.let { card ->
+                    // Go's instruction, across the top of the map (of the map half when wide), below the status bar.
+                    Box(
+                        Modifier.align(if (wide) Alignment.TopStart else Alignment.TopCenter)
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                            .padding(start = if (wide) layout.mapStart - layout.safeStart else 10.dp, end = 10.dp, top = 8.dp)
+                            // A phone's width, centred, in a very wide phone layout (open tall), not a bar with its words in a third of it.
+                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.widthIn(max = 440.dp).fillMaxWidth())
+                            .onSizeChanged { bannerHeight = it.height },
+                    ) { card() }
+                }
                 LocationButton(
                     Modifier.align(Alignment.TopEnd)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
-                        .padding(top = 12.dp, end = 12.dp),
+                        .padding(top = 12.dp + bannerDp, end = 12.dp),
                 ) { shell.locateMe() }
                 if (wide) {
                     scene.dockOf(top)?.let { dock ->
@@ -459,7 +542,7 @@ private fun SheetPages(
         popTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         predictivePopTransitionSpec = { (EnterTransition.None togetherWith slideOutHorizontally { it * end }).apply { targetContentZIndex = -1f } },
         entryProvider = entryProvider {
-            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings) { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) } } }
+            entry<HomePage> { key -> page { HomeScreen(key, graph, shell, openSearch, openSettings, openLine = { line -> if (pages.lastOrNull() == key) pages.add(LinePage(line.id, line.stopName)) }, openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) }) } }
             entry<ResultsPage> { key ->
                 page {
                     ResultsScreen(key, graph, shell, openSearch, onBack = { pages.removeLastOrNull() }) { journeyId ->
@@ -469,9 +552,17 @@ private fun SheetPages(
             }
             entry<JourneyPage> { key ->
                 page {
-                    JourneyScreen(key, graph, onBack = { pages.removeLastOrNull() }) { leg ->
+                    JourneyScreen(
+                        key, graph, shell, onBack = { pages.removeLastOrNull() },
+                        openGo = { if (pages.lastOrNull() == key) pages.add(GoPage) },
+                    ) { leg ->
                         if (pages.lastOrNull() == key) pages.add(BoardPage(key.searchId, key.journeyId, leg.id))
                     }
+                }
+            }
+            entry<GoPage> { key ->
+                page {
+                    GoScreen(key, graph, openSettings, onLeave = { pages.removeAll { it == GoPage } })
                 }
             }
             entry<BoardPage> { key -> page { BoardScreen(key, graph, onBack = { pages.removeLastOrNull() }) } }

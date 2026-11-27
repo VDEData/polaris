@@ -35,6 +35,10 @@ data class BoardPage(val searchId: String, val journeyId: String, val legId: Str
 @Serializable
 data class LinePage(val lineId: String, val stopName: String) : NavKey
 
+/** Go: the live trip ([polaris.android.trip.TripSession] holds it; the page only shows it). */
+@Serializable
+data object GoPage : NavKey
+
 /** What a place search is for, and so where its pick goes. Saved, so a search open during a rotation stays open. */
 @Serializable
 sealed interface SearchFor {

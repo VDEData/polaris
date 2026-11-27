@@ -1,5 +1,6 @@
 package polaris.android.journey
 
+import polaris.android.ui.keepLastTwo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -133,12 +134,14 @@ fun reasonText(reason: Loadable.Reason): String = stringResource(
  * an earlier one) does to your arrival, and the way to the whole board.
  */
 @Composable
-fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instant?, onOpen: (() -> Unit)?) {
+fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instant?, onOpen: (() -> Unit)?, now: Instant? = null) {
     val c = polaris
     val board = state?.value
+    // Go passes its own clock, so "gone" and the line under the tiles agree with the rest of its page.
+    val ticked = ticking()
     when {
         board != null && board.departures.isNotEmpty() -> {
-            val now = ticking()
+            val now = now ?: ticked
             val openLabel = stringResource(R.string.strip_open_board)
             Column(
                 Modifier.fillMaxWidth()
@@ -146,9 +149,14 @@ fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instan
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                // The tiles' minutes are against your train, not a countdown: say so once.
+                Text(
+                    stringResource(if (board.planned != null) R.string.strip_against_yours else R.string.strip_against_plan),
+                    style = MaterialTheme.typography.labelSmall, color = c.inkFaint,
+                )
                 Ticks(leg, board, now, reachable)
                 verdictText(leg, board, now, reachable)?.let { (text, warns) ->
-                    Text(text, style = MaterialTheme.typography.bodySmall, color = if (warns) c.warning else c.inkSoft)
+                    Text(keepLastTwo(text), style = MaterialTheme.typography.bodySmall, color = if (warns) c.warning else c.inkSoft)
                 }
                 if (onOpen != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -293,7 +301,7 @@ fun AlertLine(alert: ServiceAlert, minor: Boolean = false) {
 
 /** One row of a board: when it goes, what it is, when it reaches your stop, and yours or the difference. */
 @Composable
-fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference: Double?, destination: String, narrow: Boolean) {
+fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, minutes: Int?, destination: String, narrow: Boolean) {
     val c = polaris
     // At large text a row is narrow wherever it is: the headsign under the line, never cut.
     val narrow = narrow || LocalDensity.current.fontScale >= 1.3f
@@ -364,8 +372,8 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
             }
             if (isPlanned) {
                 Text(stringResource(R.string.board_yours), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = c.goldInk)
-            } else if (difference != null && !departure.isCancelled) {
-                val m = Strip.signedMinutes(difference)
+            } else if (minutes != null && !departure.isCancelled) {
+                val m = minutes
                 Text(if (m == 0) stringResource(R.string.strip_same) else signedText(m), style = MaterialTheme.typography.labelMedium, color = c.inkSoft, maxLines = 1, softWrap = false)
             }
         }
