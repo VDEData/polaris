@@ -923,4 +923,19 @@ class LiveTripTest {
         val there = Strip.verdict(board, drive.trip.now, drive.trip.reachableBy) as Strip.Verdict.Plain
         assertEquals(Go.at("06:37:00"), there.earlier)
     }
+
+    /**
+     * Inside the half minute where the timeline's change margin (60 s) would still make a train the
+     * pace check's platform time (90 s for the Tube) says you'll miss: the timeline doesn't hold you
+     * to it, so "You're early: the 06:55" never sits above "you'll miss the 06:55".
+     */
+    @Test fun theTimelineAndThePaceCheckAgreeAtTheMargin() = runTest {
+        val plan = Go.bakerloo
+        val journey = plan.copy(legs = plan.legs.mapIndexed { i, leg -> if (i == 2) leg.copy(distanceMeters = 400.0) else leg })
+        val drive = Drive(this, journey, Go.at("06:48:50"), Go.bakerlooBoards(journey), Go.paddington)
+        drive.trip.select(2)
+        drive.tick("06:48:50", Go.paddington)
+        val connection = drive.trip.connection!!
+        kotlin.test.assertNotEquals(Connection.Verdict.missing, connection.verdict, "timeline holds to the ${drive.trip.nextRideDeparture}, the pace check misses it")
+    }
 }

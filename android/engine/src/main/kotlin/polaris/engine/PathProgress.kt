@@ -421,7 +421,10 @@ data class TripTimeline(
             for ((index, leg) in plan.legs.withIndex()) {
                 val step: Step
                 if (leg.mode.isTransit) {
-                    step = ride(plan, index, log, current, now, ready, seenAtStop, if (index == current) liveArrival else null, board)
+                    // Walking to it with a fix: counted from the walk's end plus the platform time, as
+                    // the will-you-make-it check counts it, so the two never disagree about a train.
+                    val platform = if (walkLeft != null && index == current + 1 && !plan.legs[current].mode.isTransit) Connection.platformTime(leg.mode) else null
+                    step = ride(plan, index, log, current, now, ready, seenAtStop, if (index == current) liveArrival else null, board, platform)
                     // Still aboard after it was due: the rest waits on it.
                     ready = if (index == current && log.boardings[index] != null && log.ended[index] == null) maxOf(step.arrival, now) else step.arrival
                 } else {
@@ -456,6 +459,7 @@ data class TripTimeline(
             seenAtStop: Instant?,
             liveArrival: Instant?,
             board: (Leg) -> DepartureBoard?,
+            platform: Double? = null,
         ): Step {
             val leg = plan.legs[index]
             val ended = log.ended[index]
@@ -490,7 +494,7 @@ data class TripTimeline(
                 // Passed without a word: as planned.
                 step = asPlanned
             } else if (index == current || (index == current + 1 && current == 0 && !plan.legs[current].mode.isTransit)) {
-                val reach = maxOf(now, ready ?: now)
+                val reach = maxOf(now, ready?.plusSeconds(platform ?: 0.0) ?: now)
                 step = when {
                     index == current && seenAtStop != null && seenAtStop > asPlanned.departure.plusSeconds(60.0) ->
                         soonest(seenAtStop.plusSeconds(-30.0)) ?: beyond(seenAtStop)
@@ -502,7 +506,7 @@ data class TripTimeline(
                 // A later ride: when you'd reach it against when the plan did.
                 val at = ready ?: leg.departure
                 val plannedAt = if (index > 0) plan.legs[index - 1].arrival else leg.departure
-                val margin = min(changeMargin, max(0.0, leg.departure since plannedAt))
+                val margin = platform ?: min(changeMargin, max(0.0, leg.departure since plannedAt))
                 val from = at.plusSeconds(margin)
                 val shift = at since plannedAt
                 step = when {
