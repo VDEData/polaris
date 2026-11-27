@@ -346,6 +346,8 @@ private fun BoxScope.MapCredit(colors: PolarisColors, contentPadding: PaddingVal
                     // Up to 1.3x it grows with the text; past that it stays at 1.3x of its size but
                     // never more than one line's worth of map at large text (it keeps its words whole).
                     fontSize = (10f * minOf(1f, 1.15f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
+                    // The spacing is capped with the size, or at 2x it alone pushed the credit onto two lines.
+                    letterSpacing = (0.5f * minOf(1f, 1.15f / androidx.compose.ui.platform.LocalDensity.current.fontScale)).sp,
                     color = colors.ink.copy(alpha = 0.85f),
                 ),
                 // Whole, always (the terms ask for all of it): it wraps rather than being cut.
@@ -449,14 +451,15 @@ private object JourneyLayers {
         style.addLayer(
             // Changes only once zoomed in: across a whole city they sit on top of the ends.
             CircleLayer("polaris-stop", STOPS).withFilter(kind("change")).withProperties(
+                // On the dark map the outline is the light ink, or the ring all but vanishes.
                 PropertyFactory.circleRadius(5f), PropertyFactory.circleColor(colors.surface.toArgb()),
-                PropertyFactory.circleStrokeColor(colors.banner.toArgb()), PropertyFactory.circleStrokeWidth(2.5f),
+                PropertyFactory.circleStrokeColor((if (colors.isNight) colors.ink else colors.banner).toArgb()), PropertyFactory.circleStrokeWidth(2.5f),
             ).apply { minZoom = 12.5f },
         )
         style.addLayer(
             // A ring, not a filled dot: the person's own location is the filled blue dot.
             CircleLayer("polaris-origin", STOPS).withFilter(kind("origin")).withProperties(
-                PropertyFactory.circleRadius(6f), PropertyFactory.circleColor(colors.surface.toArgb()),
+                PropertyFactory.circleRadius(6f), PropertyFactory.circleColor((if (colors.isNight) colors.ink else colors.surface).toArgb()),
                 PropertyFactory.circleStrokeColor(colors.here.toArgb()), PropertyFactory.circleStrokeWidth(3f),
             ),
         )

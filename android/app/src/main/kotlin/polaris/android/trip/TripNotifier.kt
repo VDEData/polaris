@@ -32,7 +32,7 @@ import java.time.Instant
  *   labelled countdown that ticks by itself, and the expanded text the arrival, what missing the
  *   next ride costs and a faster way. A faster way offers Switch and Keep my route; otherwise End.
  *   On a phone with a secure lock it shows only "Your trip", the arrival and the countdown.
- *   Android 16's Live Update (promotion, progress style) is not used: see the report.
+ *   Android 16's Live Update (promotion, progress style) is not used: it isn't proven on a phone.
  * - a foreground service of the location type while a trip runs and location is allowed, so Go
  *   keeps time and fixes with the app in the background (it shows the same notification);
  * - the timed nudges (get off next, time to leave) as inexact alarms, and a faster way found while
@@ -83,12 +83,11 @@ class TripNotifier(
         startService()
     }
 
-    /** The location-type service, only once location is allowed (Android refuses it otherwise), started while the app is in front. */
+    /** The location-type service, only once precise location is allowed (Android refuses it without location), started while the app is in front. */
     fun startService() {
         if (!running || !allowed) return
-        val location = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            .any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
-        if (!location || !inFront()) return
+        // Approximate location alone can't follow the trip, so no location service runs for it.
+        if (!hasPrecise(context) || !inFront()) return
         runCatching { ContextCompat.startForegroundService(context, Intent(context, TripService::class.java)) }
     }
 

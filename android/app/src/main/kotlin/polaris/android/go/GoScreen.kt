@@ -78,6 +78,7 @@ import polaris.android.ui.onLineColor
 import polaris.android.ui.polaris
 import polaris.android.ui.surface
 import polaris.android.ui.lineColor
+import polaris.android.trip.approximateOnly
 import polaris.engine.JourneyMap
 import polaris.engine.Connection
 import polaris.engine.ReplanMessage
@@ -118,6 +119,10 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     val resumed by lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val notificationsOff = remember(resumed, version) { android.os.Build.VERSION.SDK_INT >= 33 && graph.notifier?.allowed == false }
+    val pageContext = LocalContext.current
+    // Approximate location only: Go can't follow you, and says how to let it.
+    val approximate = remember(resumed, version) { approximateOnly(pageContext) }
+    LaunchedEffect(approximate) { if (!approximate) graph.notifier?.startService() }
     // Turned on in the settings during the trip: the trip appears in the shade at once. Only on
     // that change, not each time the page is shown (the service is already running then).
     var wasOff by rememberSaveable { mutableStateOf(notificationsOff) }
@@ -137,8 +142,13 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
     // as iOS does (wide open the card already shows it).
     val sheet = LocalSheet.current
     val offered = trip.offer?.journey?.id
+    // A faster way raises the sheet so its card, Switch and Keep my route together, is in view: to
+    // half, or at large text (where the choices stack) to full.
+    val largeText = LocalDensity.current.fontScale >= 1.5f
     LaunchedEffect(offered) {
-        if (offered != null && !sheet.wide && sheet.state?.rest == Rest.Low) sheet.request(Rest.Half)
+        if (offered == null || sheet.wide) return@LaunchedEffect
+        val rest = sheet.state?.rest
+        if (largeText && rest != Rest.Full) sheet.request(Rest.Full) else if (rest == Rest.Low) sheet.request(Rest.Half)
     }
     Banner(key, trip, words, now)
     StepAnnouncement(trip, words, now)
@@ -166,7 +176,8 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
                 if (offer != null) OfferCard(trip, words.said(offer), trip.offer) else if (status != null) StatusCard(status, words)
             }) else null)
             slot("step") { StepButton(trip, words) }
-            slot("connection") { WillYouMakeIt(trip, words, now) }
+            slot("precise", if (approximate) ({ PreciseLocation() }) else null)
+            slot("connection") { if (!approximate) WillYouMakeIt(trip, words, now) }
             slot("faster", if (trip.canFindFaster) ({
                 TextButton(onClick = trip::findFaster, modifier = Modifier.heightIn(min = 48.dp)) {
                     Symbol(R.drawable.go_branch, null, Modifier.size(18.dp), tint = c.tint)
@@ -278,19 +289,19 @@ private fun Banner(key: GoPage, trip: LiveTrip, words: GoWords, now: Instant) {
                     Symbol(if (trip.isLastLeg) R.drawable.sym_location_on else R.drawable.sym_directions_walk, null, Modifier.size(28.dp), tint = Color.White)
                 }
             }
-            // At large text the banner keeps to a few lines, so it doesn't cover the map it's over.
-            val large = LocalDensity.current.fontScale >= 1.5f
+            // Every line wraps rather than being cut, so no time or stop is lost at large text; the
+            // sheet's half rest sits below the whole banner.
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(secondary, style = MaterialTheme.typography.titleSmall, color = Color.White, maxLines = if (large) 2 else 3, overflow = TextOverflow.Ellipsis)
+                Text(primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(secondary, style = MaterialTheme.typography.titleSmall, color = Color.White)
                 if (offer != null) {
                     // A faster way takes the last line, in gold.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FractalStar(14.dp, color = c.gold)
-                        Text(offer.short, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = c.gold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(offer.short, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = c.gold)
                     }
-                } else if (then != null && !(large && leg.mode.isTransit && !trip.isWaiting && !trip.missedRide)) {
-                    Text(then, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f), maxLines = if (large) 1 else 2, overflow = TextOverflow.Ellipsis)
+                } else if (then != null) {
+                    Text(then, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
                 }
             }
         }
@@ -380,6 +391,24 @@ private fun WillYouMakeIt(trip: LiveTrip, words: GoWords, now: Instant) {
         trip.missedRide -> words.missedNext(trip.board(trip.leg), trip.leg, now)?.let { Notice(R.drawable.sym_refresh, c.warning, it, null) }
         trip.position == null -> Notice(R.drawable.sym_location_on, c.inkSoft, stringResource(R.string.go_no_fix), null)
         else -> Unit
+    }
+}
+
+/** Only approximate location allowed: Go says it needs precise location, with the way to the app's settings. */
+@Composable
+private fun PreciseLocation() {
+    val c = polaris
+    val context = LocalContext.current
+    Column(Modifier.fillMaxWidth().surface(c).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.go_precise_needed), style = MaterialTheme.typography.bodyMedium, color = c.ink)
+        TextButton(onClick = {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.go_precise_settings)) }
     }
 }
 

@@ -79,7 +79,8 @@
     <string name="board_title">Departures</string>
     <string name="board_and_else">and anything else stopping at %s</string>
     <string name="board_nothing">Nothing in the timetable stops at %1$s from here around %2$s.</string>
-    <string name="board_source">Times from Transitous (open timetables), live where marked. Each row shows when it reaches %s.</string>
+    <string name="board_source">Times from Transitous (open timetables). A dot marks a live time.</string>
+    <string name="board_columns">Each row: when it reaches %s, the minutes until it leaves, and how much sooner or later than your train it gets there.</string>
     <string name="board_refresh">Refresh departures</string>
     <string name="board_close">Close departures</string>
     <string name="board_cancelled">Cancelled</string>

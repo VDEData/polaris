@@ -431,7 +431,9 @@ private fun MapAndSheet(
             ),
             // The docked card (wide) and Go's banner are measured after the routes come: a change
             // in either fits the frame again inside the room left.
-            refitOn = listOf(if (wide) dockHeight else null, if (banner != null) bannerHeight else null),
+            // On Go the step is framed again in whatever the sheet's rest leaves showing, so your dot and
+            // the next point stay above the credit when the sheet rises (an offer raises it).
+            refitOn = listOf(if (wide) dockHeight else null, if (banner != null) bannerHeight else null, if (banner != null && !wide) sheet.rest else null),
             showLocation = showsLocation,
             recentre = recentre,
             estimate = content.estimate,
@@ -453,10 +455,11 @@ private fun MapAndSheet(
                 banner?.let { card ->
                     // Go's instruction, across the top of the map (of the map half when wide), below the status bar.
                     Box(
-                        Modifier.align(Alignment.TopStart)
+                        Modifier.align(if (wide) Alignment.TopStart else Alignment.TopCenter)
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                             .padding(start = if (wide) layout.mapStart - layout.safeStart else 10.dp, end = 10.dp, top = 8.dp)
-                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.fillMaxWidth())
+                            // A phone's width, centred, in a very wide phone layout (open tall), not a bar with its words in a third of it.
+                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.widthIn(max = 640.dp).fillMaxWidth())
                             .onSizeChanged { bannerHeight = it.height },
                     ) { card() }
                 }

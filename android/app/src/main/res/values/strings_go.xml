@@ -8,7 +8,7 @@
     <string name="go_hint">follow you along the journey</string>
 
     <!-- Go's own top row -->
-    <string name="go_arrive">Arrive %s</string>
+    <string name="go_arrive">Arrive\u00A0%s</string>
     <string name="go_header">%1$s ·\u00A0%2$s</string>
     <string name="go_header_walk">%1$s ·\u00A0%2$s ·\u00A0%3$s</string>
     <string name="go_to_go">%s\u00A0to go</string>
@@ -17,29 +17,31 @@
     <string name="go_end">End</string>
     <string name="go_end_hint">stop following the journey</string>
     <string name="go_ended">This trip has ended</string>
+    <string name="go_arrived">You\'ve arrived at\u00A0%s</string>
+    <string name="go_ended_itself">Your trip to %s has ended</string>
 
     <!-- The banner across the map -->
     <string name="go_missed_it">Missed it?</string>
     <string name="go_minutes">%s\u00A0min</string>
-    <string name="go_get_off_at">Get off at %s</string>
-    <string name="go_still_at">Still at %s</string>
+    <string name="go_get_off_at">Get off at\u00A0%s</string>
+    <string name="go_still_at">Still at\u00A0%s</string>
     <string name="go_change_to">Change to the %s</string>
     <string name="go_change_to_platform">Change to the %1$s, %2$s</string>
     <string name="go_leaves">%s leaves</string>
     <string name="go_leaves_towards">%1$s leaves towards %2$s</string>
-    <string name="go_leaves_via">%1$s leaves %2$s</string>
+    <string name="go_leaves_via">%1$s leaves\u00A0%2$s</string>
     <string name="go_leaves_platform">%1$s leaves, %2$s</string>
     <string name="go_leaves_towards_platform">%1$s leaves towards %2$s, %3$s</string>
-    <string name="go_leaves_via_platform">%1$s leaves %2$s, %3$s</string>
+    <string name="go_leaves_via_platform">%1$s leaves\u00A0%2$s, %3$s</string>
     <string name="go_next_stop">Next stop</string>
-    <string name="go_in_minutes_at">In %1$s\u00A0min, at %2$s</string>
+    <string name="go_in_minutes_at">In %1$s\u00A0min, at\u00A0%2$s</string>
     <string name="go_on_the_next_stop">On the %s: next stop</string>
-    <string name="go_on_the_in">On the %1$s: in %2$s\u00A0min, at %3$s</string>
+    <string name="go_on_the_in">On the %1$s: in %2$s\u00A0min, at\u00A0%3$s</string>
     <string name="go_walk_to">Walk to %s</string>
     <string name="go_then_ride">Then %s</string>
-    <string name="go_then_ride_at">Then %1$s at %2$s</string>
+    <string name="go_then_ride_at">Then %1$s at\u00A0%2$s</string>
     <string name="go_then_ride_platform">Then %1$s, %2$s</string>
-    <string name="go_then_ride_at_platform">Then %1$s at %2$s, %3$s</string>
+    <string name="go_then_ride_at_platform">Then %1$s at\u00A0%2$s, %3$s</string>
     <string name="go_then_walk">Then walk %s</string>
     <string name="go_platform">platform\u00A0%s</string>
     <string name="go_stop">stop\u00A0%s</string>
@@ -59,18 +61,20 @@
     <string name="go_missing_platform">At this pace you\'ll miss the %1$s, %2$s</string>
     <string name="go_time_line">%1$s %2$s</string>
     <string name="go_next_is">The next is %s.</string>
-    <string name="go_next_is_later">The next is %1$s, %2$s\u00A0min later at %3$s.</string>
-    <string name="go_could_make">You could make the %1$s: %2$s\u00A0min sooner at %3$s.</string>
-    <string name="go_later_at_least">at least %1$s\u00A0min later at %2$s</string>
-    <string name="go_later_none">no later at %s</string>
-    <string name="go_later">%1$s\u00A0min later at %2$s</string>
-    <string name="go_sooner">%1$s\u00A0min sooner at %2$s</string>
+    <string name="go_next_is_later">The next is %1$s, %2$s\u00A0min later at\u00A0%3$s.</string>
+    <string name="go_could_make">You could make the %1$s: %2$s\u00A0min sooner at\u00A0%3$s.</string>
+    <string name="go_later_at_least">at least %1$s\u00A0min later at\u00A0%2$s</string>
+    <string name="go_later_none">no later at\u00A0%s</string>
+    <string name="go_later">%1$s\u00A0min later at\u00A0%2$s</string>
+    <string name="go_sooner">%1$s\u00A0min sooner at\u00A0%2$s</string>
     <string name="go_cost_loses_later">The next is %1$s, but then you\'d miss the %2$s: %3$s.</string>
     <string name="go_cost_loses">The next is %1$s, but then you\'d miss the %2$s.</string>
     <string name="go_cost_still_makes">The next is %1$s and still makes the %2$s, so you\'d arrive no later.</string>
     <string name="go_cost_later">The next is %1$s, %2$s.</string>
-    <string name="go_missed_next">Next %1$s at %2$s</string>
-    <string name="go_missed_next_reaching">Next %1$s at %2$s, reaching %3$s at %4$s</string>
+    <string name="go_missed_next">Next %1$s at\u00A0%2$s</string>
+    <string name="go_missed_next_reaching">Next %1$s at\u00A0%2$s, reaching %3$s at\u00A0%4$s</string>
+    <string name="go_precise_needed">Go needs your precise location to follow you. With approximate location the steps move on only with the timetable.</string>
+    <string name="go_precise_settings">Turn on precise location</string>
     <string name="go_no_fix">Waiting for your location. Steps still move on with the timetable.</string>
     <string name="go_find_faster">Find a faster way</string>
 
@@ -78,34 +82,34 @@
     <string name="go_looking">Looking for a faster way from %s</string>
     <string name="go_early_title">You\'re early: the %1$s %2$s</string>
     <string name="go_late_title">Running late: the %1$s %2$s</string>
-    <string name="go_early_detail">Arrive %1$s, %2$s\u00A0min sooner.</string>
-    <string name="go_late_detail">Arrive %1$s, %2$s\u00A0min later.</string>
-    <string name="go_early_short">Early: %1$s %2$s, arrive %3$s</string>
-    <string name="go_late_short">Late: %1$s %2$s, arrive %3$s</string>
-    <string name="go_early_compact">Early ·\u00A0arrive %s</string>
-    <string name="go_late_compact">Late ·\u00A0arrive %s</string>
+    <string name="go_early_detail">Arrive\u00A0%1$s, %2$s\u00A0min sooner.</string>
+    <string name="go_late_detail">Arrive\u00A0%1$s, %2$s\u00A0min later.</string>
+    <string name="go_early_short">Early: %1$s %2$s, arrive\u00A0%3$s</string>
+    <string name="go_late_short">Late: %1$s %2$s, arrive\u00A0%3$s</string>
+    <string name="go_early_compact">Early ·\u00A0arrive\u00A0%s</string>
+    <string name="go_late_compact">Late ·\u00A0arrive\u00A0%s</string>
     <string name="go_wait_title">You\'re early: %1$s\u00A0min wait for the %2$s</string>
-    <string name="go_wait_detail">At %1$s, it leaves %2$s.</string>
-    <string name="go_wait_detail_checked">At %1$s, it leaves %2$s. Nothing quicker from there.</string>
+    <string name="go_wait_detail">At\u00A0%1$s, it leaves\u00A0%2$s.</string>
+    <string name="go_wait_detail_checked">At\u00A0%1$s, it leaves\u00A0%2$s. Nothing quicker from there.</string>
     <string name="go_wait_short">%1$s\u00A0min wait for the %2$s %3$s</string>
     <string name="go_wait_compact">%1$s\u00A0min wait ·\u00A0%2$s</string>
     <string name="go_faster_title">Faster way from %s</string>
-    <string name="go_faster_detail">Take %1$s: arrive %2$s, %3$s\u00A0min sooner.</string>
-    <string name="go_faster_detail_waiting">Take %1$s: arrive %2$s, %3$s\u00A0min sooner than waiting %4$s\u00A0min for the %5$s.</string>
-    <string name="go_faster_detail_this_way">Take %1$s: arrive %2$s, %3$s\u00A0min sooner than %4$s this way.</string>
-    <string name="go_faster_detail_cancelled">Take %1$s: arrive %2$s, %3$s\u00A0min sooner, with the planned %4$s cancelled.</string>
+    <string name="go_faster_detail">Take %1$s: arrive\u00A0%2$s, %3$s\u00A0min sooner.</string>
+    <string name="go_faster_detail_waiting">Take %1$s: arrive\u00A0%2$s, %3$s\u00A0min sooner than waiting %4$s\u00A0min for the %5$s.</string>
+    <string name="go_faster_detail_this_way">Take %1$s: arrive\u00A0%2$s, %3$s\u00A0min sooner than %4$s this way.</string>
+    <string name="go_faster_detail_cancelled">Take %1$s: arrive\u00A0%2$s, %3$s\u00A0min sooner, with the planned %4$s cancelled.</string>
     <string name="go_faster_unchecked">TfL\'s line status couldn\'t be checked.</string>
-    <string name="go_faster_short">Faster way: %1$s\u00A0min sooner, arrive %2$s</string>
+    <string name="go_faster_short">Faster way: %1$s\u00A0min sooner, arrive\u00A0%2$s</string>
     <string name="go_faster_compact">%1$s\u00A0min sooner ·\u00A0%2$s</string>
     <string name="go_summary_walk">walk</string>
     <string name="go_summary_first">the %s</string>
     <string name="go_summary_then">%1$s, then the %2$s</string>
     <string name="go_summary_to">%1$s to %2$s</string>
     <string name="go_no_signal_title">No signal</string>
-    <string name="go_no_signal_detail">No signal here. Polaris will look again at %s.</string>
+    <string name="go_no_signal_detail">No signal here. Polaris will look again at\u00A0%s.</string>
     <string name="go_quickest_title">Your route is still the quickest</string>
     <string name="go_quickest_detail">Nothing gets there sooner from %1$s than %2$s.</string>
-    <string name="go_quickest_short">Still the quickest: arrive %s</string>
+    <string name="go_quickest_short">Still the quickest: arrive\u00A0%s</string>
     <string name="go_quickest_compact">Still the quickest</string>
     <string name="go_offer_gone_title">That faster way has gone</string>
     <string name="go_offer_gone_detail">Its first ride has left, or you\'re on another. Carry on as you are.</string>
@@ -120,14 +124,14 @@
     <string name="go_step_done">done</string>
     <string name="go_step_now">now</string>
     <string name="go_jump_hint">jump to this step</string>
-    <string name="strip_against_yours">Minutes are when each gets you there, against yours</string>
-    <string name="strip_against_plan">Minutes are when each gets you there, against the planned time</string>
+    <string name="strip_against_yours">Minutes are when each gets you there, compared with your train</string>
+    <string name="strip_against_plan">Minutes are when each gets you there, compared with the planned time</string>
     <!-- Spoken by TalkBack when the step changes: the banner's big line, then its second. -->
     <string name="go_announce_step">%1$s. %2$s</string>
 
     <!-- Timed nudges (notifications) -->
-    <string name="go_alert_get_off">Get off at %s next</string>
-    <string name="go_alert_then_ride_at">Then the %1$s at %2$s from %3$s.</string>
+    <string name="go_alert_get_off">Get off at\u00A0%s next</string>
+    <string name="go_alert_then_ride_at">Then the %1$s at\u00A0%2$s from %3$s.</string>
     <string name="go_alert_then_ride">Then the %1$s from %2$s.</string>
     <string name="go_alert_then_walk">Then it\'s a short walk to %s.</string>
     <string name="go_alert_leave">Time to leave</string>
@@ -139,11 +143,11 @@
     <string name="go_channel_alerts">Trip alerts</string>
     <string name="go_channel_alerts_about">When to leave, when to get off, and a faster way</string>
     <!-- Title: the next action and its time, short enough not to be cut. -->
-    <string name="go_card_leaves">%1$s leaves %2$s</string>
-    <string name="go_card_leaves_platform">%1$s leaves %2$s, %3$s</string>
-    <string name="go_card_catch">%1$s at %2$s</string>
-    <string name="go_card_catch_platform">%1$s at %2$s, %3$s</string>
-    <string name="go_card_get_off">Get off at %1$s, %2$s</string>
+    <string name="go_card_leaves">%1$s leaves\u00A0%2$s</string>
+    <string name="go_card_leaves_platform">%1$s leaves\u00A0%2$s, %3$s</string>
+    <string name="go_card_catch">%1$s at\u00A0%2$s</string>
+    <string name="go_card_catch_platform">%1$s at\u00A0%2$s, %3$s</string>
+    <string name="go_card_get_off">Get off at\u00A0%1$s, %2$s</string>
     <!-- Beside the countdown in the notification's header. -->
     <string name="go_card_leaves_in">Leaves in</string>
     <string name="go_card_get_off_in">Get off in</string>
@@ -155,7 +159,7 @@
         <item quantity="one">%s stop</item>
         <item quantity="other">%s stops</item>
     </plurals>
-    <string name="go_card_walk_left">%1$s ·\u00A0arrive %2$s</string>
+    <string name="go_card_walk_left">%1$s ·\u00A0arrive\u00A0%2$s</string>
     <string name="go_card_cost_floor">%s+\u00A0min</string>
     <string name="go_card_cost_none">no later</string>
     <string name="go_card_cost_later">+%s\u00A0min</string>

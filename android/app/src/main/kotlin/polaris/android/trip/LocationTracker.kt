@@ -90,13 +90,11 @@ class AndroidLocationTracker(
     override fun start() {
         if (listening) return
         val m = manager ?: return
-        val allowed = listOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            .any { androidx.core.content.ContextCompat.checkSelfPermission(context, it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
-        if (!allowed) return
+        // Approximate location alone gives fixes far coarser than Go keeps (100 m): no use listening.
+        if (!hasPrecise(context)) return
         var any = false
         for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-            val enabled = runCatching { m.isProviderEnabled(provider) }.getOrDefault(false)
-            if (!enabled) continue
+            // Asked for even while switched off, so turning GPS on during the trip starts its fixes.
             runCatching {
                 m.requestLocationUpdates(provider, 2_000L, 0f, listener, Looper.getMainLooper())
                 any = true
@@ -114,6 +112,14 @@ class AndroidLocationTracker(
         runCatching { manager?.removeUpdates(listener) }
     }
 }
+
+/** Precise location allowed: only then can Go follow you (approximate fixes are all over 100 m). */
+fun hasPrecise(context: Context): Boolean =
+    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+/** Some location allowed, but only approximate: Go says it needs precise location. */
+fun approximateOnly(context: Context): Boolean = !hasPrecise(context) &&
+    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
 /** No fixes (tests, and before a graph has a real tracker). */
 object NoTracking : LocationTracking {

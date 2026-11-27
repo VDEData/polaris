@@ -47,6 +47,8 @@ class TripSession(
     private val tickMillis: Long = 2_000,
     /** Sets (or with null takes back) an alarm at the time the trip would end by itself. */
     private val cutoffAlarm: (Instant?) -> Unit = {},
+    /** The trip ended by itself: [arrived] at [destination], or past its cut-off. */
+    private val endedByItself: (arrived: Boolean, destination: String) -> Unit = { _, _ -> },
 ) {
     private val _trip = MutableStateFlow<LiveTrip?>(null)
     val trip: StateFlow<LiveTrip?> = _trip.asStateFlow()
@@ -141,7 +143,11 @@ class TripSession(
             armed = at
             cutoffAlarm(at)
         }
-        if (there || (at != null && now > at)) end()
+        if (there || (at != null && now > at)) {
+            val destination = trip.query.destination.name
+            end()
+            endedByItself(there, destination)
+        }
     }
 
     /** The cut-off alarm fired: the trip ends if it is over, otherwise the alarm moves on. */

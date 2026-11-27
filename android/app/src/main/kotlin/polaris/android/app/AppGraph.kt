@@ -81,6 +81,13 @@ class AppGraph(
             alerts = notifier ?: polaris.engine.TripAlertScheduling.None,
             presenter = notifier ?: polaris.engine.TripPresenter.None,
             cutoffAlarm = { at -> appContext?.let { polaris.android.trip.TripEndAlarm.set(it, at, clock) } },
+            // The Go page closes with the trip, so a short message says why.
+            endedByItself = { arrived, destination ->
+                appContext?.let { context ->
+                    val words = if (arrived) context.getString(polaris.android.R.string.go_arrived, destination) else context.getString(polaris.android.R.string.go_ended_itself, destination)
+                    android.widget.Toast.makeText(context, words, android.widget.Toast.LENGTH_LONG).show()
+                }
+            },
         )
     }
 
