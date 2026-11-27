@@ -240,23 +240,25 @@ struct LineSheet: View {
             VStack(spacing: 0) {
                 ForEach(Array(approaching.prefix(6).enumerated()), id: \.element.id) { index, approach in
                     if index > 0 { Divider().padding(.leading, 74) }
-                    HStack(spacing: 12) {
-                        Text(LiveBusLayer.label(approach, now: store.now))
-                            .font(.body.weight(.semibold))
-                            .monospacedDigit()
-                            .frame(width: 58, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(LiveBusSummary.stopsAway(approach)).font(.subheadline.weight(.medium))
-                            Text("Here at \(approach.due.clock)").font(.caption).foregroundStyle(.secondary)
+                    // A button rather than a tap gesture, so VoiceOver reads the row as one.
+                    Button { scene.frame([approach.bus.coordinate, line.stopCoordinate], margin: 400) } label: {
+                        HStack(spacing: 12) {
+                            Text(LiveBusLayer.label(approach, now: store.now))
+                                .font(.body.weight(.semibold))
+                                .monospacedDigit()
+                                .frame(width: 58, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(LiveBusSummary.stopsAway(approach)).font(.subheadline.weight(.medium))
+                                Text("Here at \(approach.due.clock)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            LiveDot()
                         }
-                        Spacer(minLength: 0)
-                        LiveDot()
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 56)
+                        .contentShape(.rect)
                     }
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 56)
-                    .contentShape(.rect)
-                    .onTapGesture { scene.frame([approach.bus.coordinate, line.stopCoordinate], margin: 400) }
-                    .accessibilityElement(children: .combine)
+                    .buttonStyle(.plain)
                     .accessibilityHint("Shows this bus on the map")
                 }
             }

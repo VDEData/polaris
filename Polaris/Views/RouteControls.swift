@@ -55,12 +55,13 @@ struct FilterSheet: View {
             .navigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                // Not a cancel: it clears the filters and the sheet stays open.
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Reset") { settings.routeFilter = RouteFilter() }
                         .disabled(settings.routeFilter.activeCount == 0)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", systemImage: "checkmark") { dismiss(or: paneClose) }
+                    Button("Done", systemImage: "checkmark", role: .confirm) { dismiss(or: paneClose) }
                 }
             }
         }

@@ -89,7 +89,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done", systemImage: "checkmark") { dismiss(or: paneClose) } }
+                ToolbarItem(placement: .confirmationAction) { Button("Done", systemImage: "checkmark", role: .confirm) { dismiss(or: paneClose) } }
             }
             .paneSheet(item: $picking, id: "settings-place") { slot in
                 PlaceSearchView(title: "Set \(slot.rawValue)", allowsCurrentLocation: false) { place in

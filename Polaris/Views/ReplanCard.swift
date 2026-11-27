@@ -28,11 +28,16 @@ struct ReplanCard: View {
                     .minimumScaleFactor(0.8)
                     .accessibilityLabel(message.short)
                 Spacer(minLength: 0)
-                Button("Keep my route", systemImage: "xmark", action: onKeep)
-                    .labelStyle(.iconOnly)
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .foregroundStyle(.secondary)
+                // The 44 pt square inside the label, so all of it takes the tap.
+                Button(action: onKeep) {
+                    Label("Keep my route", systemImage: "xmark")
+                        .labelStyle(.iconOnly)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.borderless)
                 Button(action: onSwitch) {
                     Text("Switch").font(.subheadline.weight(.semibold)).padding(.horizontal, 6).frame(minHeight: 32)
                         .foregroundStyle(scheme == .dark ? Theme.navy : .white)

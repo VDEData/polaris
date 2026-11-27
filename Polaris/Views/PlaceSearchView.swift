@@ -88,7 +88,7 @@ struct PlaceSearchView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss(or: paneClose) } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark", role: .cancel) { dismiss(or: paneClose) } }
             }
             .overlay { if resolving { ProgressView().controlSize(.large) } }
             .mapItemDetailSheet(item: $details, displaysMap: true)

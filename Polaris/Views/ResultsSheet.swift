@@ -244,30 +244,75 @@ struct ResultsSheet: View {
     }
 
     private var controls: some View {
-        @Bindable var settings = settings
-        return HStack(spacing: 8) {
-            Menu {
-                Button("Leave now", systemImage: "clock") { query.time = .leaveNow }
-                Button("Depart at…", systemImage: "arrow.right.circle") { pickTime(.depart) }
-                Button("Arrive by…", systemImage: "flag.checkered") { pickTime(.arrive) }
-            } label: {
-                controlLabel(timeLabel, systemImage: "clock")
+        // In a row while the labels fit whole; stacked, full width, where they don't. Where there
+        // is room the row is measured with the widest time label under it, so changing the time
+        // doesn't flip the layout; in a column too narrow for that (the folded Duo) the row stays
+        // while the current label fits, rather than giving up a row of the first screenful.
+        ViewThatFits(in: .horizontal) {
+            ZStack(alignment: .leading) {
+                controlRow(timeLabel: "Arrive by 00:00").hidden().accessibilityHidden(true)
+                controlRow(timeLabel: timeLabel)
             }
-            Menu {
-                Picker("Sort", selection: $settings.sortOrder) {
-                    ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
-                }
-            } label: {
-                controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down")
-            }
-            Spacer(minLength: 0)
-            let active = settings.routeFilter.activeCount
-            Button { showFilters = true } label: {
-                controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease")
+            controlRow(timeLabel: timeLabel)
+            VStack(spacing: 8) {
+                timeMenu(stacked: true)
+                sortMenu(stacked: true)
+                filtersButton(stacked: true)
             }
         }
         .buttonStyle(.bordered)
         .tint(Theme.tint)
+    }
+
+    private func controlRow(timeLabel: String) -> some View {
+        HStack(spacing: 8) {
+            timeMenu(label: timeLabel)
+            sortMenu()
+            Spacer(minLength: 0)
+            filtersButton()
+        }
+    }
+
+    /// The current choice carries the menu's checkmark. Toggles rather than a picker, so
+    /// choosing Depart at or Arrive by again still opens the time to change it.
+    private func timeMenu(label: String? = nil, stacked: Bool = false) -> some View {
+        Menu {
+            Toggle("Leave now", systemImage: "clock", isOn: Binding {
+                query.time == .leaveNow
+            } set: { _ in
+                query.time = .leaveNow
+            })
+            Toggle("Depart at…", systemImage: "arrow.right.circle", isOn: Binding {
+                if case .departAt = query.time { true } else { false }
+            } set: { _ in
+                pickTime(.depart)
+            })
+            Toggle("Arrive by…", systemImage: "flag.checkered", isOn: Binding {
+                query.time.isArriveBy
+            } set: { _ in
+                pickTime(.arrive)
+            })
+        } label: {
+            controlLabel(label ?? timeLabel, systemImage: "clock", stacked: stacked)
+        }
+    }
+
+    private func sortMenu(stacked: Bool = false) -> some View {
+        @Bindable var settings = settings
+        return Menu {
+            Picker("Sort", selection: $settings.sortOrder) {
+                ForEach(SortOrder.allCases) { Text($0.label).tag($0) }
+            }
+        } label: {
+            controlLabel(settings.sortOrder.label, systemImage: "arrow.up.arrow.down", stacked: stacked)
+        }
+    }
+
+    private func filtersButton(stacked: Bool = false) -> some View {
+        let active = settings.routeFilter.activeCount
+        return Button { showFilters = true } label: {
+            controlLabel(active > 0 ? "Filters · \(active)" : "Filters", systemImage: "line.3.horizontal.decrease", stacked: stacked)
+        }
     }
 
     private func pickTime(_ kind: TimeKind) {
@@ -275,10 +320,13 @@ struct ResultsSheet: View {
         timeSheet = kind
     }
 
-    private func controlLabel(_ title: String, systemImage: String) -> some View {
+    /// One line in the row; stacked, as wide as the column and free to wrap.
+    private func controlLabel(_ title: String, systemImage: String, stacked: Bool = false) -> some View {
         Label(title, systemImage: systemImage)
             .font(.subheadline.weight(.medium))
-            .lineLimit(1)
+            .lineLimit(stacked ? nil : 1)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: stacked ? .infinity : nil, alignment: .leading)
     }
 
     private var timeLabel: String {
@@ -421,11 +469,11 @@ struct ResultsSheet: View {
                     Image(systemName: "chevron.down").rotationEffect(.degrees(showMore ? 180 : 0))
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.tint)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
+            .tint(Theme.tint)
             if showMore { routeGroup(more, reference: reference, leadFirst: false) }
         }
     }
@@ -688,9 +736,9 @@ private struct TimePickerSheet: View {
                 .navigationTitle(kind == .depart ? "Depart at" : "Arrive by")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel", role: .cancel) { dismiss(or: paneClose) } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark", role: .cancel) { dismiss(or: paneClose) } }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done", systemImage: "checkmark") {
+                        Button("Done", systemImage: "checkmark", role: .confirm) {
                             onDone(date)
                             dismiss(or: paneClose)
                         }
