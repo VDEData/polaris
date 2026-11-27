@@ -244,14 +244,16 @@ struct ResultsSheet: View {
     }
 
     private var controls: some View {
-        // In a row while the labels fit whole; stacked, full width, where they don't. The row is
-        // measured with the widest time label under it, so changing the time doesn't flip the
-        // layout back and forth.
+        // In a row while the labels fit whole; stacked, full width, where they don't. Where there
+        // is room the row is measured with the widest time label under it, so changing the time
+        // doesn't flip the layout; in a column too narrow for that (the folded Duo) the row stays
+        // while the current label fits, rather than giving up a row of the first screenful.
         ViewThatFits(in: .horizontal) {
             ZStack(alignment: .leading) {
                 controlRow(timeLabel: "Arrive by 00:00").hidden().accessibilityHidden(true)
                 controlRow(timeLabel: timeLabel)
             }
+            controlRow(timeLabel: timeLabel)
             VStack(spacing: 8) {
                 timeMenu(stacked: true)
                 sortMenu(stacked: true)
