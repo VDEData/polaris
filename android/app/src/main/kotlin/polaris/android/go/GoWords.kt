@@ -174,16 +174,16 @@ class GoWords(private val r: Resources) {
             Connection.Verdict.missing, Connection.Verdict.tight -> {
                 if (ifMissed != null) return cost(ifMissed, destination)
                 val next = board.nextAfterPlanned ?: return null
-                val later = board.arrivalDifference(next)
-                if (later != null) r.getString(R.string.go_next_is_later, clock(next.expected), Strip.roundAway(later / 60).toString(), ride.toName)
+                val later = board.arrivalMinutes(next)
+                if (later != null) r.getString(R.string.go_next_is_later, clock(next.expected), later.toString(), ride.toName)
                 else r.getString(R.string.go_next_is, clock(next.expected))
             }
             Connection.Verdict.comfortable -> {
                 val earlier = board.earlierThanPlanned(now) ?: return null
                 if (earlier.expected <= connection.ready) return null
-                val gain = board.arrivalDifference(earlier) ?: return null
-                if (gain >= -30) return null
-                r.getString(R.string.go_could_make, clock(earlier.expected), Strip.roundAway(-gain / 60).toString(), ride.toName)
+                val gain = board.arrivalMinutes(earlier) ?: return null
+                if (gain >= 0) return null
+                r.getString(R.string.go_could_make, clock(earlier.expected), (-gain).toString(), ride.toName)
             }
         }
     }

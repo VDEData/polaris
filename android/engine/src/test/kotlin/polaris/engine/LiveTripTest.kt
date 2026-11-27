@@ -904,4 +904,23 @@ class LiveTripTest {
         val connection = drive.trip.connection!!
         kotlin.test.assertNotEquals(Connection.Verdict.missing, connection.verdict, "timeline holds to a train the pace check misses")
     }
+
+    /**
+     * Still minutes away on foot, the strip mustn't say "make the 06:37 and you reach Baker Street
+     * sooner": the strip is given when you'd be on the platform, and leaves out what goes before.
+     */
+    @Test fun theStripOffersOnlyAnEarlierTrainYouCanReach() = runTest {
+        val journey = Go.bakerloo
+        val boards = Go.bakerlooBoards(journey)
+        val drive = Drive(this, journey, Go.at("06:33:00"), boards, Go.start)
+        drive.tick("06:33:00", Go.start)
+        val reachable = assertNotNull(drive.trip.reachableBy)
+        val board = boards.getValue(journey.legs[1].id)
+        val verdict = Strip.verdict(board, drive.trip.now, reachable) as Strip.Verdict.Plain
+        assertNull(verdict.earlier, "offered the ${verdict.earlier}, which leaves before you reach the platform at $reachable")
+        // At the stop, it is offered.
+        drive.tick("06:34:00", Go.paddington)
+        val there = Strip.verdict(board, drive.trip.now, drive.trip.reachableBy) as Strip.Verdict.Plain
+        assertEquals(Go.at("06:37:00"), there.earlier)
+    }
 }

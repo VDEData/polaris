@@ -183,7 +183,7 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
                     }
                     val board = trip.board(ride)
                     val state = board?.let { Loadable.Loaded(it) } ?: graph.departures.board(ride)
-                    DepartureStrip(ride, state, reachable = null, onOpen = null, now = now)
+                    DepartureStrip(ride, state, reachable = trip.reachableBy, onOpen = null, now = now)
                 }
             }) else null)
             slot("steps") { Steps(trip, words) }

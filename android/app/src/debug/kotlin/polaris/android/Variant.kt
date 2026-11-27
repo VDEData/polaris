@@ -206,8 +206,8 @@ private fun handWrittenBoard(url: String): HttpResponse {
     val ride = when {
         subway -> Ride("King's Cross St. Pancras", "Hammersmith & City", "Barking", "Farringdon", 51.52076, -0.10508, 3, "2")
         lat > 51.525 -> Ride("London St Pancras International", "Thameslink", "Brighton", "Farringdon", 51.5203, -0.1053, 4, "A")
-        lon < -0.1 -> Ride("Farringdon", "Elizabeth line", "Abbey Wood", "Canary Wharf", 51.5036, -0.0189, 11, "B")
-        else -> Ride("Bank", "DLR", "Lewisham", "Canary Wharf", 51.5051, -0.0209, 13, "10")
+        lon < -0.1 -> Ride("Farringdon", "Elizabeth line", "Abbey Wood", "Canary Wharf", 51.5036, -0.0189, 10, "B")
+        else -> Ride("Bank", "DLR", "Lewisham", "Canary Wharf", 51.5051, -0.0209, 12, "10")
     }
     // Minutes after the asked time, minutes late, live, cancelled.
     // Fourteen rows from 8 minutes after the asked time, so a whole board can be scrolled to its end.

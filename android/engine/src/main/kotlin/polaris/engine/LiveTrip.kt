@@ -246,6 +246,17 @@ class LiveTrip(
             return Connection.make(remaining, speed, now, departure, ride.mode)
         }
 
+    /**
+     * When you could be on the platform for the next ride: now, at its stop; the pace check's time
+     * while walking to it; null on a ride. Nothing leaving before it can be offered as one to catch.
+     */
+    val reachableBy: Instant?
+        get() = when {
+            isWaiting -> now
+            !leg.mode.isTransit && nextRide != null -> connection?.ready
+            else -> null
+        }
+
     /** Still at the stop after the planned one left (a fix taken since says so). */
     val missedRide: Boolean
         get() {

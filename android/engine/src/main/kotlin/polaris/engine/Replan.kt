@@ -255,7 +255,8 @@ object Replan {
         return when (status) {
             is Status.OtherRide -> ReplanMessage.OtherRide(
                 early = status.by < 0, departure = status.service.expected, line = ride(legs[status.leg]),
-                arrival = timeline.arrival, minutes = Strip.roundAway(abs(status.by) / 60),
+                // Between the planned arrival and the new one, as both are shown.
+                arrival = timeline.arrival, minutes = abs(Strip.shownMinutes(timeline.arrival.minusMillis((status.by * 1000).toLong()), timeline.arrival)),
             )
             is Status.LongWait -> ReplanMessage.LongWait(
                 minutes = Strip.roundAway(status.wait / 60), line = ride(legs[status.leg]), stop = legs[status.leg].fromName,
@@ -275,7 +276,8 @@ object Replan {
         val rides = offer.journey.transitLegs
         return ReplanMessage.Faster(
             origin = offer.origin.name, rides = rides.map(::ride), to = rides.lastOrNull()?.toName,
-            arrival = offer.journey.arrival, minutes = Strip.roundAway(offer.gain / 60), than = than, statusChecked = offer.statusChecked,
+            // Between the arrival Go shows now and the new way's, as both are shown.
+            arrival = offer.journey.arrival, minutes = Strip.shownMinutes(offer.journey.arrival, timeline.arrival), than = than, statusChecked = offer.statusChecked,
         )
     }
 }

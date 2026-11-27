@@ -205,7 +205,7 @@ private fun LazyListScope.rows(board: DepartureBoard, now: java.time.Instant, de
         )
         Column(Modifier.fillMaxWidth().clip(shape).background(c.surface, shape)) {
             if (!first) HorizontalDivider(Modifier.padding(start = 74.dp), color = c.hairline)
-            BoardRow(d, isPlanned = d.id == board.plannedId, now = now, difference = if (d.id == board.plannedId) null else board.arrivalDifference(d), destination = destination, narrow = narrow)
+            BoardRow(d, isPlanned = d.id == board.plannedId, now = now, minutes = if (d.id == board.plannedId) null else board.arrivalMinutes(d), destination = destination, narrow = narrow)
         }
     }
 }

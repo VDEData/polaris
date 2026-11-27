@@ -300,7 +300,7 @@ fun AlertLine(alert: ServiceAlert, minor: Boolean = false) {
 
 /** One row of a board: when it goes, what it is, when it reaches your stop, and yours or the difference. */
 @Composable
-fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference: Double?, destination: String, narrow: Boolean) {
+fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, minutes: Int?, destination: String, narrow: Boolean) {
     val c = polaris
     // At large text a row is narrow wherever it is: the headsign under the line, never cut.
     val narrow = narrow || LocalDensity.current.fontScale >= 1.3f
@@ -371,8 +371,8 @@ fun BoardRow(departure: Departure, isPlanned: Boolean, now: Instant, difference:
             }
             if (isPlanned) {
                 Text(stringResource(R.string.board_yours), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = c.goldInk)
-            } else if (difference != null && !departure.isCancelled) {
-                val m = Strip.signedMinutes(difference)
+            } else if (minutes != null && !departure.isCancelled) {
+                val m = minutes
                 Text(if (m == 0) stringResource(R.string.strip_same) else signedText(m), style = MaterialTheme.typography.labelMedium, color = c.inkSoft, maxLines = 1, softWrap = false)
             }
         }
