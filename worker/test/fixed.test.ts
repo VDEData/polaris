@@ -114,11 +114,22 @@ const endedPayload = (alert: { id: string; name: string }, body: string) => ({
   aps: { alert: { title: alert.name, body }, sound: "default", "interruption-level": "active", "relevance-score": 0.5, "thread-id": alert.id },
   alert: alert.id,
 });
-/** Every ended notice in `sent`: in full, priority 10, replacing the alert's last notice, an hour to live. */
+/** The quiet ended notice (as the server before this change sent "good service again"). */
+const quietPayload = (alert: { id: string; name: string }, body: string) => ({
+  aps: { alert: { title: alert.name, body }, "interruption-level": "passive", "relevance-score": 0.2, "thread-id": alert.id },
+  alert: alert.id,
+});
+/** Every ended notice in `sent`: in full, replacing the alert's last notice, an hour to live. One
+ * that says something goes on, or comes within half an hour of one that sounded, is quiet
+ * (passive, no sound, priority 5); the rest sound (active, priority 10). */
 function assertEnded(sent: Sent[], alert: { id: string; name: string }) {
+  let loud = -Infinity;
   for (const s of sent.filter((x) => !x.payload.aps.alert.subtitle)) {
-    assert.deepEqual(s.payload, endedPayload(alert, s.payload.aps.alert.body));
-    assert.equal(s.priority, "10");
+    const at = Date.parse(`${s.at}:00Z`);
+    const quiet = / continues?\./.test(s.payload.aps.alert.body) || at - loud <= 30 * 60_000;
+    if (!quiet) loud = at;
+    assert.deepEqual(s.payload, (quiet ? quietPayload : endedPayload)(alert, s.payload.aps.alert.body), `${s.at} ${quiet ? "quiet" : "sounds"}`);
+    assert.equal(s.priority, quiet ? "5" : "10");
     assert.equal(s.collapseId, alert.id);
     assert.equal(s.expiresIn, 3600);
   }
@@ -196,7 +207,7 @@ test("told yesterday, never cleared while followed, gone by the next morning: no
   assert.equal(next.state().alerts[commute.id].open, undefined, "settled quietly");
 });
 
-test("two told, one clears while the other continues: said once, as an ordinary notice", async () => {
+test("two told, one clears while the other continues: said once, quietly (the notice on the phone changes); all clear sounds", async () => {
   const lines = (at: string) => {
     const t = at.slice(11);
     if (t < "07:40") return [JUB_MINOR, CEN_SEVERE];
@@ -209,8 +220,11 @@ test("two told, one clears while the other continues: said once, as an ordinary 
     "07:44 Severe delays on the Central line have cleared. Minor delays on the Jubilee line continue.",
     "08:14 Minor delays on the Jubilee line have cleared. Good service again.",
   ]);
-  assert.equal(sent[1].payload.aps["interruption-level"], "active");
-  assert.equal(sent[1].payload.aps.sound, "default");
+  assert.equal(sent[1].payload.aps["interruption-level"], "passive");
+  assert.equal(sent[1].payload.aps.sound, undefined);
+  assert.equal(sent[1].priority, "5");
+  assert.equal(sent[2].payload.aps["interruption-level"], "active");
+  assert.equal(sent[2].payload.aps.sound, "default");
   assertEnded(sent, commute);
 });
 
@@ -682,6 +696,22 @@ test("round 5, C: a told line missing from TfL's answer survives another line's 
   const lines = (at: string) => { const t = at.slice(11); return t < "07:10" ? [JUB_SEVERE, CEN_GOOD] : t < "07:46" ? [CEN_GOOD] : t < "07:50" ? [CEN_MINOR] : [JUB_GOOD, CEN_MINOR]; };
   const { sent } = await simulate("07:00", "08:00", lines);
   assert.ok(seen(sent).some((x) => x.slice(0, 5) <= "07:54" && /Severe delays on the Jubilee line have cleared/.test(x)), seen(sent).join("\n"));
+});
+
+
+// Review of PR #9, sixth round: what is told is unchanged; how some ended notices sound.
+
+test("round 6: a second ended notice within half an hour of one that sounded goes out quietly", async () => {
+  // Minor 07:30, gone 07:40 (ended 07:44, sounds), back 07:50 (told), gone 07:56 and stays gone:
+  // flapping, so ended after half an hour, at 08:26: more than half an hour after 07:44, sounds.
+  // Back 07:30 to 07:36 and 07:44 to 07:50 instead: ended 07:40, then 07:54, quiet.
+  const lines = (at: string) => { const t = at.slice(11); return [(t >= "07:30" && t < "07:36") || (t >= "07:44" && t < "07:50") ? JUB_MINOR : JUB_GOOD, CEN_GOOD]; };
+  const { sent } = await simulate("07:30", "08:40", lines, [{ ...commute, windows: [{ start: 420, end: 600 }] }]);
+  const ends = sent.filter((x) => !x.payload.aps.alert.subtitle);
+  assert.ok(ends.length >= 2, seen(sent).join("\n"));
+  assert.equal(ends[0].payload.aps["interruption-level"], "active");
+  for (const e of ends.slice(1)) if (Date.parse(`${e.at}:00Z`) - Date.parse(`${ends[0].at}:00Z`) <= 30 * 60_000) assert.equal(e.payload.aps["interruption-level"], "passive", seen(sent).join("\n"));
+  assertEnded(sent, commute);
 });
 
 });

@@ -41,26 +41,32 @@ export function issuesPush(alert: Alert, issues: Issue[], now: number): Push {
  * collapse ID of the notice it settles, which APNs documents as merging the two into one
  * notification, so Notification Centre shows how things stand now rather than trouble that is
  * over. Whether the merged one still sounds and shows a banner hasn't been seen on a phone. */
-export function clearPush(alert: Alert, decision: Extract<Decision, { kind: "clear" }>, now: number): Push {
+/** `quiet`: sent the way the server before this change sent "good service again": passive, with
+ * no sound, at priority 5. For a notice that says something told goes on, and for a second ended
+ * notice within half an hour; the notice on the phone still changes. */
+export function clearPush(alert: Alert, decision: Extract<Decision, { kind: "clear" }>, now: number, quiet = false): Push {
   // State from before the words were kept: what was told isn't known, only whether all is well.
   const body = !decision.ended.length
     ? decision.all ? `Good service again on ${lineList(alert)}.` : `What you were told about on ${lineList(alert)} has cleared.`
     : [...sentences(alert, decision.ended, decision.still), ...(!decision.still.length && decision.all ? ["Good service again."] : [])].join(" ");
   return {
     payload: {
-      aps: {
-        alert: { title: alert.name, body: trim(body, MAX_BODY) },
-        sound: "default",
-        "interruption-level": "active",
-        "relevance-score": 0.5,
-        "thread-id": alert.id,
-      },
+      aps: quiet
+        ? { alert: { title: alert.name, body: trim(body, MAX_BODY) }, "interruption-level": "passive", "relevance-score": 0.2, "thread-id": alert.id }
+        : { alert: { title: alert.name, body: trim(body, MAX_BODY) }, sound: "default", "interruption-level": "active", "relevance-score": 0.5, "thread-id": alert.id },
       alert: alert.id,
     },
-    priority: 10,
+    priority: quiet ? 5 : 10,
     collapseId: alert.id,
     expiration: Math.floor(now / 1000) + 3600,
   };
+}
+
+/** Whether an ended notice goes out quietly: when it says something told goes on, or another
+ * that sounded went out less than half an hour ago. */
+export function endsQuietly(decision: Extract<Decision, { kind: "clear" }>, lastLoud: number | undefined, now: number): boolean {
+  // Within half an hour, counted to the minute (a run a few seconds late is still within it).
+  return decision.still.length > 0 || (lastLoud !== undefined && now - lastLoud < 31 * 60_000);
 }
 
 /** What ended, then what goes on. Two told in the same words (two part suspensions on one line)

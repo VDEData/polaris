@@ -31,11 +31,16 @@ export interface AlertState {
    * notice, its quiet "good service again" and what its newest notice shows. Whatever that would
    * show, this shows too. */
   main?: MainShadow;
+  /** When the last ended notice that sounded went out: another within half an hour is quiet. */
+  endedLoud?: number;
 }
 
 export interface MainShadow {
   open?: number;
   quiet?: number;
+  /** Its quiet "good service again" was due at this run, but a run a few seconds late (as it
+   * reads the clock) puts it at the next: until then, it may or may not have cleared. */
+  maybe?: boolean;
   shown: Record<string, number>;
   /** The ways it told each disruption, as it would have recorded them. */
   ways?: Record<string, Direction[]>;
@@ -143,11 +148,12 @@ function ranks(items: [string, Severity][]): Record<string, number> {
   return out;
 }
 
-/** State from before `shown` was kept: what a notice standing tells, as well as is known. */
+/** State from before `shown` was kept: what the notice standing tells, as well as is known: what
+ * was on when it was sent (severe delays eased to minor were told as minor). */
 function showing(prev: AlertState, known: AlertState["live"]): Record<string, number> {
   if (prev.open === undefined) return {};
   const told = prev.said ? Object.keys(prev.said) : Object.keys(known);
-  return ranks(told.filter((s) => known[s]).map((s) => [s, known[s].severity]));
+  return ranks(told.filter((s) => known[s] && known[s].seen >= prev.open! - MINUTE).map((s) => [s, known[s].severity]));
 }
 
 /** The server before this change, run alongside on the same memory: when it would push, what it
@@ -155,6 +161,16 @@ function showing(prev: AlertState, known: AlertState["live"]): Record<string, nu
 function shadow(prev: AlertState, issues: Issue[], known: AlertState["live"], now: number, ways: Ways | undefined, shown: Record<string, number>): MainShadow {
   const before: MainShadow = prev.main ?? { open: prev.open, quiet: prev.quietSince, shown };
   const toldWays = before.ways ?? {};
+  // Cleared at the last run, or not: with trouble back now, it shows the worse of its old notice
+  // and a new one; with none, it has cleared by now either way.
+  if (before.maybe) {
+    const kept = before.ways ? { ways: prune(before.ways, known, issues) } : {};
+    if (!issues.length) return { shown: {}, ...kept };
+    const now_ = ranks(issues.map((i) => [i.signature, i.severity]));
+    const worse: Record<string, number> = { ...before.shown };
+    for (const [k, v] of Object.entries(now_)) worse[k] = Math.max(worse[k] ?? 0, v);
+    return { open: now, shown: worse, ...kept };
+  }
   const rides = !ways || ways.way === "both" ? BOTH : [ways.way];
   const yours = (signature: string) => {
     const on = (ways?.on.get(signature) ?? rides).filter((d) => rides.includes(d));
@@ -175,6 +191,7 @@ function shadow(prev: AlertState, issues: Issue[], known: AlertState["live"], no
   if (ways?.holds && [...ways.on.keys()].some((s) => known[s])) return { open: before.open, shown: before.shown, ...keepWays };
   const quiet = before.quiet ?? now;
   if (now - quiet < QUIET_BEFORE_CLEAR) return { open: before.open, quiet, shown: before.shown, ...keepWays };
+  if (now - quiet < QUIET_BEFORE_CLEAR + MINUTE) return { open: before.open, quiet, maybe: true, shown: before.shown, ...keepWays };
   return { shown: {}, ...keepWays };
 }
 

@@ -12,22 +12,64 @@ import { runChecks as baselineChecks } from "./baseline/checks.ts";
 import { forgetLineMaps as baselineForget } from "./baseline/linemap.ts";
 import { runChecks } from "../src/checks.ts";
 import { forgetLineMaps } from "../src/linemap.ts";
-import { clock, covered, MIN, morning, play, random, ridden, shows, showsAtLeast, type Morning, type Pushed } from "./mornings.ts";
+import { clock, covered, cycleMorning, fixedMorning, lineState, MIN, morning, play, random, ridden, shows, showsAtLeast, type Morning, type Playing, type Pushed } from "./mornings.ts";
 
 const MORNINGS = Number(process.env.MORNINGS ?? 3000);
+/** The other modes: fewer mornings each, as there are three of them on three seeds. */
+const MODE_MORNINGS = Number(process.env.MODE_MORNINGS ?? 1000);
 
-for (const seed of [4404, 1, 7]) {
-  test(`seed ${seed}, ${MORNINGS} made-up mornings: whatever main's phone shows, the new code's shows too`, async () => {
+/** Main reading the clock 1 to 5 s late, as production does; the new code on its mark. */
+const mainLate = (r: number) => 1000 + ((r * 7919) % 4000);
+
+type Mode = { name: string; count: number; make: (rand: () => number) => Morning; main: (m: Morning, rand: () => number) => Playing; next: (m: Morning, rand: () => number) => Playing };
+const MODES: Mode[] = [
+  { name: "made-up mornings", count: MORNINGS, make: (r) => morning(r, r() < 0.5 ? 0.2 : 0.05), main: () => ({}), next: () => ({}) },
+  { name: "main 1 to 5 s late, the new code on the mark", count: MODE_MORNINGS, make: (r) => morning(r, r() < 0.5 ? 0.2 : 0.05), main: () => ({ lateness: mainLate }), next: () => ({ lateness: () => 0 }) },
+  {
+    name: "deployed at a random run (main's state handed to the new code)", count: MODE_MORNINGS, make: (r) => morning(r, r() < 0.5 ? 0.2 : 0.05), main: () => ({}),
+    next: (m, r) => ({ handover: { run: Math.floor(r() * m.marks.length), runChecks, forgetLineMaps } }),
+  },
+  { name: "fixed cycles of two or three statuses, 2 to 20 minutes each", count: MODE_MORNINGS, make: (r) => cycleMorning(r), main: () => ({}), next: () => ({}) },
+];
+
+test("a 32-minute cycle, main 1 to 5 s late (so it never clears), the new code on the mark: the phone shows the suspension at 07:52", async () => {
+  const cycle = fixedMorning(["jubilee"], 600, (t) => {
+    const m = Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) - 422;
+    const k = ((m % 32) + 32) % 32;
+    return { jubilee: lineState("jubilee", m < 0 ? "good" : k < 12 ? "part suspended" : k < 22 ? "suspended" : k < 26 ? "part suspended" : "good") };
+  });
+  const base = await play(cycle, baselineChecks, baselineForget, undefined, { lateness: mainLate });
+  const next = await play(cycle, runChecks, forgetLineMaps, undefined, { lateness: () => 0 });
+  const at = cycle.marks.find((t) => clock(t) === "07:52")!;
+  assert.deepEqual(shows(base, at), ["Jubilee line: suspended"]);
+  assert.ok(showsAtLeast(shows(next, at), { title: "Jubilee line: suspended", rank: 3 }), JSON.stringify(shows(next, at)));
+});
+
+test("deployed at 07:26 after severe eased to minor and the line went missing: severe back at 07:42 is told, as main tells it", async () => {
+  const morning_ = fixedMorning(["jubilee"], 540, (t) => ({ jubilee: lineState("jubilee", t < "07:02" ? "good" : t < "07:12" ? "severe" : t < "07:22" ? "minor" : t < "07:42" ? "missing" : "severe") }));
+  const base = await play(morning_, baselineChecks, baselineForget, undefined, { lateness: () => 0 });
+  const deploy = morning_.marks.findIndex((t) => clock(t) === "07:26");
+  const next = await play(morning_, baselineChecks, baselineForget, undefined, { lateness: () => 0, handover: { run: deploy, runChecks, forgetLineMaps } });
+  assert.ok(base.some((p) => clock(p.at) === "07:42" && p.subtitle === "Jubilee line: severe delays"));
+  const at = morning_.marks.find((t) => clock(t) === "07:44")!;
+  assert.ok(showsAtLeast(shows(next, at), { title: "Jubilee line: severe delays", rank: 2 }), next.map((p) => `${clock(p.at)} ${p.subtitle ?? p.body}`).join(" / "));
+});
+
+for (const mode of MODES) for (const seed of [4404, 1, 7]) {
+  test(`${mode.name}, seed ${seed}, ${mode.count} mornings: whatever main's phone shows, the new code's shows too`, async () => {
+    const MORNINGS = mode.count;
     const rand = random(seed);
     const missed: string[] = [];
     const more: Record<string, string[]> = {};
     const counts = { checks: 0, mainShows: 0, newShows: 0, editExempt: 0, late: 0, edits: 0, mainNotices: 0, newNotices: 0, mainOnly: 0, newOnly: 0 };
     for (let n = 0; n < MORNINGS; n++) {
-      const m = morning(rand, rand() < 0.5 ? 0.2 : 0.05);
+      const m = mode.make(rand);
       if (m.late) counts.late++;
       if (m.edit) counts.edits++;
-      const base = await play(m, baselineChecks, baselineForget);
-      const next = await play(m, runChecks, forgetLineMaps);
+      const base = await play(m, baselineChecks, baselineForget, undefined, mode.main(m, rand));
+      const how = mode.next(m, rand);
+      // A deploy: main runs first, then the new code takes over with main's state.
+      const next = how.handover ? await play(m, baselineChecks, baselineForget, undefined, how) : await play(m, runChecks, forgetLineMaps, undefined, how);
       noticeCounts(base, next, counts);
       const editAt = m.edit && m.edit.kind !== "rename" ? m.edit.at : Infinity;
       const since = new Map<string, number>();
@@ -52,7 +94,7 @@ for (const seed of [4404, 1, 7]) {
         }
       }
     }
-    console.log(`seed ${seed}: ${MORNINGS} mornings (${counts.late} late, ${counts.edits} with an edit); ${counts.checks} checks of a disruption on 6 minutes or more (${counts.editExempt} more not judged, after an edit): main's phone shows it in ${counts.mainShows}, the new code's in ${counts.newShows}; shown by main and not the new code: ${missed.length}`);
+    console.log(`${mode.name}, seed ${seed}: ${MORNINGS} mornings (${counts.late} late, ${counts.edits} with an edit); ${counts.checks} checks of a disruption on 6 minutes or more (${counts.editExempt} more not judged, after an edit): main's phone shows it in ${counts.mainShows}, the new code's in ${counts.newShows}; shown by main and not the new code: ${missed.length}`);
     console.log(`  disruption notices: main ${counts.mainNotices}, new ${counts.newNotices}; main's with no new one within a run: ${counts.mainOnly}; new with no main one within a run: ${counts.newOnly}`);
     for (const [reason, list] of Object.entries(more)) {
       console.log(`  shown by the new code and not main, ${reason}: ${list.length}`);

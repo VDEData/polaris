@@ -125,6 +125,48 @@ export function morning(rand: () => number, change: number): Morning {
   return { alert, marks, truth, edit, late: rand() < 0.5, lines };
 }
 
+/** A tube line's status, by name, as TfL gives it. */
+export function lineState(line: string, what: "good" | "minor" | "severe" | "suspended" | "part suspended" | "missing"): LineState {
+  const [good, , , , minor, , severe, suspended, missing, , part] = choices(line);
+  return { good, minor, severe, suspended, missing, "part suspended": part }[what]();
+}
+
+/** A morning of one tube alert, 07:00 until `end`, with TfL saying `at(time)` for each line. */
+export function fixedMorning(lines: string[], end: number, at: (hhmm: string) => Record<string, LineState>): Morning {
+  const alert: Alert = { id: "7A1B2C3D-0000-4000-8000-000000000005", name: "Commute", days: [1, 2, 3, 4, 5], windows: [{ start: 420, end }], minorDelays: true, segments: lines.map(tube) };
+  const marks: number[] = [];
+  for (let t = DAY + 418 * MIN; t <= DAY + (end + 30) * MIN; t += 2 * MIN) marks.push(t);
+  const truth = new Map(marks.map((t) => [t, at(clock(t))]));
+  return { alert, marks, truth, late: false, lines };
+}
+
+/** A morning of fixed cycles: each line goes round two or three statuses, each held for 2 to 20
+ * minutes, all morning. */
+export function cycleMorning(rand: () => number): Morning {
+  const pick = <T>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
+  const end = 7 * 60 + 40 + 10 * Math.floor(rand() * 12);
+  const lines = rand() < 0.5 ? ["jubilee"] : ["jubilee", "central"];
+  const alert: Alert = { id: "7A1B2C3D-0000-4000-8000-000000000004", name: "Commute", days: [1, 2, 3, 4, 5], windows: [{ start: 420, end }], minorDelays: true, segments: lines.map(tube) };
+  const marks: number[] = [];
+  for (let t = DAY + 418 * MIN; t <= DAY + (end + 200) * MIN; t += 2 * MIN) marks.push(t);
+  const cycles = Object.fromEntries(["jubilee", "central"].map((l) => {
+    const options = choices(l).filter((c, i, all) => all.indexOf(c) === i);
+    const steps = Array.from({ length: rand() < 0.5 ? 2 : 3 }, () => ({ state: pick(options)(), minutes: 2 + 2 * Math.floor(rand() * 10) }));
+    return [l, steps];
+  }));
+  const truth = new Map<number, Record<string, LineState>>();
+  for (const t of marks) {
+    const minute = (t - marks[0]) / MIN;
+    truth.set(t, Object.fromEntries(Object.entries(cycles).map(([l, steps]) => {
+      const period = steps.reduce((a, x) => a + x.minutes, 0);
+      let k = minute % period;
+      for (const x of steps) { if (k < x.minutes) return [l, x.state]; k -= x.minutes; }
+      return [l, steps[0].state];
+    })));
+  }
+  return { alert, marks, truth, late: rand() < 0.5, lines };
+}
+
 export interface Pushed { at: number; run: number; subtitle?: string; body: string; level: string; collapseId: string }
 
 type RunChecks = (env: any, now?: number) => Promise<unknown>;
@@ -138,8 +180,16 @@ async function key() {
   return KEY;
 }
 
+/** How a morning is played. */
+export interface Playing {
+  /** How late each run reads the clock, by run (ms): default the morning's own (on the mark, or 0.3 to 3 s late). */
+  lateness?: (run: number) => number;
+  /** From this run on, another Worker takes over with the state the first left (a deploy). */
+  handover?: { run: number; runChecks: RunChecks; forgetLineMaps: () => void };
+}
+
 /** Plays a morning through one Worker's `runChecks` (and its `forgetLineMaps`). */
-export async function play(m: Morning, runChecks: RunChecks, forgetLineMaps: () => void, show?: (t: number, state: string) => void): Promise<Pushed[]> {
+export async function play(m: Morning, runChecks: RunChecks, forgetLineMaps: () => void, show?: (t: number, state: string) => void, how: Playing = {}): Promise<Pushed[]> {
   forgetLineMaps();
   const rows = [{ token: TOKEN, environment: "sandbox", time_zone: "Europe/London", alerts: JSON.stringify([m.alert]), state: JSON.stringify({ alerts: {}, planned: {} }) }];
   const meta = new Map<string, unknown>();
@@ -179,10 +229,12 @@ export async function play(m: Morning, runChecks: RunChecks, forgetLineMaps: () 
     }
     throw new Error(`unexpected fetch ${url}`);
   }) as typeof fetch;
+  const late = how.lateness ?? ((r: number) => (m.late ? 300 + ((r * 7919) % 2700) : 0));
   for (const t of m.marks) {
     mark = t;
     if (m.edit && t === m.edit.at) rows[0].alerts = JSON.stringify([m.edit.alert]);
-    await runChecks(env, t + (m.late ? 300 + ((run * 7919) % 2700) : 0));
+    if (how.handover && run === how.handover.run) { runChecks = how.handover.runChecks; how.handover.forgetLineMaps(); }
+    await runChecks(env, t + late(run));
     show?.(t, rows[0].state);
     run++;
   }

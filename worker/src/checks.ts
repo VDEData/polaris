@@ -6,7 +6,7 @@ import { canPush, send, type ApnsEnv } from "./apns.ts";
 import { loadLineMaps } from "./linemap.ts";
 import { hash, issuesFor, issuesInRanges, linesToPlace, troubled, type LineMaps } from "./match.ts";
 import { follow, following, forget, MAX_RETRIES, place, plannedStep, step, type AlertState, type Context, type DeviceState, type Ways } from "./policy.ts";
-import { clearPush, issuesPush, plannedPush, type Push } from "./push.ts";
+import { clearPush, endsQuietly, issuesPush, plannedPush, type Push } from "./push.ts";
 import { activeWindows, dateKey, during, eachWay, localTime, PLANNED_CHECK_AT, travelRanges } from "./schedule.ts";
 import { fetchTfL, lineStatusURL, parseLineStatuses, parseStationDisruptions, stationDisruptionsURL, type LineStatus, type StationDisruption } from "./tfl.ts";
 import type { Alert, Device, Direction } from "./types.ts";
@@ -166,9 +166,11 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
         const ways = waysFor(alert, base, lines, stations, now, maps);
         const matched = new Set([...issues.map((i) => i.signature), ...(ways?.holds ? ways.on.keys() : [])]);
         const result = step(covered(state.alerts[alert.id], base, matched, lines), issues, now, ways, context(base, lineIds, lines, true));
-        const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
+        const loud = state.alerts[alert.id]?.endedLoud;
+        const quiet = result.push?.kind === "clear" && endsQuietly(result.push, loud, now);
+        const commit = () => void (state.alerts[alert.id] = withLoud({ ...result.state, matches: fingerprint(base) }, result.push?.kind === "clear" && !quiet ? now : loud, now));
         if (result.push?.kind === "issues") await deliver(alert.id, issuesPush(alert, result.push.issues, now), commit);
-        else if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
+        else if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now, quiet), commit);
         else commit();
         settled(alert.id);
       }
@@ -176,8 +178,10 @@ export async function runChecks(env: Env, now = Date.now()): Promise<{ devices: 
         if (gone) break;
         const issues = issuesFor(alert, lines, stations, { at: now }, maps);
         const result = follow(covered(state.alerts[alert.id], base, new Set(issues.map((i) => i.signature)), lines)!, issues, now, context(alert, lineIds, lines, followedStops.includes(alert)));
-        const commit = () => void (state.alerts[alert.id] = { ...result.state, matches: fingerprint(base) });
-        if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now), commit);
+        const loud = state.alerts[alert.id]?.endedLoud;
+        const quiet = result.push?.kind === "clear" && endsQuietly(result.push, loud, now);
+        const commit = () => void (state.alerts[alert.id] = withLoud({ ...result.state, matches: fingerprint(base) }, result.push?.kind === "clear" && !quiet ? now : loud, now));
+        if (result.push?.kind === "clear") await deliver(`${alert.id}:ended`, clearPush(alert, result.push, now, quiet), commit);
         else commit();
         settled(alert.id);
       }
@@ -226,6 +230,12 @@ function context(alert: Alert, asked: string[], lines: LineStatus[], stationsAsk
   const ids = alert.segments.map((s) => s.line.id);
   const unknown = new Set(ids.filter((id) => asked.includes(id) && !lines.some((l) => l.lineId === id)).map((id) => `line:${id}`));
   return { unknown, calm: stationsAsked && !troubled(ids, lines) };
+}
+
+/** Keeps when the last ended notice that sounded went out, for half an hour. */
+function withLoud(state: AlertState, loud: number | undefined, now: number): AlertState {
+  const { endedLoud: _, ...rest } = state;
+  return loud !== undefined && now - loud < 31 * 60_000 ? { ...rest, endedLoud: loud } : rest;
 }
 
 /** What an alert matches: its stretches, its ways and its times' ways, minor delays. Not its
