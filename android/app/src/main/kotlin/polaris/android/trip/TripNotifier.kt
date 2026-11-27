@@ -226,6 +226,8 @@ class TripNotifier(
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            // Its own group, so Android doesn't bundle it with a nudge under its countdown ("in 4m").
+            .setGroup(GROUP_TRIP)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion(card))
             .setContentIntent(open(REQUEST_OPEN, null))
@@ -313,6 +315,8 @@ class TripNotifier(
     companion object {
         const val CHANNEL_TRIP = "go-trip"
         const val CHANNEL_ALERTS = "trip-alerts"
+        const val GROUP_TRIP = "polaris.go.trip"
+        const val GROUP_ALERTS = "polaris.go.alerts"
         const val ID_TRIP = 1
         const val ID_OFFER = 2
         const val ID_ALERT = 3
@@ -349,6 +353,7 @@ class TripNotifier(
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setContentIntent(open)
                 .setAutoCancel(true)
+                .setGroup(GROUP_ALERTS)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
                 .build()

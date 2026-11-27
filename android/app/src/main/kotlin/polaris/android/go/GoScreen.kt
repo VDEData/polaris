@@ -1,5 +1,6 @@
 package polaris.android.go
 
+import polaris.android.ui.keepLastTwo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -145,10 +146,23 @@ fun GoScreen(key: GoPage, graph: AppGraph, openSettings: () -> Unit, onLeave: ()
     // A faster way raises the sheet so its card, Switch and Keep my route together, is in view: to
     // half, or at large text (where the choices stack) to full.
     val largeText = LocalDensity.current.fontScale >= 1.5f
+    // Never from under the person's finger (it waits for a drag to end), and back to their own rest
+    // when the offer goes.
+    var raisedForOffer by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(offered) {
-        if (offered == null || sheet.wide) return@LaunchedEffect
+        if (sheet.wide) return@LaunchedEffect
+        if (offered == null) {
+            if (raisedForOffer) sheet.restore()
+            raisedForOffer = false
+            return@LaunchedEffect
+        }
+        while (sheet.state?.beingDragged == true) kotlinx.coroutines.delay(150)
         val rest = sheet.state?.rest
-        if (largeText && rest != Rest.Full) sheet.request(Rest.Full) else if (rest == Rest.Low) sheet.request(Rest.Half)
+        val to = if (largeText && rest != Rest.Full) Rest.Full else if (rest == Rest.Low) Rest.Half else null
+        if (to != null) {
+            sheet.request(to)
+            raisedForOffer = true
+        }
     }
     Banner(key, trip, words, now)
     StepAnnouncement(trip, words, now)
@@ -419,7 +433,7 @@ private fun Notice(icon: Int, tint: Color, title: String, detail: String?) {
         Symbol(icon, null, Modifier.size(20.dp), tint = tint)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = c.ink)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = c.inkSoft) }
+            detail?.let { Text(keepLastTwo(it), style = MaterialTheme.typography.bodySmall, color = c.inkSoft) }
         }
     }
 }

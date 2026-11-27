@@ -28,8 +28,9 @@ class GoDeviceTest {
 
     /** These tests delete the app's saved trip and change its permissions: never on a real phone. */
     @Before fun onlyOnAnEmulator() {
-        val emulator = android.os.Build.HARDWARE in setOf("ranchu", "goldfish") || android.os.Build.FINGERPRINT.contains("generic") ||
-            android.os.Build.PRODUCT.startsWith("sdk_")
+        // The emulator's own marks (a generic ROM on a real phone can say "generic" in its fingerprint).
+        val emulator = android.os.Build.HARDWARE in setOf("ranchu", "goldfish") ||
+            shell("getprop ro.kernel.qemu").trim() == "1" || shell("getprop ro.boot.qemu").trim() == "1"
         check(emulator) { "GoDeviceTest runs only on an emulator; this device is not one" }
     }
 

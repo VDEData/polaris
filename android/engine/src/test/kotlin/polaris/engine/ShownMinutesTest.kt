@@ -34,4 +34,11 @@ class ShownMinutesTest {
         val message = Replan.message(Replan.Status.OtherRide(0, service, by = -456.0), timeline, false) as ReplanMessage.OtherRide
         assertEquals(7, message.minutes)
     }
+
+    /** Counts beside a time: "27 min to go" with Arrive 12:54 at 12:26 is 28; "in 3 min, at 12:34" at 12:30 is 4. */
+    @Test fun countsBesideAClockTimeUseTheShownMinutes() {
+        assertEquals(28, Strip.shownMinutes(iso("12:26:40"), iso("12:54:10")))
+        assertEquals(4, Strip.shownMinutes(iso("12:30:50"), iso("12:34:00")))
+        assertEquals(10, Strip.shownMinutes(iso("13:10:30"), iso("13:20:00")))
+    }
 }

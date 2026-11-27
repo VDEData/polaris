@@ -282,12 +282,15 @@ class LiveTrip(
 
     /**
      * When you could be on the platform for the next ride: now, at its stop; the pace check's time
-     * while walking to it; null on a ride. Nothing leaving before it can be offered as one to catch.
+     * while walking to it (with no trusted fix, the walk's timetabled end plus the platform time);
+     * null on a ride. Nothing leaving before it can be offered as one to catch.
      */
     val reachableBy: Instant?
         get() = when {
             isWaiting -> now
+            // With no trusted fix (none yet, or approximate location only): the walk's timetabled end plus the platform time.
             !leg.mode.isTransit && nextRide != null -> connection?.ready
+                ?: timeline.steps.getOrNull(legIndex)?.arrival?.plusSeconds(Connection.platformTime(nextRide!!.mode))
             else -> null
         }
 

@@ -193,10 +193,14 @@ class FileTripStore(private val file: File, private val writer: ExecutorService 
         return runCatching { file.readText() }.getOrNull()?.let(SavedTrip::decode)
     }
 
-    /** End is final: after any saves queued before it, the file is deleted before this returns. */
+    /**
+     * End is final: the file goes at once, on the caller's thread (a delete, never a wait on the
+     * writer, which could hold up the screen), and again after any save already queued, so none
+     * can bring it back.
+     */
     override fun clear() {
+        file.delete()
         writer.execute { file.delete() }
-        flush()
     }
 
     /** Waits for every save and delete asked for so far. */

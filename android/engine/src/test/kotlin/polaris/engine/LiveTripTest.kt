@@ -980,4 +980,26 @@ class LiveTripTest {
         drive.tick("06:50:00", Go.start)
         assertEquals(first, drive.trip.serviceNews)
     }
+
+    /** Walking with no fix yet (or approximate location only): you could be on the platform at the walk's end plus the platform time, never now. */
+    @Test fun withNoFixTheReachableTimeIsTheWalksEndPlusThePlatform() = runTest {
+        val journey = Go.bakerloo
+        val drive = Drive(this, journey, Go.at("06:33:00"), Go.bakerlooBoards(journey), null)
+        drive.tick("06:33:00", null)
+        val reachable = assertNotNull(drive.trip.reachableBy)
+        val walkEnd = drive.trip.timeline.steps[0].arrival
+        assertEquals(walkEnd.plusSeconds(Connection.platformTime(LegMode.tube).toLong()), reachable)
+    }
+
+    /** "Time to leave" leaves the walk and the platform time before the train (and a minute's notice), not just the walk. */
+    @Test fun timeToLeaveAllowsThePlatformTime() {
+        val plan = Go.bakerloo
+        // A four-minute walk ending a minute before the 06:41.
+        val walk = plan.legs[0].copy(departure = Go.at("06:36:00"), arrival = Go.at("06:40:00"))
+        val journey = plan.copy(departure = walk.departure, legs = listOf(walk) + plan.legs.drop(1))
+        val alerts = TripAlerts.plan(TripTimeline.plan(journey), 0, TripLog(began = Go.at("06:20:00")), "One Canada Square", Go.at("06:20:00"))
+        val leave = alerts.first { it.id == "leave" }
+        // 06:41 less the 4-minute walk, 90 s to the platform and a minute's notice.
+        assertEquals(Go.at("06:34:30"), leave.date)
+    }
 }

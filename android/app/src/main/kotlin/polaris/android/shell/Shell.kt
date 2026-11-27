@@ -164,6 +164,14 @@ fun PolarisApp(
             pages.add(GoPage)
         }
     }
+    // A trip that ended by itself (arrived, or past its time): back to Home, where the message shows.
+    val endedItself by graph.trips.endedItself.collectAsStateLifecycle()
+    var endingsSeen by rememberSaveable { mutableStateOf(endedItself) }
+    LaunchedEffect(endedItself) {
+        if (endedItself == endingsSeen) return@LaunchedEffect
+        endingsSeen = endedItself
+        pages.removeAll { it !is HomePage }
+    }
     LaunchedEffect(tripOpens) {
         if (!tripOpens) return@LaunchedEffect
         graph.trips.opened()
@@ -461,7 +469,7 @@ private fun MapAndSheet(
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                             .padding(start = if (wide) layout.mapStart - layout.safeStart else 10.dp, end = 10.dp, top = 8.dp)
                             // A phone's width, centred, in a very wide phone layout (open tall), not a bar with its words in a third of it.
-                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.widthIn(max = 640.dp).fillMaxWidth())
+                            .then(if (wide) Modifier.widthIn(max = 520.dp) else Modifier.widthIn(max = 440.dp).fillMaxWidth())
                             .onSizeChanged { bannerHeight = it.height },
                     ) { card() }
                 }

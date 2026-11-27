@@ -140,9 +140,17 @@ class SheetState(initial: Rest, remembered: Rest, private val animator: SheetAni
         }
     }
 
+    /** When the person last moved it by hand (System.nanoTime), so a page doesn't move it from under their finger. */
+    var lastDragNanos = 0L
+        private set
+
+    /** Moved by hand in the last half second. */
+    val beingDragged: Boolean get() = System.nanoTime() - lastDragNanos < 500_000_000L
+
     /** Moves the sheet by [delta] at once, within its rests; returns what it used. */
     fun dragBy(delta: Float): Float {
         if (anchors.isEmpty() || offset.isNaN()) return 0f
+        lastDragNanos = System.nanoTime()
         animation?.cancel()
         val now = offset
         val to = (now + delta).coerceIn(anchors.values.min(), anchors.values.max())
@@ -284,7 +292,8 @@ fun BottomSheet(
     Column(
         modifier
             .offset { IntOffset(0, if (state.top.isNaN()) 0 else state.top.roundToInt()) }
-            .widthIn(max = 640.dp)
+            // A phone's width at most, centred, in a very wide window (open tall).
+            .widthIn(max = 440.dp)
             .fillMaxWidth()
             // Square at full height, where the top edge meets the screen's.
             .background(c.paper, RoundedCornerShape(topStart = corner, topEnd = corner))

@@ -31,10 +31,10 @@ class GoWords(private val r: Resources) {
     /** A number and its unit never split across lines ("7 min", "1 h 05", "230 m"). */
     private fun keep(text: String) = text.replace(' ', '\u00A0')
 
-    fun minutes(seconds: Double): String {
-        val m = Math.round(seconds / 60).toInt()
-        return keep(if (m < 60) r.getString(R.string.duration_minutes, m) else r.getString(R.string.duration_hours_minutes, m / 60, m % 60))
-    }
+    fun minutes(seconds: Double): String = minuteCount(Math.round(seconds / 60).toInt())
+
+    private fun minuteCount(m: Int): String =
+        keep(if (m < 60) r.getString(R.string.duration_minutes, m) else r.getString(R.string.duration_hours_minutes, m / 60, m % 60))
 
     /** "platform 2", or for a bus "stop G". */
     fun standing(leg: Leg, platform: String): String =
@@ -52,8 +52,9 @@ class GoWords(private val r: Resources) {
     fun arrive(trip: LiveTrip) = r.getString(R.string.go_arrive, clock(trip.eta))
 
     fun headerDetail(trip: LiveTrip): String {
-        val left = trip.eta.epochSecond - trip.now.epochSecond
-        val time = if (left > 0) r.getString(R.string.go_to_go, minutes(left.toDouble())) else r.getString(R.string.go_due_now)
+        // Beside "Arrive 12:54": the difference of the two clock times shown, as every count beside a time.
+        val left = Strip.shownMinutes(trip.now, trip.eta)
+        val time = if (left > 0) r.getString(R.string.go_to_go, minuteCount(left)) else r.getString(R.string.go_due_now)
         val walk = trip.remainingWalk?.takeIf { !trip.leg.mode.isTransit }
         return if (walk != null) r.getString(R.string.go_header_walk, trip.query.destination.name, time, r.getString(R.string.go_walk_left, distance(walk)))
         else r.getString(R.string.go_header, trip.query.destination.name, time)
@@ -69,7 +70,7 @@ class GoWords(private val r: Resources) {
             leg.mode.isTransit && trip.isWaiting -> {
                 val left = trip.rideDeparture.epochSecond - now.epochSecond
                 // In minutes, as the boards say it; the last two minutes count down in seconds.
-                if (left >= 120) r.getString(R.string.go_minutes, (left / 60).toString())
+                if (left >= 120) r.getString(R.string.go_minutes, Strip.shownMinutes(now, trip.rideDeparture).toString())
                 else "%d:%02d".format(java.util.Locale.ROOT, max(0, left) / 60, max(0, left) % 60)
             }
             leg.mode.isTransit -> r.getString(R.string.go_get_off_at, leg.toName)
@@ -95,7 +96,7 @@ class GoWords(private val r: Resources) {
                 }
             }
             val arrival = trip.rideArrival
-            val minutes = max(0L, (arrival.epochSecond - trip.now.epochSecond) / 60)
+            val minutes = max(0, Strip.shownMinutes(trip.now, arrival)).toLong()
             val yours = trip.yourDeparture?.expected
             return when {
                 yours != null && minutes == 0L -> r.getString(R.string.go_on_the_next_stop, clock(yours))

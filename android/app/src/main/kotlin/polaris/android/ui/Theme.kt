@@ -111,3 +111,9 @@ fun spokenList(items: List<String>, joiner: String, separator: String = ", "): S
 const val SEPARATOR = " ·\u00A0"
 
 fun RGB.toColor() = androidx.compose.ui.graphics.Color(r.toFloat(), g.toFloat(), b.toFloat())
+
+/** A sentence's last two words kept together, so a wrapped line never ends with one word alone ("… 3 min / later."). */
+fun keepLastTwo(text: String): String {
+    val i = text.trimEnd().lastIndexOf(' ')
+    return if (i <= 0) text else text.substring(0, i) + '\u00A0' + text.substring(i + 1)
+}

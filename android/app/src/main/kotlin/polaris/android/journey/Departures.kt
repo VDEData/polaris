@@ -1,5 +1,6 @@
 package polaris.android.journey
 
+import polaris.android.ui.keepLastTwo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -155,7 +156,7 @@ fun DepartureStrip(leg: Leg, state: Loadable<DepartureBoard>?, reachable: Instan
                 )
                 Ticks(leg, board, now, reachable)
                 verdictText(leg, board, now, reachable)?.let { (text, warns) ->
-                    Text(text, style = MaterialTheme.typography.bodySmall, color = if (warns) c.warning else c.inkSoft)
+                    Text(keepLastTwo(text), style = MaterialTheme.typography.bodySmall, color = if (warns) c.warning else c.inkSoft)
                 }
                 if (onOpen != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {

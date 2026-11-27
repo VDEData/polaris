@@ -71,7 +71,10 @@ object TripAlerts {
         // Started early: say when to set off for the first ride.
         val walk = journey.legs.firstOrNull()
         val ride = journey.legs.firstOrNull { it.mode.isTransit }
-        val leaveAt = journey.departure.plusSeconds(-60.0)
+        // A minute's notice before you must set off: the walk and the platform time before the train,
+        // or the plan's own start if that's sooner.
+        val mustLeave = ride?.let { r -> walk?.let { w -> r.departure.plusSeconds(-(w.duration + Connection.platformTime(r.mode))) } }
+        val leaveAt = minOf(journey.departure, mustLeave ?: journey.departure).plusSeconds(-60.0)
         if (index == 0 && log.ended[0] == null && walk != null && walk.mode == LegMode.walk && ride != null && due("leave", leaveAt, 2 * 60.0)) {
             alerts += TripAlert("leave", leaveAt, TripAlert.Kind.Leave(walk.duration, ride.fromName, ride.departure, Replan.ride(ride)))
         }
