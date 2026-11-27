@@ -18,14 +18,14 @@
     <string name="go_end">End</string>
     <string name="go_end_hint">stop following the journey</string>
     <string name="go_ended">This trip has ended</string>
-    <string name="go_arrived">You\'ve arrived at\u00A0%s</string>
+    <string name="go_arrived">You\'ve arrived at %s</string>
     <string name="go_ended_itself">Your trip to %s has ended</string>
 
     <!-- The banner across the map -->
     <string name="go_missed_it">Missed it?</string>
     <string name="go_minutes">%s\u00A0min</string>
-    <string name="go_get_off_at">Get off at\u00A0%s</string>
-    <string name="go_still_at">Still at\u00A0%s</string>
+    <string name="go_get_off_at">Get off at %s</string>
+    <string name="go_still_at">Still at %s</string>
     <string name="go_change_to">Change to the %s</string>
     <string name="go_change_to_platform">Change to the %1$s, %2$s</string>
     <string name="go_leaves">%s leaves</string>
@@ -62,12 +62,12 @@
     <string name="go_missing_platform">At this pace you\'ll miss the %1$s, %2$s</string>
     <string name="go_time_line">%1$s %2$s</string>
     <string name="go_next_is">The next is %s.</string>
-    <string name="go_next_is_later">The next is %1$s, %2$s\u00A0min later at\u00A0%3$s.</string>
-    <string name="go_could_make">You could make the %1$s: %2$s\u00A0min sooner at\u00A0%3$s.</string>
-    <string name="go_later_at_least">at least %1$s\u00A0min later at\u00A0%2$s</string>
-    <string name="go_later_none">no later at\u00A0%s</string>
-    <string name="go_later">%1$s\u00A0min later at\u00A0%2$s</string>
-    <string name="go_sooner">%1$s\u00A0min sooner at\u00A0%2$s</string>
+    <string name="go_next_is_later">The next is %1$s, %2$s\u00A0min later at %3$s.</string>
+    <string name="go_could_make">You could make the %1$s: %2$s\u00A0min sooner at %3$s.</string>
+    <string name="go_later_at_least">at least %1$s\u00A0min later at %2$s</string>
+    <string name="go_later_none">no later at %s</string>
+    <string name="go_later">%1$s\u00A0min later at %2$s</string>
+    <string name="go_sooner">%1$s\u00A0min sooner at %2$s</string>
     <string name="go_cost_loses_later">The next is %1$s, but then you\'d miss the %2$s: %3$s.</string>
     <string name="go_cost_loses">The next is %1$s, but then you\'d miss the %2$s.</string>
     <string name="go_cost_still_makes">The next is %1$s and still makes the %2$s, so you\'d arrive no later.</string>
@@ -131,7 +131,7 @@
     <string name="go_announce_step">%1$s. %2$s</string>
 
     <!-- Timed nudges (notifications) -->
-    <string name="go_alert_get_off">Get off at\u00A0%s next</string>
+    <string name="go_alert_get_off">Get off at %s next</string>
     <string name="go_alert_then_ride_at">Then the %1$s at\u00A0%2$s from %3$s.</string>
     <string name="go_alert_then_ride">Then the %1$s from %2$s.</string>
     <string name="go_alert_then_walk">Then it\'s a short walk to %s.</string>

@@ -78,6 +78,9 @@ class NudgeKeeper(private val port: NudgePort, private val clock: () -> java.tim
         }
         planned.filter { it.date <= now.plusSeconds(1) }.forEach { postIfDue(it, now) }
         val ahead = planned.filter { it.date > now.plusSeconds(1) }
+        // Planned again well ahead (a step back): shown again at its new time. Not one within two
+        // minutes, which its alarm may already have shown a little early.
+        ahead.filter { java.time.Duration.between(now, it.date).seconds > 120 }.forEach { done.remove(it.id) }
         ahead.forEach(port::setAlarm)
         set = ahead.associateBy { it.id }
     }

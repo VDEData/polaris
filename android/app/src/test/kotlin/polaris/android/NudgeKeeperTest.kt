@@ -107,4 +107,18 @@ class NudgeKeeperTest {
         // Within a minute of it: posted, not asked again.
         assertTrue(java.time.Duration.between(t, due).seconds <= 60)
     }
+
+    /** A nudge shown, then planned again for later (a tap back to an earlier step): it is shown again at its new time. */
+    @Test fun aNudgePlannedAgainAfterItShowedComesAgain() {
+        keeper.schedule(listOf(getOff("getoff.1", 60)))
+        now = at(62)
+        keeper.schedule(emptyList())
+        assertEquals(listOf("getoff.1"), port.posted)
+        port.showing.clear()
+        keeper.schedule(listOf(getOff("getoff.1", 600)))
+        assertTrue("getoff.1" in port.alarms, "not set again")
+        now = at(602)
+        keeper.schedule(emptyList())
+        assertEquals(listOf("getoff.1", "getoff.1"), port.posted)
+    }
 }

@@ -257,4 +257,20 @@ class TripSessionTest {
         trips.end()
         assertNull(cutoffs.last())
     }
+
+    /** Go started and the phone left on a desk: fresh fixes every tick, no progress. The trip still ends, half an hour past its arrival as it was. */
+    @Test fun aStillPhoneWithFreshFixesStillEnds() = runTest {
+        val tracker = Tracker()
+        var now = t0
+        val trips = session(TripStore.Memory(), { now }, tracker = tracker)
+        trips.start(journey(), query)
+        runCurrent()
+        while (now < t0.plusSeconds(3 * 3600L) && trips.trip.value != null) {
+            now = now.plusSeconds(60)
+            tracker.latest = LiveTrip.Fix(a, now)
+            advanceTimeBy(2_000); runCurrent()
+        }
+        assertNull(trips.trip.value, "still running three hours later")
+        assertTrue(now <= journey().arrival.plusSeconds(31 * 60L), "ended only at $now")
+    }
 }

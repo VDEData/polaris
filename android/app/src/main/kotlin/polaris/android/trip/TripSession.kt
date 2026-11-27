@@ -20,6 +20,7 @@ import polaris.engine.SavedTrip
 import polaris.engine.TripAlertScheduling
 import polaris.engine.TripPresenter
 import polaris.engine.TripStore
+import polaris.engine.distance
 import java.time.Instant
 
 /**
@@ -114,6 +115,8 @@ class TripSession(
     /** The arrival as last known from something that happened (a fresh fix, a change of leg), and the leg then. */
     private var known: Instant? = null
     private var knownLeg = -1
+    private var knownLogged = 0
+    private var knownAt: polaris.engine.Coordinate? = null
     private var armed: Instant? = null
 
     /** When the trip ends by itself if nothing more is heard, the same rule a saved trip is resumed by. */
@@ -123,8 +126,8 @@ class TripSession(
      * A trip ends by itself:
      * - [ARRIVED_SECONDS] after you're seen at the destination and still there (long enough to glance
      *   at Go saying so, short enough that GPS, the service and the notification don't run on in a pocket);
-     * - or at [cutoff], half an hour past the arrival as last known. Only a fresh fix or a change of
-     *   leg updates that arrival: with nothing heard (no fix underground, the phone left behind) the
+     * - or at [cutoff], half an hour past the arrival as last known. Only news updates that arrival
+     *   (a change of leg, a boarding or a leg finished, a fresh fix 100 m from the last news): with nothing heard (no fix underground, the phone left behind) the
      *   timeline keeps moving the estimate on, and that alone mustn't keep the trip alive. A long
      *   delay that is seen keeps it going.
      * An alarm at the cut-off ends it with the phone asleep and no fixes coming.
@@ -133,10 +136,17 @@ class TripSession(
         val now = clock()
         if (!trip.arrived) arrivedAt = null else if (arrivedAt == null) arrivedAt = now
         val there = arrivedAt?.let { java.time.Duration.between(it, now).seconds >= ARRIVED_SECONDS } ?: false
-        val fresh = tracker.latest?.let { java.time.Duration.between(it.at, now).seconds < FRESH_SECONDS } == true
-        if (known == null || fresh || trip.legIndex != knownLeg) {
+        // News: a change of leg, a boarding or a leg finished, or a fresh fix somewhere else (100 m
+        // on). Fresh fixes from a phone that isn't going anywhere aren't news: the estimate drifts
+        // on with the clock while it stays put, and that mustn't keep the trip alive.
+        val fix = tracker.latest?.takeIf { java.time.Duration.between(it.at, now).seconds < FRESH_SECONDS }
+        val moved = fix != null && (knownAt == null || fix.coordinate.distance(knownAt!!) >= MOVED_METRES)
+        val logged = trip.log.boardings.size + trip.log.ended.size
+        if (known == null || moved || trip.legIndex != knownLeg || logged != knownLogged) {
             known = trip.eta
             knownLeg = trip.legIndex
+            knownLogged = logged
+            if (fix != null) knownAt = fix.coordinate
         }
         val at = cutoff
         if (at != null && (armed == null || kotlin.math.abs(java.time.Duration.between(armed, at).seconds) >= 60)) {
@@ -171,6 +181,8 @@ class TripSession(
         arrivedAt = null
         known = arrival
         knownLeg = if (arrival != null) trip.legIndex else -1
+        knownLogged = trip.log.boardings.size + trip.log.ended.size
+        knownAt = null
         armed = null
         _trip.value = trip
         tracker.start()
@@ -208,8 +220,9 @@ class TripSession(
     companion object {
         /** After being seen at the destination, the trip carries on this long, then ends. */
         const val ARRIVED_SECONDS = 120L
-        /** A fix younger than this counts as hearing from the trip. */
+        /** A fix younger than this, this far from the last news, counts as news. */
         const val FRESH_SECONDS = 120L
+        const val MOVED_METRES = 100.0
     }
 
     /** The trip, if it is following [journeyId]'s journey (a Switch keeps the journey's id). */

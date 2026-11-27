@@ -386,7 +386,9 @@ private fun MapAndSheet(
                 val half = foldRest ?: (heightPx * if (short) 0.42f else if (density.fontScale >= 1.5f) 0.30f else 0.52f)
                 // Go's banner, however many lines it grows to, stays whole above the half rest, with the
                 // credit and a strip of map under it, so the credit never sits on the banner.
-                val underBanner = if (banner != null && bannerHeight > 0) with(density) { statusTop.toPx() + 12.dp.toPx() + bannerHeight + 112.dp.toPx() } else 0f
+                // 176 dp: the map fits only with 120 dp clear inside its padding (24 dp under the
+                // banner, 32 dp over the credit), so your dot is framed above the credit.
+                val underBanner = if (banner != null && bannerHeight > 0) with(density) { statusTop.toPx() + 12.dp.toPx() + bannerHeight + 176.dp.toPx() } else 0f
                 put(Rest.Half, maxOf(half, underBanner).coerceAtMost(heightPx * 0.6f))
                 // Full height covers the map (and with it the credit): the sheet runs under the status bar.
                 if (!short) put(Rest.Full, 0f)
